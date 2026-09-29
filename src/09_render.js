@@ -206,8 +206,10 @@ class Renderer {
         this.frame(A.getContext('2d'), plan, Math.max(prev.start, prev.end - 1e-3), Object.assign({}, opt, { noTrans: true, noPost: true, noHud: true }));
         const psc = st.schemes[prev.scheme % st.schemes.length] || st.schemes[0];
         ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+        if (textOnly) J.transPlainOn(ctx, [sc.bg, psc.bg]);
         try { J.TRANS[mainCut.trans].draw(ctx, A, B, J.clamp(lt / dur), { cw, ch, sc, scPrev: psc, st, P: mainCut.transP || {}, step, t, scale, allowFilter, seed: mainCut.seed | 0, tmp: (w, h) => this.ensure(this.transC || (this.transC = mk(2, 2)), w, h) }); }
         catch (e) { console.warn('trans', mainCut.trans, e); }
+        finally { if (textOnly) J.plainOff(ctx); }
         ctx.restore();
       }
     }

@@ -1587,9 +1587,35 @@ J.ornamentText = (env, text) => {
   const c = env.cut || {}, k = flat(t);
   return !k || !(flat(c.lineText) + '|' + flat(c.text) + '|' + flat(c.note)).includes(k);
 };
+/* テキストのみ: only the lyric itself is shown — any text that is not part of a lyric line (captions, labels, filler letters,
+   the song title) is left out. Case, spaces, punctuation and line breaks are ignored when comparing. */
+const lyricIndex = new WeakMap();
+J.isLyricText = (env, text) => {
+  const plan = env.plan;
+  if (!plan || !Array.isArray(plan.lines)) return true;
+  let ix = lyricIndex.get(plan);
+  if (!ix) {
+    const ls = plan.lines.filter(l => l && l.text);
+    const units = [...new Set(ls.flatMap(l => [flat(l.text), flat(l.note)]).filter(Boolean))];
+    ix = { units, flat: units.join('\u0001'), raw: ls.map(l => l.text + '\u0001' + (l.note || '')).join('\u0001'), memo: new Map() };
+    lyricIndex.set(plan, ix);
+  }
+  const t = String(text || '').trim(), k = flat(t);
+  if (!t) return true;
+  if (!k) return ix.raw.includes(t);
+  if (ix.flat.includes(k)) return true;
+  // a line repeated round and round (marquee, ticker, justified fill …) — any stretch of that loop is still the lyric
+  let v = ix.memo.get(k);
+  if (v === undefined) {
+    v = ix.units.some(u => k.length > u.length && u.repeat(Math.ceil(k.length / u.length) + 1).includes(k));
+    if (ix.memo.size > 2000) ix.memo.clear();
+    ix.memo.set(k, v);
+  }
+  return v;
+};
 J.hideDecoText = (env, text) => {
   const fx = env.fx || {}, textOnly = !!(env.st && env.st.textOnly);
-  if (textOnly && J.ornamentText(env, text)) return true;
+  if (textOnly && (J.ornamentText(env, text) || !J.isLyricText(env, text))) return true;
   const hideNo = textOnly || fx.hideNo, hideTime = textOnly || fx.hideTime;
   if (!hideNo && !hideTime) return false;
   const k = J.decoTextKind(text);
@@ -1713,10 +1739,20 @@ const drawItemCore = (env, it) => {
    plates, rules, rings, frames, sparks …) is switched off; only text goes through J.drawItem, which switches painting back on for
    the duration of the call. Planning is untouched, so layouts, motion and timing stay exactly what they were.
    A lyric that was set on a plate in the plate's counter colour would vanish with the plate, so it takes the foreground colour. */
-const PAINT = ['fill', 'stroke', 'fillRect', 'strokeRect'];
+const PAINT = ['fill', 'stroke', 'fillRect', 'strokeRect', 'fillText', 'strokeText'];
 const NOPAINT = function () {};
 J.plainOn = ctx => { if (ctx.jzPlain) return; ctx.jzPlain = true; for (const m of PAINT) ctx[m] = NOPAINT; };
 J.plainOff = ctx => { ctx.jzPlain = false; for (const m of PAINT) delete ctx[m]; };
+/* テキストのみ, cut-to-cut transitions: they composite the two frames (drawImage, clip, image patterns) and repaint the ground,
+   which stays; rules, frames and colour blocks they add on top do not (a solid fill is kept only in a background colour) */
+J.transPlainOn = (ctx, bgs) => {
+  const ok = new Set(bgs.filter(Boolean).map(c => String(c).toLowerCase()));
+  const proto = Object.getPrototypeOf(ctx);
+  const solidOk = c => typeof c !== 'string' || ok.has(c.toLowerCase());
+  ctx.fillRect = function (...a) { if (solidOk(this.fillStyle)) proto.fillRect.apply(this, a); };
+  ctx.fill = function (...a) { if (solidOk(this.fillStyle)) proto.fill.apply(this, a); };
+  for (const m of ['stroke', 'strokeRect', 'fillText', 'strokeText']) ctx[m] = NOPAINT;
+};
 function readable(env, it) {
   const bg = env.sc && env.sc.bg, fg = env.sc && env.sc.fg;
   if (!bg || !fg) return it;
@@ -2522,7 +2558,7 @@ J.register = (group, key, def, pack) => {
 J.registerAll = (group, defs, pack) => { for (const k of Object.keys(defs)) J.register(group, k, defs[k], pack); };
 
 /* items whose tags include a mood key (used by おまかせ) */
-J.taggedWith = (group, mood) => J.order(group).filter(k => { const d = J.registry(group)[k]; return d && d.tags && d.tags.includes(mood); });
+J.taggedWith = (group, mood) => J.order(group).filter(k => { const d = J.registry(group)[k]; return d && !d.poolOnly && d.tags && d.tags.includes(mood); });
 })();
 
 /* ============================================================
@@ -2553,11 +2589,13 @@ J.mainDraw = (env, it) => {
   // text treatment (outline, extrude, marker...) — layouts that paint their own plates opt out with it.plain
   if (cut.treat && !it.plain && J.TREAT && J.TREAT[cut.treat]) { try { J.TREAT[cut.treat].apply(env, it, cut.treatP || {}); } catch (e) { console.warn('treat', cut.treat, e); } }
   if (ltI < 0 && en === J.ENTER.cut) return null;
-  if (en !== J.ENTER.cut && (pIn < 1 || en.pieces)) { env.lt = ltI; en.apply(env, it, pIn, ctx); env.lt = lt0; }
+  // progress goes through the part's easing calibration (src/11t_easing.js) — a no-op for parts without one
+  if (en !== J.ENTER.cut && (pIn < 1 || en.pieces)) { env.lt = ltI; en.apply(env, it, J.warpIn ? J.warpIn(en, pIn) : pIn, ctx); env.lt = lt0; }
   if (ltI < 0 && !en.pieces) return null;
-  const amt = J.clamp((ltI - cut.inDur * 0.85) / 0.25) * (1 - pOut);
+  // the hold motion fades in (and out under the exit) on a smooth curve, so it does not kick in with a visible corner
+  const amt = J.E.inOutSine(J.clamp((ltI - cut.inDur * 0.85) / 0.3)) * (1 - J.E.inOutSine(pOut));
   if (amt > 0 && !it.noHold) ho.apply(env, it, amt, ctx);
-  if (pOut > 0 && ex !== J.EXIT.cut) ex.apply(env, it, pOut, ctx);
+  if (pOut > 0 && ex !== J.EXIT.cut) ex.apply(env, it, J.warpOut ? J.warpOut(ex, pOut) : pOut, ctx);
   it.charFn = J.combineChar(it.charFns);
   it.pieceFn = J.combinePiece(it.pieceFns);
   return J.drawFx(env, it);
@@ -3792,6 +3830,24 @@ J.plan = (project, audio) => {
 
   // 統一感: sections, repeated lines, キメ lines and the per-section palettes (see makeUnify below)
   const U = plan.unify ? makeUnify(parsed.lines, { st, en, fx, history, lang: plan.lang, seed: project.seed }) : null;
+  // サビ頭 (style.chorusHit): the first line of a block whose text comes back later in the song — the screen flips
+  // (difference invert) for one beat where it starts
+  const chorusHead = new Set();
+  if (st.chorusHit) {
+    const cnt = new Map(), key = t => String(t || '').replace(/[\s\p{P}]/gu, '').toLowerCase();
+    for (const l of parsed.lines) if (!l.interlude && l.text) cnt.set(key(l.text), (cnt.get(key(l.text)) || 0) + 1);
+    parsed.lines.forEach((l, i) => {
+      if (l.interlude || !l.text || (cnt.get(key(l.text)) || 0) < 2) return;
+      const prev = parsed.lines[i - 1];
+      if (i === 0 || l.gapBefore || (prev && prev.interlude)) chorusHead.add(i);
+    });
+  }
+  const beatLenAt = t => {
+    const bs = plan.beats;
+    if (bs.length > 1) { let i = 0; while (i < bs.length - 2 && bs[i + 1] <= t) i++; return J.clamp(bs[i + 1] - bs[i], 0.2, 0.8); }
+    const bpm = project.timing && project.timing.bpm;
+    return bpm > 0 ? J.clamp(60 / bpm, 0.2, 0.8) : 0.4;
+  };
   parsed.lines.forEach((ln, li) => {
     const s = tm.starts[li], e = tm.ends[li];
     const ov = (project.overrides || {})[li] || {};
@@ -3824,6 +3880,8 @@ J.plan = (project, audio) => {
     const ovAny = Object.keys(ov).some(k2 => !['lock', 'lockedSeed', 'seed', 'cutTech', 'cutLayouts', 'cutQuiet', 'cutTime'].includes(k2));
     const kime = !!(U && U.kime.has(li) && !ov.cuts);
     if (ov.single || kime) nC = 1;
+    // a style whose layouts time the words themselves (one word per beat) keeps a whole line in one cut this often
+    if (st.oneCut && !(ov.cuts > 0) && J.rng(J.h(lineSeed, 71))() < st.oneCut) nC = 1;
     if (zones) nC = Math.max(1, Math.min(nC, Math.floor(chunks.length / 2)));   // 中央を空ける: each cut is split in two, so keep ≥ 2 words per cut
     // カット数の指定 (per line): exactly that many cuts — chunks are split further when the line has fewer
     const fixedN = ov.cuts > 0 ? Math.min(12, ov.cuts | 0) : 0;
@@ -3875,7 +3933,7 @@ J.plan = (project, audio) => {
       if (UU) layout = UU.layout(li, layout, { nn, dur, emph, kime, rng, portrait: LH > LW, recap: u.recap });
       let enter = ov.enter && J.ENTER[ov.enter] ? ov.enter : pickEnter(rng, st, en, layout, dur, history, emph, nn);
       let exit = ov.exit && J.EXIT[ov.exit] ? ov.exit : pickExit(rng, st, en, layout, dur, k === units.length - 1, history);
-      let hold = ov.hold && J.HOLD[ov.hold] ? ov.hold : pickHold(rng, en, fx, history);
+      let hold = ov.hold && J.HOLD[ov.hold] ? ov.hold : pickHold(rng, en, fx, history, st);
       let weightGrow = false;
       if (UU) {
         enter = UU.enter(li, enter, { layout, dur, emph, kime, rng, nn });
@@ -4036,6 +4094,7 @@ J.plan = (project, audio) => {
         if (fxOn('shake')) addEvent(cs + 0.04, 'shake', 1.1 * Math.max(0.5, fx.motion), 0.35);
       }
       if (fxOn('invert') && rng.chance(0.035 * g)) addEvent(cs, 'invert', 1, 2 * F);
+      if (k === 0 && chorusHead.has(li) && fxOn('invert')) addEvent(cs, 'invert', 1, beatLenAt(cs));
       if (fxOn('zoom') && (emph && rng.chance(0.6) || rng.chance(0.06 * fx.motion))) addEvent(cs, 'zoom', 0.7 + 0.5 * fx.motion, 0.22);
       if (fxOn('mosaic') && rng.chance(0.04 * g)) addEvent(cs, 'mosaic', 1, 3 * F);
       if (fxOn('slice') && dur > 0.8 && rng.chance(g * 0.4)) addEvent(cs + rng.range(0.35, 0.8) * dur, 'slice', 0.4 + g * 0.4, 2 * F);
@@ -4282,6 +4341,14 @@ function partition(chunks, k) {
   if (cur.length) groups.push(cur);
   return groups;
 }
+/* a style may name the only parts it uses per group (style.pool = { layout: { key: weight }, … }); parts that are
+   switched off or missing are skipped, and when none is left the usual choice applies */
+function inPool(st, g, cands) {
+  const P = st && st.pool && st.pool[g];
+  if (!P) return cands;
+  const c2 = cands.filter(c => P[c[0]] != null).map(c => [c[0], c[1] * P[c[0]]]);
+  return c2.length ? c2 : cands;
+}
 function novelty(history, key, val) {
   let w = 1;
   for (let i = history.length - 1, d = 0; i >= 0 && d < 6; i--, d++) if (history[i][key] === val) w *= d < 2 ? 0.2 : 0.6;
@@ -4293,6 +4360,7 @@ function pickLayout(rng, st, en, n, dur, history, emph, recap, portrait) {
   for (const k of J.LAYOUT_ORDER) {
     const L = J.LAYOUTS[k];
     if (!en.layout[k] || !L.fits(n)) continue;
+    if (L.poolOnly && !(st.pool && st.pool.layout && st.pool.layout[k] != null)) continue;   // only for the styles that name it
     let w = wkey(st.bias.layout, k, L.w ?? 1) * novelty(history, 'layout', k);
     if (portrait) w *= L.portrait != null ? L.portrait : wkey(PORTRAIT_W, k, 1);
     if (emph && L.emph) w *= L.emph;
@@ -4303,7 +4371,7 @@ function pickLayout(rng, st, en, n, dur, history, emph, recap, portrait) {
     cands.push([k, w]);
   }
   if (!cands.length) return 'center';
-  return rng.wpick(cands);
+  return rng.wpick(inPool(st, 'layout', cands));
 }
 const LAYOUT_ENTER = {
   type: { type: 4, scramble: 1.5 }, ring: { pop: 2, spin: 2, cut: 1, assemble: 0.4, slice: 0.2, wipe: 0.2 }, labels: { cut: 3, pop: 1 },
@@ -4326,7 +4394,7 @@ function pickEnter(rng, st, en, layout, dur, history, emph, n) {
     if (emph && ['zoom', 'assemble', 'slice'].includes(k)) w *= 1.8;
     cands.push([k, w]);
   }
-  return cands.length ? rng.wpick(cands) : 'cut';
+  return cands.length ? rng.wpick(inPool(st, 'enter', cands)) : 'cut';
 }
 function pickExit(rng, st, en, layout, dur, lastOfLine, history) {
   const cands = [];
@@ -4340,10 +4408,10 @@ function pickExit(rng, st, en, layout, dur, lastOfLine, history) {
     if (['labels', 'ring', 'tile'].includes(layout) && ['explode', 'fall', 'drift'].includes(k)) w *= 0.3;
     cands.push([k, w]);
   }
-  return cands.length ? rng.wpick(cands) : 'cut';
+  return cands.length ? rng.wpick(inPool(st, 'exit', cands)) : 'cut';
 }
 const HOLD_W = { still: 1, jitter: 1.2, drift: 1, breathe: 0.7, wave: 0.4, glitchtick: 0.9 };
-function pickHold(rng, en, fx, history) {
+function pickHold(rng, en, fx, history, st) {
   const cands = J.HOLD_ORDER.filter(k => en.hold[k] !== false && J.HOLD[k]).map(k => {
     const D = J.HOLD[k];
     let w = HOLD_W[k] != null ? HOLD_W[k] : (D.w ?? 0.8);
@@ -4351,12 +4419,13 @@ function pickHold(rng, en, fx, history) {
     if (k === 'glitchtick') w *= fx.glitch;
     return [k, w * novelty(history, 'hold', k)];
   });
-  return cands.length ? rng.wpick(cands) : 'still';
+  return cands.length ? rng.wpick(inPool(st, 'hold', cands)) : 'still';
 }
 function decorParams(rng, k) {
   return { id: k, seed: rng.int(1, 1e9), n: rng.int(1, 3) + (k === 'shapes' ? 3 : 0) + (k === 'sparks' ? 4 : 0), right: rng.chance(0.5), low: rng.chance(0.5), accent: rng.chance(0.4), corner: rng.chance(0.5), big: rng.chance(0.4), mode: rng.pick(['count', 'index']), from: rng.int(0, 20), to: rng.int(30, 999), v: rng.int(0, 5), r: rng() };
 }
 function pickDecor(rng, st, en, fx, layout, history = []) {
+  if (st.pool && st.pool.decor && !Object.keys(st.pool.decor).length) return [];
   const count = Math.round(fx.decor * 2.8 * rng.range(0.45, 1.15));
   const recent = new Set(history.slice(-2).flatMap(h => h.decor || []));
   const LD = J.LAYOUTS[layout] || {};
@@ -4373,12 +4442,15 @@ function pickDecor(rng, st, en, fx, layout, history = []) {
 // text treatment: plain most of the time; the "decor" slider raises how often a treatment is used
 function pickTreat(rng, st, en, fx, LD, emph, history) {
   if (LD.treat === false) return 'none';
+  const TP = st.pool && st.pool.treat;                    // a style's own list ('none' included) replaces the usual draw
+  if (TP) { const c = Object.keys(TP).filter(k => k === 'none' || (J.TREAT[k] && en.treat && en.treat[k] !== false && (LD.treat !== 'safe' || J.TREAT[k].safe))).map(k => [k, TP[k]]); return c.length ? rng.wpick(c) : 'none'; }
   if (!rng.chance(0.18 + 0.42 * (fx.decor ?? 0.5) + (emph ? 0.15 : 0))) return 'none';
   const cands = J.TREAT_ORDER.filter(k => k !== 'none' && en.treat && en.treat[k] !== false && J.TREAT[k] && (LD.treat !== 'safe' || J.TREAT[k].safe))
     .map(k => [k, wkey(st.bias && st.bias.treat, k, J.TREAT[k].w ?? 1) * novelty(history, 'treat', k)]);
-  return cands.length ? rng.wpick(cands) : 'none';
+  return cands.length ? rng.wpick(inPool(st, 'treat', cands)) : 'none';
 }
 function pickBg(rng, st, en, fx, bgHist) {
+  if (st.pool && st.pool.bg && !Object.keys(st.pool.bg).length) return 'none';
   if (!rng.chance(0.2 + 0.35 * (fx.decor ?? 0.5) + 0.2 * (fx.bgSwitch ?? 0.35))) return 'none';
   const last = bgHist.slice(-3);
   const cands = J.BG_ORDER.filter(k => k !== 'none' && en.bg && en.bg[k] !== false && J.BG[k])
@@ -4393,24 +4465,26 @@ function pickCam(rng, st, en, fx, LD, emph, history) {
     if (LD.cam === false && k !== 'push') w *= 0.05;
     return [k, w];
   });
-  return cands.length ? rng.wpick(cands) : 'push';
+  return cands.length ? rng.wpick(inPool(st, 'cam', cands)) : 'push';
 }
 function pickTrans(rng, st, en, fx, emph, history) {
   if (!J.TRANS_ORDER.length) return null;
+  if (st.pool && st.pool.trans && !Object.keys(st.pool.trans).length) return null;   // the style uses no transitions
   if (!rng.chance(0.1 + 0.22 * (fx.motion ?? 0.7) + (emph ? 0.08 : 0))) return null;
   const cands = J.TRANS_ORDER.filter(k => en.trans && en.trans[k] !== false && J.TRANS[k])
     .map(k => [k, wkey(st.bias && st.bias.trans, k, J.TRANS[k].w ?? 1) * novelty(history, 'trans', k)]);
-  return cands.length ? rng.wpick(cands) : null;
+  return cands.length ? rng.wpick(inPool(st, 'trans', cands)) : null;
 }
 // kind 'edge' = transition at a cut boundary, 'mid' = accent in the middle of a cut
 function pickFx(rng, st, en, fx, emph, fxHist, kind) {
+  if (st.pool && st.pool.fx && !Object.keys(st.pool.fx).length) return null;         // the style uses no screen effects
   const g = fx.glitch ?? 0.55;
   const p = kind === 'edge' ? 0.12 + 0.38 * g + 0.12 * (fx.motion ?? 0.7) + (emph ? 0.15 : 0) : 0.05 + 0.2 * g;
   if (!rng.chance(p)) return null;
   const last = fxHist.slice(-3);
   const cands = J.FXE_ORDER.filter(k => { const D = J.FXE[k]; return D && !D.builtin && en.fx && en.fx[k] !== false && (kind === 'edge' ? D.edge !== false : D.mid); })
     .map(k => { const D = J.FXE[k]; let w = wkey(st.bias && st.bias.fx, k, D.w ?? 1) * (last.includes(k) ? 0.2 : 1); if (D.glitchy) w *= 0.3 + g * 1.4; return [k, w]; });
-  return cands.length ? rng.wpick(cands) : null;
+  return cands.length ? rng.wpick(inPool(st, 'fx', cands)) : null;
 }
 
 /* one-cut (or two-cut, for transitions) plan used by the 手法 tab thumbnails */
@@ -4848,8 +4922,10 @@ class Renderer {
         this.frame(A.getContext('2d'), plan, Math.max(prev.start, prev.end - 1e-3), Object.assign({}, opt, { noTrans: true, noPost: true, noHud: true }));
         const psc = st.schemes[prev.scheme % st.schemes.length] || st.schemes[0];
         ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+        if (textOnly) J.transPlainOn(ctx, [sc.bg, psc.bg]);
         try { J.TRANS[mainCut.trans].draw(ctx, A, B, J.clamp(lt / dur), { cw, ch, sc, scPrev: psc, st, P: mainCut.transP || {}, step, t, scale, allowFilter, seed: mainCut.seed | 0, tmp: (w, h) => this.ensure(this.transC || (this.transC = mk(2, 2)), w, h) }); }
         catch (e) { console.warn('trans', mainCut.trans, e); }
+        finally { if (textOnly) J.plainOff(ctx); }
         ctx.restore();
       }
     }
@@ -21127,7 +21203,7 @@ const closeLoop = pts => pts.concat([pts[0], pts[1]]);
 function fastRow(env, text, font, size, x, y, sp, color, alpha, align = 'left') {
   if (env.pass !== 'main' || alpha <= 0.01 || !text || J.hideDecoText(env, text)) return;
   const ctx = env.ctx;
-  if (!('letterSpacing' in ctx)) { env.draw({ text, font, size, x, y, align, track: sp / size, color, alpha, ghost: false }); return; }
+  if (!('letterSpacing' in ctx) || ctx.jzPlain) { env.draw({ text, font, size, x, y, align, track: sp / size, color, alpha, ghost: false }); return; }
   ctx.save();
   ctx.font = J.fontCSS(font, size); ctx.letterSpacing = sp.toFixed(2) + 'px';
   ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillStyle = color; ctx.globalAlpha = alpha;
@@ -25001,7 +25077,7 @@ const rowW = (text, font, size) => { let w = 0; for (const ch of text) w += J.me
 function fastRow(env, text, font, size, x, y, sp, color, alpha, align = 'left') {
   if (env.pass !== 'main' || alpha <= 0.01 || !text || J.hideDecoText(env, text)) return;
   const ctx = env.ctx;
-  if (!('letterSpacing' in ctx)) { env.draw({ text, font, size, x, y, align, track: sp / size, color, alpha, ghost: false }); return; }
+  if (!('letterSpacing' in ctx) || ctx.jzPlain) { env.draw({ text, font, size, x, y, align, track: sp / size, color, alpha, ghost: false }); return; }
   ctx.save();
   ctx.font = J.fontCSS(font, size); ctx.letterSpacing = sp.toFixed(2) + 'px';
   ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillStyle = color; ctx.globalAlpha = alpha;
@@ -35857,6 +35933,366 @@ J.randomOk = (project, g, k) => {
 (() => {
 'use strict';
 for (const k of J.STYLE_ORDER) if (J.STYLES[k]) J.STYLES[k].textOnly = true;
+})();
+
+/* JIZURA pack: beat — text-only styles for fast, dense songs (アニソン / ボカロ 140–170 BPM): the words land on the beat.
+   Layouts
+     bsBeatWord   一拍一語      one word of the cut at a time, each on its own beat, with a short punch
+     bsScaleLine  大小ライン    the whole cut small on one line, the current word huge above it
+     bsRefrain    リフレイン    the cut repeated row after row, one new row per beat (the older rows go to outline)
+     bsTypeBeat   拍タイプ      the letters typed in on the beat grid (8th / 16th notes) — for the slow songs
+   Styles (all テキストのみ: lyric text only, no shapes / backgrounds / captions)
+     bsSlam  ビートスラム / bsRefrain リフレイン / bsScale 大小 / bsBallad 夜の打鍵
+   A style lists the only parts it uses (style.pool — see inPool in 08_planner.js) so the look stays consistent. */
+(() => {
+'use strict';
+const E = J.E;
+const P = 'beat';
+const clamp = J.clamp;
+// poolOnly: random picks use these layouts only in the styles that list them (the other styles' plans stay as they were)
+const reg = (group, key, def) => J.register(group, key, Object.assign(def, { set: 'kinetic', poolOnly: true }), P);
+
+/* ---------------------------------------------------------------- helpers */
+const isPort = env => env.H > env.W * 1.08;
+const hasLatin = t => /[A-Za-z]/.test(String(t || ''));
+const strip = t => String(t || '').replace(/\s+/g, '');
+const gcount = t => [...strip(t)].length;
+const accOn = sc => (J.contrast(sc.accent, sc.bg) >= 1.7 ? sc.accent : sc.fg);
+const motionK = env => 0.4 + 0.85 * (env.fx.motion ?? 0.7);
+// a hit that falls off fast: 1 on the onset → 0
+const kick = (dt, k = 16) => (dt < 0 ? 0 : Math.exp(-dt * k));
+
+/* the cut's words (planner chunks), merged down to at most maxN by joining the shortest neighbours */
+const unitCache = new Map();
+function unitsOf(cut, maxN) {
+  const key = cut.text + '\u0002' + maxN;
+  let w = unitCache.get(key);
+  if (w) return w;
+  const lat = hasLatin(cut.text);
+  w = (cut.words && cut.words.length ? cut.words : J.chunkText(cut.text)).map(s => String(s).trim()).filter(Boolean);
+  if (strip(w.join('')) !== strip(cut.text)) w = J.chunkText(cut.text).map(s => String(s).trim()).filter(Boolean);
+  if (!w.length) w = [String(cut.text).trim()];
+  while (w.length > maxN) {
+    let bi = 0, bv = 1e9;
+    for (let i = 0; i < w.length - 1; i++) { const v = gcount(w[i]) + gcount(w[i + 1]); if (v < bv) { bv = v; bi = i; } }
+    w.splice(bi, 2, w[bi] + (lat ? ' ' : '') + w[bi + 1]);
+  }
+  if (unitCache.size > 500) unitCache.clear();
+  unitCache.set(key, w);
+  return w;
+}
+
+/* beat length around a time (song beat grid, else the typed BPM, else 0.42 s) */
+function beatLen(env, t) {
+  const bs = (env.plan && env.plan.beats) || [];
+  if (bs.length > 1) {
+    let lo = 0, hi = bs.length - 2;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (bs[m] <= t) lo = m; else hi = m - 1; }
+    return clamp(bs[lo + 1] - bs[lo], 0.2, 1);
+  }
+  return 0.42;
+}
+
+/* onset (seconds from the cut start) of each of n words. The first word lands on the cut start (the planner puts cut
+   starts on the beat); the rest go on the following beats — every beat, every other beat when there is room, or on 8th
+   notes when the words outnumber the beats. Without a beat grid they are spread evenly. */
+const gridCache = new WeakMap();
+function onsets(env, n, o = {}) {
+  const c = env.cut;
+  let m = gridCache.get(c);
+  if (!m) { m = new Map(); gridCache.set(c, m); }
+  const key = n + ':' + (o.room || 0);
+  let v = m.get(key);
+  if (v) return v;
+  const dur = c.dur, endT = Math.max(0.15, dur - Math.max(0.28, c.outDur || 0) - (o.room || 0));
+  const bs = (env.plan && env.plan.beats) || [];
+  v = null;
+  if (n <= 1) v = [0];
+  else if (bs.length > 1) {
+    const len = beatLen(env, c.start);
+    let g = bs.map(b => b - c.start).filter(r => r > 0.12 && r < endT);
+    g = [0].concat(g);
+    if (g.length >= n * 2 && len < 0.5) g = g.filter((_, i) => i % 2 === 0);         // room to spare: every other beat
+    if (g.length < n) {                                                                 // too many words: 8th notes
+      const h = [];
+      g.forEach((t, i) => { h.push(t); const mid = t + len / 2; if (mid < endT && (i + 1 >= g.length || mid < g[i + 1] - 0.08)) h.push(mid); });
+      g = h;
+    }
+    if (g.length >= n) v = g.slice(0, n);
+  }
+  if (!v) {
+    const step = clamp(endT * 0.8 / n, 0.14, 0.48);
+    v = []; for (let i = 0; i < n; i++) v.push(i * step);
+  }
+  m.set(key, v);
+  return v;
+}
+const curIdx = (ts, t) => { let k = -1; for (let i = 0; i < ts.length; i++) if (t >= ts[i]) k = i; return k; };
+// J.mainDraw starts an item's entrance at delay = mi × cut.stagger
+const miAt = (env, t) => Math.max(0, t) / Math.max(0.005, env.cut.stagger || 0.04);
+// is this word one of the line's *強調* words (or the whole cut is an emphasis cut)?
+const isEmph = (env, w) => { const L = env.plan && env.plan.lines && env.plan.lines[env.cut.line]; return !!(L && L.emph && L.emph.some(e => w.includes(e) || e.includes(w))); };
+
+/* ================================================================== bsBeatWord — 一拍一語 */
+const WALK = [[0, 0], [-0.5, -0.45], [0.55, 0.35], [-0.35, 0.5], [0.45, -0.5], [0, 0.3], [-0.55, 0.1], [0.5, 0]];
+reg('layout', 'bsBeatWord', {
+  name: '一拍一語', tags: ['pop', 'graphic', 'glitch'], w: 0.8, ae: 'center', fits: n => n >= 2 && n <= 26,
+  enterBias: { cut: 4, knWordSlam: 1, zoom: 0.4, stretch: 0.3 },
+  plan(rng, cut, st) {
+    const disp = J.fontsOf(st, ['display']);
+    const f1 = rng.pick(disp), f2 = rng.chance(0.35) ? rng.pick(J.fontsOf(st, ['display', 'serif'])) : f1;
+    return { fonts: [f1, f2], move: rng.pick(['punch', 'punch', 'drop', 'side', 'tilt']), walk: rng.chance(0.4), punch: rng.range(0.1, 0.18),
+      track: rng.range(0, 0.06), accentLast: rng.chance(0.45), start: rng.int(0, 7) };
+  },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, Pm = c.params, port = isPort(env);
+    const units = unitsOf(c, 9), n = units.length, ts = onsets(env, n), k = curIdx(ts, env.lt);
+    if (k < 0) return null;
+    const t = units[k], dt = env.lt - ts[k], font = Pm.fonts[k % Pm.fonts.length];
+    const one = gcount(t) <= 2 && !hasLatin(t);
+    let size = Math.min(J.fitSize(t, font, W * 0.86, H * (port ? 0.3 : 0.5), { track: Pm.track }), H * (one ? 0.5 : port ? 0.24 : 0.42));
+    const m = motionK(env), q = kick(dt, 15), e = 1 - E.outExpo(clamp(dt / 0.16));
+    let dx = 0, dy = 0, rot = 0, s = 1 + Pm.punch * m * q;
+    const side = k % 2 ? 1 : -1;
+    if (Pm.move === 'drop') { dy = -H * 0.07 * m * e; s = 1 + Pm.punch * 0.5 * m * q; }
+    else if (Pm.move === 'side') dx = side * W * 0.05 * m * e;
+    else if (Pm.move === 'tilt') rot = side * 7 * m * e;
+    let ox = 0, oy = 0;
+    if (Pm.walk && n > 1) {
+      const w = WALK[(k + Pm.start) % WALK.length];
+      const mw = J.measure({ text: t, font, size, track: Pm.track }).w;
+      ox = w[0] * Math.max(0, (W * 0.9 - mw) / 2); oy = w[1] * H * 0.18;
+    }
+    const acc = isEmph(env, t) || (Pm.accentLast && k === n - 1 && n > 1) || (c.emph && k === 0);
+    return J.mainDraw(env, { text: t, font, size: size * s, x: W / 2 + ox + dx, y: H / 2 + oy + dy, rot, track: Pm.track, color: acc ? accOn(sc) : sc.fg, mi: miAt(env, ts[k]) });
+  },
+});
+
+/* ================================================================== bsScaleLine — 大小ライン */
+reg('layout', 'bsScaleLine', {
+  name: '大小ライン', tags: ['editorial', 'graphic', 'pop'], w: 0.8, ae: 'center', fits: n => n >= 3 && n <= 28,
+  enterBias: { cut: 3, fadeStagger: 0.8, blur: 0.5 },
+  plan(rng, cut, st) {
+    return { big: rng.pick(J.fontsOf(st, ['display'])), small: rng.pick(J.fontsOf(st, ['body', 'serif'])), top: rng.chance(0.3), left: rng.chance(0.35), punch: rng.range(0.06, 0.12) };
+  },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, Pm = c.params, port = isPort(env);
+    const units = unitsOf(c, 8), n = units.length, ts = onsets(env, n), k = curIdx(ts, env.lt);
+    if (k < 0) return null;
+    const lat = hasLatin(c.text), gap = lat ? 0.3 : 0.12;
+    // the small line: one item per word so the current one can be lit
+    let ss = clamp(Math.min(H * 0.045, W * 0.04), 14, 60);
+    const ws = units.map(u => J.measure({ text: u, font: Pm.small, size: ss, track: 0.08 }).w);
+    let tot = ws.reduce((a, b) => a + b, 0) + ss * gap * (n - 1);
+    const maxW = W * (port ? 0.86 : 0.8);
+    if (tot > maxW) { const f = maxW / tot; ss *= f; tot = maxW; for (let i = 0; i < n; i++) ws[i] *= f; }
+    const ly = Pm.top ? H * 0.16 : H * 0.84;
+    let x = Pm.left ? W * 0.1 : W / 2 - tot / 2, bb = null;
+    if (n > 1) units.forEach((u, i) => {
+      const on = i === k, done = i < k;
+      const b = J.mainDraw(env, { text: u, font: Pm.small, size: ss, x: x + ws[i] / 2, y: ly, track: 0.08, color: on ? accOn(sc) : sc.fg, alpha: on ? 1 : done ? 0.75 : 0.32, mi: i * 0.6 });
+      bb = J.unionBB(bb, b);
+      x += ws[i] + ss * gap;
+    });
+    // the big word
+    const t = units[k], dt = env.lt - ts[k];
+    const size = Math.min(J.fitSize(t, Pm.big, W * 0.86, H * (port ? 0.34 : 0.46), { track: 0.02 }), H * (gcount(t) <= 2 ? 0.44 : 0.38));
+    const s = 1 + Pm.punch * motionK(env) * kick(dt, 14);
+    const cy = Pm.top ? H * 0.56 : H * 0.44;
+    const x0 = Pm.left ? W * 0.1 : W / 2;
+    const b2 = J.mainDraw(env, { text: t, font: Pm.big, size: size * s, x: x0, y: cy, align: Pm.left ? 'left' : 'center', track: 0.02, color: sc.fg, mi: miAt(env, ts[k]) });
+    return J.unionBB(bb, b2);
+  },
+});
+
+/* ================================================================== bsRefrain — リフレイン */
+reg('layout', 'bsRefrain', {
+  name: 'リフレイン', tags: ['pop', 'graphic'], w: 0.6, ae: 'center', fits: n => n >= 1 && n <= 14,
+  enterBias: { cut: 3, stretch: 0.5, zoom: 0.4 },
+  plan(rng, cut, st) {
+    return { font: rng.pick(J.fontsOf(st, ['display'])), order: rng.pick(['down', 'down', 'up', 'out']), stag: rng.chance(0.6), outline: rng.chance(0.7), rows: rng.int(3, 5) };
+  },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, Pm = c.params, port = isPort(env);
+    const text = hasLatin(c.text) ? String(c.text).trim() : strip(c.text);
+    const nR = clamp(Pm.rows + (port ? 2 : 0), 3, 7);
+    const rowH = H * 0.92 / nR;
+    const size = Math.min(J.fitSize(text, Pm.font, W * (Pm.stag ? 0.84 : 0.9), rowH * 0.92, { track: 0.02 }), rowH * 0.92);
+    const ts = onsets(env, nR), k = curIdx(ts, env.lt);
+    if (k < 0) return null;
+    // row slots top → bottom; the order they fill
+    const slots = [];
+    for (let i = 0; i < nR; i++) slots.push(H / 2 + (i - (nR - 1) / 2) * rowH);
+    let seq = slots.map((_, i) => i);
+    if (Pm.order === 'up') seq.reverse();
+    else if (Pm.order === 'out') { const mid = (nR - 1) / 2; seq.sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid) || a - b); }
+    const mw = J.measure({ text, font: Pm.font, size, track: 0.02 }).w, room = Math.max(0, (W * 0.94 - mw) / 2);
+    let bb = null;
+    for (let j = 0; j <= k; j++) {
+      const r = seq[j], newest = j === k, dt = env.lt - ts[j];
+      const s = newest ? 1 + 0.1 * motionK(env) * kick(dt, 15) : 1;
+      const ox = Pm.stag ? (r % 2 ? 1 : -1) * room * 0.8 : 0;
+      const it = { text, font: Pm.font, size: size * s, x: W / 2 + ox, y: slots[r], track: 0.02, color: sc.fg, mi: miAt(env, ts[j]) };
+      if (!newest) {
+        if (Pm.outline) Object.assign(it, { fill: false, stroke: Math.max(1, size * 0.02), strokeColor: sc.fg });
+        else it.alpha = 0.3;
+      }
+      bb = J.unionBB(bb, J.mainDraw(env, it));
+    }
+    return bb;
+  },
+});
+
+/* ================================================================== bsTypeBeat — 拍タイプ */
+reg('layout', 'bsTypeBeat', {
+  name: '拍タイプ', tags: ['calm', 'emotional', 'editorial'], w: 0.6, ae: 'type', fits: n => n >= 2 && n <= 40,
+  enterBias: { cut: 4, blur: 0.3 },
+  plan(rng, cut, st) {
+    return { font: rng.pick(J.fontsOf(st, rng.chance(0.6) ? ['serif'] : ['display'])), vert: rng.chance(0.45), track: rng.range(0.06, 0.16), rise: rng.range(0.12, 0.3) };
+  },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, Pm = c.params, port = isPort(env);
+    const lat = hasLatin(c.text), vert = Pm.vert && !lat;
+    const text = vert ? J.splitLines(strip(c.text), port ? 9 : 7) : J.splitLines(c.text, port ? 7 : 13);
+    const o = { track: Pm.track, lead: vert ? 1.5 : 1.3, vertical: vert };
+    const size = Math.min(J.fitSize(text, Pm.font, W * (vert ? 0.6 : 0.84), H * (vert ? 0.8 : 0.5), o), H * (vert ? 0.14 : 0.2));
+    const it = Object.assign({ text, font: Pm.font, size, x: W / 2, y: H / 2, color: sc.fg }, o);
+    const N = J.measure(it).lay.N;
+    // letter step: the largest of beat / 8th / 16th that types the cut within ~60% of it
+    const bl = beatLen(env, c.start), budget = c.dur * 0.6;
+    let step = [bl, bl / 2, bl / 4].find(s => s * N <= budget) || Math.max(0.045, budget / N);
+    if (!(env.plan && env.plan.beats && env.plan.beats.length)) step = clamp(budget / N, 0.045, 0.14);
+    const lt = env.lt, rise = size * Pm.rise;
+    it.pre = (e2, it2) => {
+      const base = it2.charFn;
+      it2.charFn = (i, g, n) => {
+        const q = clamp((lt - i * step) / 0.16);
+        if (q <= 0) return { hide: true };
+        const r = base ? base(i, g, n) : null;
+        if (r && r.hide) return r;
+        const e = E.outExpo(q), mine = { dy: (1 - e) * rise, a: E.outCubic(q) };
+        if (!r) return mine;
+        return Object.assign({}, r, { dy: (r.dy || 0) + mine.dy, a: (r.a ?? 1) * mine.a });
+      };
+    };
+    return J.mainDraw(env, it);
+  },
+});
+
+/* ---------------------------------------------------------------- styles */
+const BASE = { texture: { grain: 0, paper: 0, scan: 0 }, hud: false, glow: 0, decor: {}, textOnly: true };
+const S = {
+  bsSlam: {
+    name: 'ビートスラム', desc: '一拍に一語を叩きつける・黒地に白の極太・サビ頭で白黒反転', moods: ['pop', 'glitch'], chorusHit: true, oneCut: 0.6, ghost: 0.15,
+    schemes: [
+      { bg: '#0A0A0A', fg: '#FFFFFF', sub: '#9A9A9A', accent: '#FF2E4D', accent2: '#FFE600', ink: '#FFFFFF', dim: '#161616', ghostA: '#FF2E4D', ghostB: '#2EC5FF' },
+      { bg: '#0A0A0A', fg: '#FFFFFF', sub: '#9A9A9A', accent: '#FFE600', accent2: '#FF2E4D', ink: '#FFFFFF', dim: '#161616', ghostA: '#FFE600', ghostB: '#7A5CFF' },
+      { bg: '#F4F2EE', fg: '#0A0A0A', sub: '#6B6B6B', accent: '#E0102F', accent2: '#0A0A0A', ink: '#0A0A0A', dim: '#E8E5DF', ghostA: '#E0102F', ghostB: '#1A6BFF' },
+    ],
+    fonts: { display: ['gothic_black', 'dela', 'zenkaku'], serif: ['mincho_black'], body: ['gothic_bold'], mono: ['mono'] },
+    pool: {
+      layout: { bsBeatWord: 3.2, bsScaleLine: 1.2, knRhythmCuts: 1, knSlamStack: 0.8, knTypeSlam: 0.6, huge: 0.5, bsRefrain: 0.4 },
+      enter: { cut: 3, knWordSlam: 1.4, zoom: 0.6, stretch: 0.5, slice: 0.3 },
+      exit: { cut: 4, knJumpCutOut: 1, zoomThrough: 0.5, shrink: 0.3 },
+      hold: { still: 1.2, knWordPulse: 1, knTickShift: 0.5, pulse: 0.5 },
+      treat: { none: 1 },
+      cam: { beatPunch: 2, push: 1, knJumpCut: 1, stepZoom: 0.8 },
+      trans: { knStutterCut: 1, knStripSlam: 0.4 },
+      fx: { zoomPunch: 1.2, zoomStutter: 1, whipBlur: 0.6, squash: 0.5, rotateSnap: 0.5, blackFrame: 0.4 },
+    },
+  },
+  bsRefrain: {
+    name: 'リフレイン', desc: '同じ言葉を一拍ごとに重ねて画面を埋める・古い行は袋文字に・ポップな二色', moods: ['pop'], chorusHit: true, oneCut: 0.4, ghost: 0.12,
+    schemes: [
+      { bg: '#FF3D8B', fg: '#FFFFFF', sub: '#FFD0E2', accent: '#1B1464', accent2: '#FFE600', ink: '#1B1464', dim: '#F23580', ghostA: '#FFE600', ghostB: '#1B1464' },
+      { bg: '#1B1464', fg: '#FFE600', sub: '#B7B0FF', accent: '#FF3D8B', accent2: '#FFFFFF', ink: '#FFE600', dim: '#231B78', ghostA: '#FF3D8B', ghostB: '#2EC5FF' },
+      { bg: '#FFE600', fg: '#1B1464', sub: '#5A4E9E', accent: '#FF3D8B', accent2: '#1B1464', ink: '#1B1464', dim: '#F2DA00', ghostA: '#FF3D8B', ghostB: '#2E8BFF' },
+    ],
+    fonts: { display: ['round', 'pop', 'dela'], serif: ['round'], body: ['round'], mono: ['mono'] },
+    pool: {
+      layout: { bsRefrain: 2.6, bsBeatWord: 1.4, tile: 0.8, knSwapCenter: 0.8, knSlamStack: 0.6, mixed: 0.5 },
+      enter: { cut: 2.5, pop: 1.2, knWordSlam: 0.8, zoom: 0.5 },
+      exit: { cut: 3.5, popOut: 1, knWordKick: 0.6 },
+      hold: { still: 1, knWordPulse: 1, pulse: 0.8, knBeatLean: 0.6 },
+      treat: { none: 1 },
+      cam: { beatPunch: 1.6, bounce: 1, push: 1 },
+      trans: { knStutterCut: 0.6, knCornerSwing: 0.6 },
+      fx: { zoomPunch: 1, squash: 1, rotateSnap: 0.6, mirrorFlash: 0.4 },
+    },
+  },
+  bsScale: {
+    name: '大小', desc: '大きな一語と小さな一行の対比・生成り地に墨・余白で見せる', moods: ['editorial', 'graphic'], chorusHit: true, oneCut: 0.6, ghost: 0.1, glitchBoost: 0.4,
+    schemes: [
+      { bg: '#EFEBE3', fg: '#141414', sub: '#6E6A62', accent: '#D0341C', accent2: '#141414', ink: '#141414', dim: '#E4DFD5', ghostA: '#D0341C', ghostB: '#3A6BD9' },
+      { bg: '#141414', fg: '#EFEBE3', sub: '#8C877E', accent: '#FF5A36', accent2: '#EFEBE3', ink: '#EFEBE3', dim: '#1D1D1D', ghostA: '#FF5A36', ghostB: '#4F86FF' },
+    ],
+    fonts: { display: ['gothic_black', 'mincho_black'], serif: ['mincho', 'shippori'], body: ['gothic_med', 'mincho'], mono: ['mono'] },
+    pool: {
+      layout: { bsScaleLine: 2.6, mixed: 1.4, huge: 1, bsBeatWord: 1, center: 0.6 },
+      enter: { cut: 2.5, fadeStagger: 1, trackIn: 0.8, riseMask: 0.8, blur: 0.5 },
+      exit: { cut: 3, blur: 0.8, riseOut: 0.6, trackOutWide: 0.5 },
+      hold: { still: 1.5, drift: 0.8, breathe: 0.5 },
+      treat: { none: 2, knWordScale: 1 },
+      cam: { push: 1.5, beatPunch: 0.8, driftDiag: 0.6 },
+      trans: {},
+      fx: { zoomPunch: 0.6, defocus: 0.4 },
+    },
+  },
+  bsBallad: {
+    name: '夜の打鍵', desc: '一文字ずつ拍に乗せて打ち込む・夜の紺に明朝・静かな動き', moods: ['calm', 'emotional'], oneCut: 0.5, ghost: 0.06, glitchBoost: 0.01,
+    schemes: [
+      { bg: '#0D1526', fg: '#EEF1F7', sub: '#8793AD', accent: '#9CC3FF', accent2: '#EEF1F7', ink: '#EEF1F7', dim: '#141E33', ghostA: '#9CC3FF', ghostB: '#C39CFF' },
+      { bg: '#F3F1EC', fg: '#1C2233', sub: '#7A8094', accent: '#3D5A99', accent2: '#1C2233', ink: '#1C2233', dim: '#E9E6DF', ghostA: '#3D5A99', ghostB: '#99583D' },
+    ],
+    fonts: { display: ['mincho_bold', 'shippori'], serif: ['mincho', 'mincho_light', 'shippori'], body: ['mincho'], mono: ['mono'] },
+    pool: {
+      layout: { bsTypeBeat: 2.6, center: 1, hanging: 0.8, bsScaleLine: 0.4 },
+      enter: { cut: 1.5, type: 1, fadeStagger: 1.2, blurStagger: 1, blur: 0.8 },
+      exit: { blur: 1.2, dissolve: 1, blurOutStagger: 1, riseOut: 0.6 },
+      hold: { still: 1.5, drift: 1, breathe: 0.8 },
+      treat: { none: 1 },
+      cam: { push: 1.5, driftDiag: 1, pullOut: 0.6 },
+      trans: {},
+      fx: {},
+    },
+  },
+};
+for (const [k, v] of Object.entries(S)) {
+  if (J.STYLES[k]) continue;
+  J.STYLES[k] = Object.assign({ bias: {} }, BASE, v);
+  J.STYLES[k].pool = Object.assign({ decor: {}, bg: {} }, v.pool);        // テキストのみ: nothing to draw there anyway
+  if (!J.STYLE_ORDER.includes(k)) J.STYLE_ORDER.push(k);
+}
+})();
+
+/* JIZURA — easing calibration for the shared entrances / exits.
+   Many recipes run a steep curve (outExpo, inCubic …) over 0.12–0.6 s. At 24 fps (12 drawings on twos) that puts most of an
+   entrance into its very first drawing — a jump followed by a slow creep — and most of an exit into its last one — a stall,
+   then a jump. Each part listed here gets a time warp on its progress p before its recipe runs (J.mainDraw):
+     entrance  p → p^w          a softer first drawing; the curve's own shape and end point stay
+     exit      p → 1-(1-p)^w    it starts moving sooner and leaves less for the last drawing
+   Values were measured per part (how far into the move half of it is done) and aim for about a quarter of the entrance /
+   about 60% of the exit. Parts that move their own pieces or words on their own clock, and physics-like ones (bounces,
+   hinges, count-ins) are left as designed. A part can set its own `warp` to override. */
+(() => {
+'use strict';
+const WARP = {
+  enter: {
+    stretch: 1.36, blur: 1.32, zoom: 1.57, slideWhole: 1.51, splitJoin: 1.19, iris: 1.32, whip: 1.6, trackIn: 1.51, trackOut: 1.27,
+    zoomOut: 1.51, stamp: 1.16, fanOpen: 1.41, zipper: 1.6, tiltUp: 1.9, tornJoin: 1.6, splitFlap: 1.19, overexpose: 1.8,
+    filmFeed: 1.5, backlight: 1.6, heatHaze: 1.6, matrixRain: 1.32, quarters: 1.6, printRegister: 1.41,
+  },
+  exit: {
+    slice: 2.2, shrink: 2.2, blur: 1.35, stretch: 2.07, sinkMask: 1.51, riseOut: 1.35, foldOut: 2.08, trackOutWide: 1.24,
+    collapse: 1.65, twist: 2.2, melt: 1.47, whipOut: 1.65, burn: 1.77, crumpleOut: 2.07, tearOut: 1.76, overexposeOut: 1.21,
+    scanOut: 2.2, clapShut: 2.2, slashOut: 1.77, scribbleOut: 1.49, tyStrike: 1.87, tyLineFeed: 2.2, tyUnderSink: 1.67,
+  },
+};
+for (const [g, R] of [['enter', J.ENTER], ['exit', J.EXIT]])
+  for (const [k, w] of Object.entries(WARP[g])) if (R[k] && R[k].warp == null) R[k].warp = w;
+J.EASE_WARP = WARP;
+J.warpIn = (def, p) => (def && def.warp > 1 && p > 0 && p < 1 ? Math.pow(p, def.warp) : p);
+J.warpOut = (def, p) => (def && def.warp > 1 && p > 0 && p < 1 ? 1 - Math.pow(1 - p, def.warp) : p);
 })();
 
 /* ============================================================

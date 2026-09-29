@@ -39,6 +39,10 @@ STYLES = {
     'acid': ('Acid', 'Đen, xanh acid và magenta với chữ thô'),
     'sumi': ('Mực và đỏ', 'Giấy Nhật, thư pháp và con dấu đỏ'),
     'gold': ('Đêm vàng', 'Đen sâu, foil vàng, serif ngà và lấp lánh'),
+    'bsSlam': ('Nện nhịp', 'Mỗi nhịp một từ, chữ trắng đậm trên nền đen, đảo màu ở đầu điệp khúc'),
+    'bsRefrain': ('Điệp khúc', 'Cùng một câu xếp chồng từng dòng theo nhịp, dòng cũ thành chữ viền, hai màu pop'),
+    'bsScale': ('Lớn và nhỏ', 'Một từ lớn trên một dòng nhỏ, mực trên nền trắng ngà, nhiều khoảng trống'),
+    'bsBallad': ('Ballad', 'Gõ từng chữ theo nhịp, chữ serif trên nền xanh đêm, chuyển động nhẹ'),
 }
 
 BODY = {

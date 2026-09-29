@@ -325,6 +325,24 @@ J.plan = (project, audio) => {
 
   // 統一感: sections, repeated lines, キメ lines and the per-section palettes (see makeUnify below)
   const U = plan.unify ? makeUnify(parsed.lines, { st, en, fx, history, lang: plan.lang, seed: project.seed }) : null;
+  // サビ頭 (style.chorusHit): the first line of a block whose text comes back later in the song — the screen flips
+  // (difference invert) for one beat where it starts
+  const chorusHead = new Set();
+  if (st.chorusHit) {
+    const cnt = new Map(), key = t => String(t || '').replace(/[\s\p{P}]/gu, '').toLowerCase();
+    for (const l of parsed.lines) if (!l.interlude && l.text) cnt.set(key(l.text), (cnt.get(key(l.text)) || 0) + 1);
+    parsed.lines.forEach((l, i) => {
+      if (l.interlude || !l.text || (cnt.get(key(l.text)) || 0) < 2) return;
+      const prev = parsed.lines[i - 1];
+      if (i === 0 || l.gapBefore || (prev && prev.interlude)) chorusHead.add(i);
+    });
+  }
+  const beatLenAt = t => {
+    const bs = plan.beats;
+    if (bs.length > 1) { let i = 0; while (i < bs.length - 2 && bs[i + 1] <= t) i++; return J.clamp(bs[i + 1] - bs[i], 0.2, 0.8); }
+    const bpm = project.timing && project.timing.bpm;
+    return bpm > 0 ? J.clamp(60 / bpm, 0.2, 0.8) : 0.4;
+  };
   parsed.lines.forEach((ln, li) => {
     const s = tm.starts[li], e = tm.ends[li];
     const ov = (project.overrides || {})[li] || {};
@@ -357,6 +375,8 @@ J.plan = (project, audio) => {
     const ovAny = Object.keys(ov).some(k2 => !['lock', 'lockedSeed', 'seed', 'cutTech', 'cutLayouts', 'cutQuiet', 'cutTime'].includes(k2));
     const kime = !!(U && U.kime.has(li) && !ov.cuts);
     if (ov.single || kime) nC = 1;
+    // a style whose layouts time the words themselves (one word per beat) keeps a whole line in one cut this often
+    if (st.oneCut && !(ov.cuts > 0) && J.rng(J.h(lineSeed, 71))() < st.oneCut) nC = 1;
     if (zones) nC = Math.max(1, Math.min(nC, Math.floor(chunks.length / 2)));   // 中央を空ける: each cut is split in two, so keep ≥ 2 words per cut
     // カット数の指定 (per line): exactly that many cuts — chunks are split further when the line has fewer
     const fixedN = ov.cuts > 0 ? Math.min(12, ov.cuts | 0) : 0;
@@ -408,7 +428,7 @@ J.plan = (project, audio) => {
       if (UU) layout = UU.layout(li, layout, { nn, dur, emph, kime, rng, portrait: LH > LW, recap: u.recap });
       let enter = ov.enter && J.ENTER[ov.enter] ? ov.enter : pickEnter(rng, st, en, layout, dur, history, emph, nn);
       let exit = ov.exit && J.EXIT[ov.exit] ? ov.exit : pickExit(rng, st, en, layout, dur, k === units.length - 1, history);
-      let hold = ov.hold && J.HOLD[ov.hold] ? ov.hold : pickHold(rng, en, fx, history);
+      let hold = ov.hold && J.HOLD[ov.hold] ? ov.hold : pickHold(rng, en, fx, history, st);
       let weightGrow = false;
       if (UU) {
         enter = UU.enter(li, enter, { layout, dur, emph, kime, rng, nn });
@@ -569,6 +589,7 @@ J.plan = (project, audio) => {
         if (fxOn('shake')) addEvent(cs + 0.04, 'shake', 1.1 * Math.max(0.5, fx.motion), 0.35);
       }
       if (fxOn('invert') && rng.chance(0.035 * g)) addEvent(cs, 'invert', 1, 2 * F);
+      if (k === 0 && chorusHead.has(li) && fxOn('invert')) addEvent(cs, 'invert', 1, beatLenAt(cs));
       if (fxOn('zoom') && (emph && rng.chance(0.6) || rng.chance(0.06 * fx.motion))) addEvent(cs, 'zoom', 0.7 + 0.5 * fx.motion, 0.22);
       if (fxOn('mosaic') && rng.chance(0.04 * g)) addEvent(cs, 'mosaic', 1, 3 * F);
       if (fxOn('slice') && dur > 0.8 && rng.chance(g * 0.4)) addEvent(cs + rng.range(0.35, 0.8) * dur, 'slice', 0.4 + g * 0.4, 2 * F);
@@ -815,6 +836,14 @@ function partition(chunks, k) {
   if (cur.length) groups.push(cur);
   return groups;
 }
+/* a style may name the only parts it uses per group (style.pool = { layout: { key: weight }, … }); parts that are
+   switched off or missing are skipped, and when none is left the usual choice applies */
+function inPool(st, g, cands) {
+  const P = st && st.pool && st.pool[g];
+  if (!P) return cands;
+  const c2 = cands.filter(c => P[c[0]] != null).map(c => [c[0], c[1] * P[c[0]]]);
+  return c2.length ? c2 : cands;
+}
 function novelty(history, key, val) {
   let w = 1;
   for (let i = history.length - 1, d = 0; i >= 0 && d < 6; i--, d++) if (history[i][key] === val) w *= d < 2 ? 0.2 : 0.6;
@@ -826,6 +855,7 @@ function pickLayout(rng, st, en, n, dur, history, emph, recap, portrait) {
   for (const k of J.LAYOUT_ORDER) {
     const L = J.LAYOUTS[k];
     if (!en.layout[k] || !L.fits(n)) continue;
+    if (L.poolOnly && !(st.pool && st.pool.layout && st.pool.layout[k] != null)) continue;   // only for the styles that name it
     let w = wkey(st.bias.layout, k, L.w ?? 1) * novelty(history, 'layout', k);
     if (portrait) w *= L.portrait != null ? L.portrait : wkey(PORTRAIT_W, k, 1);
     if (emph && L.emph) w *= L.emph;
@@ -836,7 +866,7 @@ function pickLayout(rng, st, en, n, dur, history, emph, recap, portrait) {
     cands.push([k, w]);
   }
   if (!cands.length) return 'center';
-  return rng.wpick(cands);
+  return rng.wpick(inPool(st, 'layout', cands));
 }
 const LAYOUT_ENTER = {
   type: { type: 4, scramble: 1.5 }, ring: { pop: 2, spin: 2, cut: 1, assemble: 0.4, slice: 0.2, wipe: 0.2 }, labels: { cut: 3, pop: 1 },
@@ -859,7 +889,7 @@ function pickEnter(rng, st, en, layout, dur, history, emph, n) {
     if (emph && ['zoom', 'assemble', 'slice'].includes(k)) w *= 1.8;
     cands.push([k, w]);
   }
-  return cands.length ? rng.wpick(cands) : 'cut';
+  return cands.length ? rng.wpick(inPool(st, 'enter', cands)) : 'cut';
 }
 function pickExit(rng, st, en, layout, dur, lastOfLine, history) {
   const cands = [];
@@ -873,10 +903,10 @@ function pickExit(rng, st, en, layout, dur, lastOfLine, history) {
     if (['labels', 'ring', 'tile'].includes(layout) && ['explode', 'fall', 'drift'].includes(k)) w *= 0.3;
     cands.push([k, w]);
   }
-  return cands.length ? rng.wpick(cands) : 'cut';
+  return cands.length ? rng.wpick(inPool(st, 'exit', cands)) : 'cut';
 }
 const HOLD_W = { still: 1, jitter: 1.2, drift: 1, breathe: 0.7, wave: 0.4, glitchtick: 0.9 };
-function pickHold(rng, en, fx, history) {
+function pickHold(rng, en, fx, history, st) {
   const cands = J.HOLD_ORDER.filter(k => en.hold[k] !== false && J.HOLD[k]).map(k => {
     const D = J.HOLD[k];
     let w = HOLD_W[k] != null ? HOLD_W[k] : (D.w ?? 0.8);
@@ -884,12 +914,13 @@ function pickHold(rng, en, fx, history) {
     if (k === 'glitchtick') w *= fx.glitch;
     return [k, w * novelty(history, 'hold', k)];
   });
-  return cands.length ? rng.wpick(cands) : 'still';
+  return cands.length ? rng.wpick(inPool(st, 'hold', cands)) : 'still';
 }
 function decorParams(rng, k) {
   return { id: k, seed: rng.int(1, 1e9), n: rng.int(1, 3) + (k === 'shapes' ? 3 : 0) + (k === 'sparks' ? 4 : 0), right: rng.chance(0.5), low: rng.chance(0.5), accent: rng.chance(0.4), corner: rng.chance(0.5), big: rng.chance(0.4), mode: rng.pick(['count', 'index']), from: rng.int(0, 20), to: rng.int(30, 999), v: rng.int(0, 5), r: rng() };
 }
 function pickDecor(rng, st, en, fx, layout, history = []) {
+  if (st.pool && st.pool.decor && !Object.keys(st.pool.decor).length) return [];
   const count = Math.round(fx.decor * 2.8 * rng.range(0.45, 1.15));
   const recent = new Set(history.slice(-2).flatMap(h => h.decor || []));
   const LD = J.LAYOUTS[layout] || {};
@@ -906,12 +937,15 @@ function pickDecor(rng, st, en, fx, layout, history = []) {
 // text treatment: plain most of the time; the "decor" slider raises how often a treatment is used
 function pickTreat(rng, st, en, fx, LD, emph, history) {
   if (LD.treat === false) return 'none';
+  const TP = st.pool && st.pool.treat;                    // a style's own list ('none' included) replaces the usual draw
+  if (TP) { const c = Object.keys(TP).filter(k => k === 'none' || (J.TREAT[k] && en.treat && en.treat[k] !== false && (LD.treat !== 'safe' || J.TREAT[k].safe))).map(k => [k, TP[k]]); return c.length ? rng.wpick(c) : 'none'; }
   if (!rng.chance(0.18 + 0.42 * (fx.decor ?? 0.5) + (emph ? 0.15 : 0))) return 'none';
   const cands = J.TREAT_ORDER.filter(k => k !== 'none' && en.treat && en.treat[k] !== false && J.TREAT[k] && (LD.treat !== 'safe' || J.TREAT[k].safe))
     .map(k => [k, wkey(st.bias && st.bias.treat, k, J.TREAT[k].w ?? 1) * novelty(history, 'treat', k)]);
-  return cands.length ? rng.wpick(cands) : 'none';
+  return cands.length ? rng.wpick(inPool(st, 'treat', cands)) : 'none';
 }
 function pickBg(rng, st, en, fx, bgHist) {
+  if (st.pool && st.pool.bg && !Object.keys(st.pool.bg).length) return 'none';
   if (!rng.chance(0.2 + 0.35 * (fx.decor ?? 0.5) + 0.2 * (fx.bgSwitch ?? 0.35))) return 'none';
   const last = bgHist.slice(-3);
   const cands = J.BG_ORDER.filter(k => k !== 'none' && en.bg && en.bg[k] !== false && J.BG[k])
@@ -926,24 +960,26 @@ function pickCam(rng, st, en, fx, LD, emph, history) {
     if (LD.cam === false && k !== 'push') w *= 0.05;
     return [k, w];
   });
-  return cands.length ? rng.wpick(cands) : 'push';
+  return cands.length ? rng.wpick(inPool(st, 'cam', cands)) : 'push';
 }
 function pickTrans(rng, st, en, fx, emph, history) {
   if (!J.TRANS_ORDER.length) return null;
+  if (st.pool && st.pool.trans && !Object.keys(st.pool.trans).length) return null;   // the style uses no transitions
   if (!rng.chance(0.1 + 0.22 * (fx.motion ?? 0.7) + (emph ? 0.08 : 0))) return null;
   const cands = J.TRANS_ORDER.filter(k => en.trans && en.trans[k] !== false && J.TRANS[k])
     .map(k => [k, wkey(st.bias && st.bias.trans, k, J.TRANS[k].w ?? 1) * novelty(history, 'trans', k)]);
-  return cands.length ? rng.wpick(cands) : null;
+  return cands.length ? rng.wpick(inPool(st, 'trans', cands)) : null;
 }
 // kind 'edge' = transition at a cut boundary, 'mid' = accent in the middle of a cut
 function pickFx(rng, st, en, fx, emph, fxHist, kind) {
+  if (st.pool && st.pool.fx && !Object.keys(st.pool.fx).length) return null;         // the style uses no screen effects
   const g = fx.glitch ?? 0.55;
   const p = kind === 'edge' ? 0.12 + 0.38 * g + 0.12 * (fx.motion ?? 0.7) + (emph ? 0.15 : 0) : 0.05 + 0.2 * g;
   if (!rng.chance(p)) return null;
   const last = fxHist.slice(-3);
   const cands = J.FXE_ORDER.filter(k => { const D = J.FXE[k]; return D && !D.builtin && en.fx && en.fx[k] !== false && (kind === 'edge' ? D.edge !== false : D.mid); })
     .map(k => { const D = J.FXE[k]; let w = wkey(st.bias && st.bias.fx, k, D.w ?? 1) * (last.includes(k) ? 0.2 : 1); if (D.glitchy) w *= 0.3 + g * 1.4; return [k, w]; });
-  return cands.length ? rng.wpick(cands) : null;
+  return cands.length ? rng.wpick(inPool(st, 'fx', cands)) : null;
 }
 
 /* one-cut (or two-cut, for transitions) plan used by the 手法 tab thumbnails */

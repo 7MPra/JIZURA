@@ -26,11 +26,13 @@ J.mainDraw = (env, it) => {
   // text treatment (outline, extrude, marker...) — layouts that paint their own plates opt out with it.plain
   if (cut.treat && !it.plain && J.TREAT && J.TREAT[cut.treat]) { try { J.TREAT[cut.treat].apply(env, it, cut.treatP || {}); } catch (e) { console.warn('treat', cut.treat, e); } }
   if (ltI < 0 && en === J.ENTER.cut) return null;
-  if (en !== J.ENTER.cut && (pIn < 1 || en.pieces)) { env.lt = ltI; en.apply(env, it, pIn, ctx); env.lt = lt0; }
+  // progress goes through the part's easing calibration (src/11t_easing.js) — a no-op for parts without one
+  if (en !== J.ENTER.cut && (pIn < 1 || en.pieces)) { env.lt = ltI; en.apply(env, it, J.warpIn ? J.warpIn(en, pIn) : pIn, ctx); env.lt = lt0; }
   if (ltI < 0 && !en.pieces) return null;
-  const amt = J.clamp((ltI - cut.inDur * 0.85) / 0.25) * (1 - pOut);
+  // the hold motion fades in (and out under the exit) on a smooth curve, so it does not kick in with a visible corner
+  const amt = J.E.inOutSine(J.clamp((ltI - cut.inDur * 0.85) / 0.3)) * (1 - J.E.inOutSine(pOut));
   if (amt > 0 && !it.noHold) ho.apply(env, it, amt, ctx);
-  if (pOut > 0 && ex !== J.EXIT.cut) ex.apply(env, it, pOut, ctx);
+  if (pOut > 0 && ex !== J.EXIT.cut) ex.apply(env, it, J.warpOut ? J.warpOut(ex, pOut) : pOut, ctx);
   it.charFn = J.combineChar(it.charFns);
   it.pieceFn = J.combinePiece(it.pieceFns);
   return J.drawFx(env, it);

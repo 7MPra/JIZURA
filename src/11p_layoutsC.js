@@ -228,7 +228,7 @@ const rowW = (text, font, size) => { let w = 0; for (const ch of text) w += J.me
 function fastRow(env, text, font, size, x, y, sp, color, alpha, align = 'left') {
   if (env.pass !== 'main' || alpha <= 0.01 || !text || J.hideDecoText(env, text)) return;
   const ctx = env.ctx;
-  if (!('letterSpacing' in ctx)) { env.draw({ text, font, size, x, y, align, track: sp / size, color, alpha, ghost: false }); return; }
+  if (!('letterSpacing' in ctx) || ctx.jzPlain) { env.draw({ text, font, size, x, y, align, track: sp / size, color, alpha, ghost: false }); return; }
   ctx.save();
   ctx.font = J.fontCSS(font, size); ctx.letterSpacing = sp.toFixed(2) + 'px';
   ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillStyle = color; ctx.globalAlpha = alpha;

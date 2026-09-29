@@ -166,9 +166,35 @@ J.ornamentText = (env, text) => {
   const c = env.cut || {}, k = flat(t);
   return !k || !(flat(c.lineText) + '|' + flat(c.text) + '|' + flat(c.note)).includes(k);
 };
+/* テキストのみ: only the lyric itself is shown — any text that is not part of a lyric line (captions, labels, filler letters,
+   the song title) is left out. Case, spaces, punctuation and line breaks are ignored when comparing. */
+const lyricIndex = new WeakMap();
+J.isLyricText = (env, text) => {
+  const plan = env.plan;
+  if (!plan || !Array.isArray(plan.lines)) return true;
+  let ix = lyricIndex.get(plan);
+  if (!ix) {
+    const ls = plan.lines.filter(l => l && l.text);
+    const units = [...new Set(ls.flatMap(l => [flat(l.text), flat(l.note)]).filter(Boolean))];
+    ix = { units, flat: units.join('\u0001'), raw: ls.map(l => l.text + '\u0001' + (l.note || '')).join('\u0001'), memo: new Map() };
+    lyricIndex.set(plan, ix);
+  }
+  const t = String(text || '').trim(), k = flat(t);
+  if (!t) return true;
+  if (!k) return ix.raw.includes(t);
+  if (ix.flat.includes(k)) return true;
+  // a line repeated round and round (marquee, ticker, justified fill …) — any stretch of that loop is still the lyric
+  let v = ix.memo.get(k);
+  if (v === undefined) {
+    v = ix.units.some(u => k.length > u.length && u.repeat(Math.ceil(k.length / u.length) + 1).includes(k));
+    if (ix.memo.size > 2000) ix.memo.clear();
+    ix.memo.set(k, v);
+  }
+  return v;
+};
 J.hideDecoText = (env, text) => {
   const fx = env.fx || {}, textOnly = !!(env.st && env.st.textOnly);
-  if (textOnly && J.ornamentText(env, text)) return true;
+  if (textOnly && (J.ornamentText(env, text) || !J.isLyricText(env, text))) return true;
   const hideNo = textOnly || fx.hideNo, hideTime = textOnly || fx.hideTime;
   if (!hideNo && !hideTime) return false;
   const k = J.decoTextKind(text);
@@ -292,10 +318,20 @@ const drawItemCore = (env, it) => {
    plates, rules, rings, frames, sparks …) is switched off; only text goes through J.drawItem, which switches painting back on for
    the duration of the call. Planning is untouched, so layouts, motion and timing stay exactly what they were.
    A lyric that was set on a plate in the plate's counter colour would vanish with the plate, so it takes the foreground colour. */
-const PAINT = ['fill', 'stroke', 'fillRect', 'strokeRect'];
+const PAINT = ['fill', 'stroke', 'fillRect', 'strokeRect', 'fillText', 'strokeText'];
 const NOPAINT = function () {};
 J.plainOn = ctx => { if (ctx.jzPlain) return; ctx.jzPlain = true; for (const m of PAINT) ctx[m] = NOPAINT; };
 J.plainOff = ctx => { ctx.jzPlain = false; for (const m of PAINT) delete ctx[m]; };
+/* テキストのみ, cut-to-cut transitions: they composite the two frames (drawImage, clip, image patterns) and repaint the ground,
+   which stays; rules, frames and colour blocks they add on top do not (a solid fill is kept only in a background colour) */
+J.transPlainOn = (ctx, bgs) => {
+  const ok = new Set(bgs.filter(Boolean).map(c => String(c).toLowerCase()));
+  const proto = Object.getPrototypeOf(ctx);
+  const solidOk = c => typeof c !== 'string' || ok.has(c.toLowerCase());
+  ctx.fillRect = function (...a) { if (solidOk(this.fillStyle)) proto.fillRect.apply(this, a); };
+  ctx.fill = function (...a) { if (solidOk(this.fillStyle)) proto.fill.apply(this, a); };
+  for (const m of ['stroke', 'strokeRect', 'fillText', 'strokeText']) ctx[m] = NOPAINT;
+};
 function readable(env, it) {
   const bg = env.sc && env.sc.bg, fg = env.sc && env.sc.fg;
   if (!bg || !fg) return it;

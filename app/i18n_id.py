@@ -38,6 +38,10 @@ STYLES = {
     'acid': ('Acid', 'Hitam, hijau acid, dan magenta dengan font kasar'),
     'sumi': ('Tinta dan Shu', 'Kertas Jepang, kaligrafi kuas, dan cap merah'),
     'gold': ('Malam Emas', 'Hitam pekat, foil emas, serif gading, dan kilau'),
+    'bsSlam': ('Hentakan Ketukan', 'Satu kata dihentakkan tiap ketukan, putih tebal di atas hitam, terbalik di awal reff'),
+    'bsRefrain': ('Refrain', 'Kata yang sama ditumpuk baris demi baris tiap ketukan, baris lama jadi garis tepi, dua warna pop'),
+    'bsScale': ('Besar dan Kecil', 'Satu kata besar di atas satu baris kecil, tinta di atas putih gading, banyak ruang'),
+    'bsBallad': ('Balada', 'Huruf diketik mengikuti ketukan, serif di atas biru malam, gerak tenang'),
 }
 
 BODY = {
