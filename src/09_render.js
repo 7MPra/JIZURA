@@ -115,10 +115,14 @@ class Renderer {
     // ---------- background graphic (per line) ----------
     // 透過PNG 前景／後景 (opt.layer): 'back' = background graphic + the decorations behind the lyrics, 'front' = the rest
     const layer = opt.transparent ? opt.layer || null : null;
-    if (!textOnly && (!opt.transparent || layer === 'back') && !key && mainCut && mainCut.bg && mainCut.bg !== 'none' && J.BG[mainCut.bg]) {
+    // テキストのみ: only a background made of the lyric itself (bigChar) is drawn, and only its type
+    const bgDef = mainCut && mainCut.bg && mainCut.bg !== 'none' ? J.BG[mainCut.bg] : null;
+    if (bgDef && (!textOnly || bgDef.lyricType) && (!opt.transparent || layer === 'back') && !key) {
       const env = this.makeEnv(ctx, plan, mainCut, sc, { pass: 'main', t: tq, lt: tq - mainCut.start, ltb: tq - mainCut.start, step, scale, allowFilter, energy, beat: beatInfo, bgOnly: true });
       ctx.save();
-      try { J.BG[mainCut.bg].draw(env, mainCut.bgP || {}); } catch (e) { console.warn('bg', mainCut.bg, e); }
+      if (textOnly) J.plainOn(ctx);
+      try { bgDef.draw(env, mainCut.bgP || {}); } catch (e) { console.warn('bg', mainCut.bg, e); }
+      finally { if (textOnly) J.plainOff(ctx); }
       ctx.restore();
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
     }

@@ -270,6 +270,7 @@ function cutTechOf(ov, k) {
 
 J.plan = (project, audio) => {
   const st = J.resolveStyle(project);
+  if (st.textOnly && J.songVocab) J.songVocab(st, project.seed, project.style);   // テキストのみ: this song's own handful of parts
   const fx = Object.assign({}, J.defaultProject().fx, project.fx || {});
   const parsed = J.parseLyrics(project.lyrics);
   const title = project.title || parsed.meta.ti || '';
@@ -455,6 +456,8 @@ J.plan = (project, audio) => {
       let [inDur, outDur] = durs(enter, exit);
       let sch = schemeIdx;
       if (!U && nSchemes > 1 && k > 0 && rng.chance(0.12 * fx.bgSwitch)) sch = (schemeIdx + 1) % nSchemes;
+      // テキストのみ: the colour field itself is the accent — an emphasised cut flips to another of the style's schemes
+      if (st.textOnly && nSchemes > 1 && (emph || kime) && J.rng(J.h(lineSeed, k, 73))() < 0.7) sch = (schemeIdx + 1 + (J.h(lineSeed, k, 74) % (nSchemes - 1))) % nSchemes;
       let LD = J.LAYOUTS[layout];
       let params = LD.plan(rng, { text: txt, n: nn, W: LW, H: LH, dur }, st);
       let decor = Array.isArray(ov.decor) ? ov.decor.filter(id => J.DECOR[id]).map(id => decorParams(rng, id)) : pickDecor(rng, st, en, fx, layout, history);
