@@ -2168,9 +2168,14 @@ J.resolveStyle = (project) => {
 J.KEY_BG = { green: '#00FF00', black: '#000000' };
 J.keyMode = project => (project && J.KEY_BG[project.keyBg] ? project.keyBg : null);
 function keyStyle(st) {
+  // a scheme whose ground is on the other side of light / dark from the first one (a colour-field flip) becomes a white
+  // plate with black text — keyed, the plate stays white and the text shows the key colour (see-through)
+  const light = s => J.lum(s.bg) > J.lum(s.fg), base = st.schemes[0] ? light(st.schemes[0]) : false;
   st.schemes = st.schemes.map(s => {
-    const o = { bg: '#000000', fg: '#FFFFFF', sub: '#D2D2D2', accent: '#FFFFFF', accent2: '#BDBDBD', ink: '#FFFFFF', dim: '#1E1E1E', ghostA: '#9A9A9A', ghostB: '#5E5E5E' };
-    if (s.grad) o.grad = ['#FFFFFF', '#A8A8A8'];
+    const o = light(s) !== base
+      ? { bg: '#FFFFFF', fg: '#000000', sub: '#2D2D2D', accent: '#000000', accent2: '#424242', ink: '#000000', dim: '#E1E1E1', ghostA: '#656565', ghostB: '#A1A1A1', flip: true }
+      : { bg: '#000000', fg: '#FFFFFF', sub: '#D2D2D2', accent: '#FFFFFF', accent2: '#BDBDBD', ink: '#FFFFFF', dim: '#1E1E1E', ghostA: '#9A9A9A', ghostB: '#5E5E5E' };
+    if (s.grad) o.grad = o.flip ? ['#000000', '#575757'] : ['#FFFFFF', '#A8A8A8'];
     return o;
   });
   st.texture = { grain: 0, paper: 0, scan: 0 };
@@ -4242,8 +4247,6 @@ J.plan = (project, audio) => {
   });
   // テキストのみ: no colour-split / glitch hits and no random inverts (src/11u_restraint.js) — drawn and dropped, so the draw order stays
   if (st.textOnly && J.TEXT_EVENT_DROP) plan.events = plan.events.filter(e => !J.TEXT_EVENT_DROP.includes(e.type) && !(e.type === 'invert' && !e.chorus));
-  // 合成用の背景 (green / black back): an invert would turn the whole key colour over for a beat — never on a key plate
-  if (plan.keyBg) plan.events = plan.events.filter(e => e.type !== 'invert');
   plan.events.sort((a, b) => a.t - b.t);
   plan.energy = audio && audio.energy ? audio.energy : null;
   plan.energyRate = audio && audio.energyRate ? audio.energyRate : 0;
@@ -4909,7 +4912,7 @@ class Renderer {
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     // ---------- background ----------
     const key = plan.keyBg && J.KEY_BG && J.KEY_BG[plan.keyBg] ? plan.keyBg : null;   // 合成用: white-on-black, finished in keyFinish()
-    if (key && !opt.transparent) { ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, H); }
+    if (key && !opt.transparent) { ctx.fillStyle = sc.flip ? '#FFFFFF' : '#000000'; ctx.fillRect(0, 0, W, H); }   // a flipped scheme: white plate
     else if (!opt.transparent) {
       ctx.fillStyle = sc.bg; ctx.fillRect(0, 0, W, H);
       if (!textOnly) {
@@ -5311,8 +5314,8 @@ class Renderer {
           if (J.r(st2, i, 11) < 0.35) { ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = J.r(st2, i, 12) < 0.5 ? sc.ghostA : sc.ghostB; ctx.fillRect(x, y, w, h); ctx.globalCompositeOperation = 'source-over'; }
         }
       } else if (ev.type === 'invert') {
-        // a transparent frame has no ground to turn over (the white fill would cover the whole frame)
-        if (!opt.transparent) { ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch); ctx.globalCompositeOperation = 'source-over'; }
+        // transparent frame: the plate turns white and the text is knocked out of it (see-through), like on a key plate
+        ctx.globalCompositeOperation = opt.transparent ? 'xor' : 'difference'; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch); ctx.globalCompositeOperation = 'source-over';
       } else if (ev.type === 'flash') {
         ctx.globalAlpha = Math.pow(1 - k, 1.5) * 0.92; ctx.fillStyle = J.lum(sc.bg) < 0.5 ? sc.fg : '#ffffff'; ctx.fillRect(0, 0, cw, ch); ctx.globalAlpha = 1;
       } else if (ev.type === 'zoom') {

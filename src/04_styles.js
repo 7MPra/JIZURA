@@ -184,9 +184,14 @@ J.resolveStyle = (project) => {
 J.KEY_BG = { green: '#00FF00', black: '#000000' };
 J.keyMode = project => (project && J.KEY_BG[project.keyBg] ? project.keyBg : null);
 function keyStyle(st) {
+  // a scheme whose ground is on the other side of light / dark from the first one (a colour-field flip) becomes a white
+  // plate with black text — keyed, the plate stays white and the text shows the key colour (see-through)
+  const light = s => J.lum(s.bg) > J.lum(s.fg), base = st.schemes[0] ? light(st.schemes[0]) : false;
   st.schemes = st.schemes.map(s => {
-    const o = { bg: '#000000', fg: '#FFFFFF', sub: '#D2D2D2', accent: '#FFFFFF', accent2: '#BDBDBD', ink: '#FFFFFF', dim: '#1E1E1E', ghostA: '#9A9A9A', ghostB: '#5E5E5E' };
-    if (s.grad) o.grad = ['#FFFFFF', '#A8A8A8'];
+    const o = light(s) !== base
+      ? { bg: '#FFFFFF', fg: '#000000', sub: '#2D2D2D', accent: '#000000', accent2: '#424242', ink: '#000000', dim: '#E1E1E1', ghostA: '#656565', ghostB: '#A1A1A1', flip: true }
+      : { bg: '#000000', fg: '#FFFFFF', sub: '#D2D2D2', accent: '#FFFFFF', accent2: '#BDBDBD', ink: '#FFFFFF', dim: '#1E1E1E', ghostA: '#9A9A9A', ghostB: '#5E5E5E' };
+    if (s.grad) o.grad = o.flip ? ['#000000', '#575757'] : ['#FFFFFF', '#A8A8A8'];
     return o;
   });
   st.texture = { grain: 0, paper: 0, scan: 0 };

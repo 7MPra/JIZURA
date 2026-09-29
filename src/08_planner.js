@@ -630,8 +630,6 @@ J.plan = (project, audio) => {
   });
   // テキストのみ: no colour-split / glitch hits and no random inverts (src/11u_restraint.js) — drawn and dropped, so the draw order stays
   if (st.textOnly && J.TEXT_EVENT_DROP) plan.events = plan.events.filter(e => !J.TEXT_EVENT_DROP.includes(e.type) && !(e.type === 'invert' && !e.chorus));
-  // 合成用の背景 (green / black back): an invert would turn the whole key colour over for a beat — never on a key plate
-  if (plan.keyBg) plan.events = plan.events.filter(e => e.type !== 'invert');
   plan.events.sort((a, b) => a.t - b.t);
   plan.energy = audio && audio.energy ? audio.energy : null;
   plan.energyRate = audio && audio.energyRate ? audio.energyRate : 0;
