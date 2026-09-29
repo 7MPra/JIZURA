@@ -91,6 +91,8 @@ function onsets(env, n, o = {}) {
   return v;
 }
 const curIdx = (ts, t) => { let k = -1; for (let i = 0; i < ts.length; i++) if (t >= ts[i]) k = i; return k; };
+// shared with the other beat-timed packs (src/11v_type2.js)
+J.beatKit = { unitsOf, onsets, beatLen, curIdx, kick, motionK, accOn, isPort, hasLatin, strip, gcount };
 // J.mainDraw starts an item's entrance at delay = mi × cut.stagger
 const miAt = (env, t) => Math.max(0, t) / Math.max(0.005, env.cut.stagger || 0.04);
 // is this word one of the line's *強調* words (or the whole cut is an emphasis cut)?

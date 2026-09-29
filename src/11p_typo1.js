@@ -758,7 +758,9 @@ reg('tyMargin', {
     const { W, H, sc } = env, cut = env.cut, Pm = cut.params, lt = env.lt, M = Math.min(W, H);
     const port = W < H, txt = String(cut.text).trim();
     const mt = J.glyphCount(txt) > (port ? 9 : 14) ? splitL(txt, port ? 8 : 12) : txt;
-    const size = Math.min(M * 0.068, J.fitSize(mt, Pm.font, W * 0.66, H * 0.22, { track: 0.1, lead: 1.4 }));
+    // テキストのみ: without the rule and labels the lyric alone has to hold the corner, so it is set larger
+    const big = !!(env.st && env.st.textOnly);
+    const size = Math.min(M * (big ? 0.12 : 0.068), J.fitSize(mt, Pm.font, W * (big ? 0.72 : 0.66), H * (big ? 0.34 : 0.22), { track: 0.1, lead: 1.4 }));
     const right = Pm.pos === 'tr' || Pm.pos === 'br';
     const y = Pm.pos === 'tr' ? H * 0.2 : Pm.pos === 'lc' ? H * 0.5 : H * 0.8;
     const x = right ? W * 0.92 : W * 0.08;

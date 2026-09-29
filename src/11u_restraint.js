@@ -21,7 +21,7 @@ J.TEXT_POOL = {
     W(['tyCropGiant', 'huge', 'knRhythmCuts', 'bsBeatWord'], 1.6),
     W(['knTypeSlam', 'tyKeySplit', 'knZoomDive', 'columnsBig', 'tyScaleSteps', 'bsScaleLine', 'knQuarterTurn', 'center', 'vcols'], 1.1),
     W(['hanging', 'poster', 'swissGrid', 'headlineDeck', 'tyMargin', 'knSwapCenter', 'knFlowSnap', 'knCollide', 'knReflow', 'mixed', 'kanjiFocus', 'dropCap',
-      'tyCross', 'tySplitType', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'type', 'corners', 'sideways', 'halfVertical', 'splitHalves'], 0.6)),
+      'tyCross', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'type', 'corners', 'sideways', 'halfVertical'], 0.6)),
   enter: Object.assign(
     W(['cut', 'knWordSlam'], 1.5),
     W(['zoom', 'stretch', 'slice', 'whip', 'knTypeToSlam', 'riseMask', 'dropMask', 'wipe', 'trackIn', 'blurStagger', 'tyKeyFirst', 'zoomOut', 'splitJoin'], 0.9),

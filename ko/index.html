@@ -1855,7 +1855,7 @@ J.transPlainOn = (ctx, bgs) => {
 function readable(env, it) {
   const bg = env.sc && env.sc.bg, fg = env.sc && env.sc.fg;
   if (!bg || !fg) return it;
-  const bad = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) && J.contrast(c, bg) < 1.5;
+  const bad = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) && J.contrast(c, bg) < 1.08;   // the ground colour itself (counter text of a plate) — faint on purpose (dim) stays faint
   if (!bad(it.color) && !bad(it.strokeColor)) return it;
   return Object.assign({}, it, bad(it.color) ? { color: fg } : null, bad(it.strokeColor) ? { strokeColor: fg } : null);
 }
@@ -4566,7 +4566,7 @@ function pickTreat(rng, st, en, fx, LD, emph, history) {
 }
 function pickBg(rng, st, en, fx, bgHist) {
   if (st.pool && st.pool.bg && !Object.keys(st.pool.bg).length) return 'none';
-  if (!rng.chance(0.2 + 0.35 * (fx.decor ?? 0.5) + 0.2 * (fx.bgSwitch ?? 0.35))) return 'none';
+  if (!rng.chance((0.2 + 0.35 * (fx.decor ?? 0.5) + 0.2 * (fx.bgSwitch ?? 0.35)) * (st.textOnly ? 0.55 : 1))) return 'none';   // テキストのみ: the huge lyric behind is an accent, not a habit
   const last = bgHist.slice(-3);
   const cands = J.BG_ORDER.filter(k => k !== 'none' && en.bg && en.bg[k] !== false && J.BG[k])
     .map(k => [k, wkey(st.bias && st.bias.bg, k, J.BG[k].w ?? 1) * (last.includes(k) ? 0.25 : 1)]);
@@ -19964,7 +19964,7 @@ reg('knTypeSlam', {
     const above = Pm.side === 'above';
     const ky = H / 2 + (above ? ts * 1.2 : -ts * 1.2), ty = above ? ky - ks * 0.62 - ts * 1.5 : ky + ks * 0.62 + ts * 1.5;
     const nG = [...t0].length;
-    const tType = clamp(nG * 0.045, 0.25, Math.min(1.1, c.dur * 0.4)), tS = tType + 0.14;
+    const tType = clamp(nG * 0.04, Math.min(0.25, c.dur * 0.18), Math.min(1.1, c.dur * 0.25)), tS = tType + Math.min(0.14, c.dur * 0.08);   // short cuts: the slam still lands early
     const x0 = W / 2 - tm.w / 2;
     // typed line: revealed glyph by glyph (clip), cursor riding at the end
     const k = Math.floor(clamp(lt / tType) * nG + 1e-6);
@@ -24794,7 +24794,9 @@ J.register('layout', 'kanjiFocus', {
     // the full lyric, small, over it
     const mt = mainLines(raw, W, H, 16, 8);
     const base = { text: mt, font: Pm.fs, x: side ? W / 2 - Pm.dir * W * 0.12 : W / 2, y: Pm.low ? H * 0.74 : H / 2, track: 0.14, lead: 1.5 };
-    base.size = Math.min(J.fitSize(mt, Pm.fs, side ? W * 0.44 : W * 0.7, H * 0.2, base), M * 0.075);
+    // テキストのみ: the lyric is the only thing that speaks — set it larger over the faint glyph
+    const tOnly = !!(env.st && env.st.textOnly);
+    base.size = Math.min(J.fitSize(mt, Pm.fs, side ? W * (tOnly ? 0.5 : 0.44) : W * (tOnly ? 0.8 : 0.7), H * (tOnly ? 0.3 : 0.2), base), M * (tOnly ? 0.13 : 0.075));
     const gl = glyphPts(base);
     let bb = null;
     let k = 0;
@@ -34995,7 +34997,9 @@ reg('tyMargin', {
     const { W, H, sc } = env, cut = env.cut, Pm = cut.params, lt = env.lt, M = Math.min(W, H);
     const port = W < H, txt = String(cut.text).trim();
     const mt = J.glyphCount(txt) > (port ? 9 : 14) ? splitL(txt, port ? 8 : 12) : txt;
-    const size = Math.min(M * 0.068, J.fitSize(mt, Pm.font, W * 0.66, H * 0.22, { track: 0.1, lead: 1.4 }));
+    // テキストのみ: without the rule and labels the lyric alone has to hold the corner, so it is set larger
+    const big = !!(env.st && env.st.textOnly);
+    const size = Math.min(M * (big ? 0.12 : 0.068), J.fitSize(mt, Pm.font, W * (big ? 0.72 : 0.66), H * (big ? 0.34 : 0.22), { track: 0.1, lead: 1.4 }));
     const right = Pm.pos === 'tr' || Pm.pos === 'br';
     const y = Pm.pos === 'tr' ? H * 0.2 : Pm.pos === 'lc' ? H * 0.5 : H * 0.8;
     const x = right ? W * 0.92 : W * 0.08;
@@ -36293,6 +36297,8 @@ function onsets(env, n, o = {}) {
   return v;
 }
 const curIdx = (ts, t) => { let k = -1; for (let i = 0; i < ts.length; i++) if (t >= ts[i]) k = i; return k; };
+// shared with the other beat-timed packs (src/11v_type2.js)
+J.beatKit = { unitsOf, onsets, beatLen, curIdx, kick, motionK, accOn, isPort, hasLatin, strip, gcount };
 // J.mainDraw starts an item's entrance at delay = mi × cut.stagger
 const miAt = (env, t) => Math.max(0, t) / Math.max(0.005, env.cut.stagger || 0.04);
 // is this word one of the line's *強調* words (or the whole cut is an emphasis cut)?
@@ -36583,7 +36589,7 @@ J.TEXT_POOL = {
     W(['tyCropGiant', 'huge', 'knRhythmCuts', 'bsBeatWord'], 1.6),
     W(['knTypeSlam', 'tyKeySplit', 'knZoomDive', 'columnsBig', 'tyScaleSteps', 'bsScaleLine', 'knQuarterTurn', 'center', 'vcols'], 1.1),
     W(['hanging', 'poster', 'swissGrid', 'headlineDeck', 'tyMargin', 'knSwapCenter', 'knFlowSnap', 'knCollide', 'knReflow', 'mixed', 'kanjiFocus', 'dropCap',
-      'tyCross', 'tySplitType', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'type', 'corners', 'sideways', 'halfVertical', 'splitHalves'], 0.6)),
+      'tyCross', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'type', 'corners', 'sideways', 'halfVertical'], 0.6)),
   enter: Object.assign(
     W(['cut', 'knWordSlam'], 1.5),
     W(['zoom', 'stretch', 'slice', 'whip', 'knTypeToSlam', 'riseMask', 'dropMask', 'wipe', 'trackIn', 'blurStagger', 'tyKeyFirst', 'zoomOut', 'splitJoin'], 0.9),
@@ -36647,6 +36653,196 @@ J.restrainStyle = (st) => {
   for (const role of Object.keys(st.fonts || {})) if (Array.isArray(st.fonts[role]) && st.fonts[role].length > 1) st.fonts[role] = st.fonts[role].slice(0, 1);
   return st;
 };
+})();
+
+/* JIZURA pack: type2 — more text-only variations: typographic layouts timed on the beat, and styles with their own
+   type personality (face, palette and the handful of parts they draw from).
+   Layouts (text only; random picks use them only in text-only styles — see J.TEXT_POOL and the styles below)
+     tyStackJustify  積層ワード      the words stacked one per beat, each set to the full measure: a justified block
+     tyCropSlide     見切れスライド  one word bigger than the frame, stepping across it on the beat
+     tyGridFill      升目充填        the words dropped into a 2×2 / 3×2 grid, one cell per beat
+   Styles: 明朝の余白 / ストリート / 手書きの歌 / 昭和ポスター / 白い余白 */
+(() => {
+'use strict';
+const E = J.E, clamp = J.clamp;
+const K = J.beatKit;
+const reg = (key, def) => J.register('layout', key, Object.assign(def, { set: 'kinetic', poolOnly: true }), 'type2');
+const miAt = (env, t) => Math.max(0, t) / Math.max(0.005, env.cut.stagger || 0.04);
+const upper = t => (K.hasLatin(t) ? String(t).toUpperCase() : t);
+
+/* ================================================================== tyStackJustify — 積層ワード */
+reg('tyStackJustify', {
+  name: '積層ワード', tags: ['graphic', 'editorial', 'pop'], w: 0.8, ae: 'center', fits: n => n >= 3 && n <= 30,
+  enterBias: { cut: 4 },
+  plan(rng, cut, st) {
+    return { font: rng.pick(J.fontsOf(st, ['display'])), from: rng.pick(['side', 'side', 'below']), accent: rng.pick(['last', 'none', 'first']), lead: rng.range(0.9, 1.02) };
+  },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, Pm = c.params, port = K.isPort(env);
+    const units = K.unitsOf(c, port ? 6 : 5).map(upper), n = units.length;
+    const ts = K.onsets(env, n), k = K.curIdx(ts, env.lt);
+    if (k < 0) return null;
+    const mw = W * (port ? 0.86 : 0.7);
+    let sizes = units.map(u => Math.min(J.fitSize(u, Pm.font, mw, H * 0.3, { track: 0 }), H * (port ? 0.2 : 0.3)));
+    const lead = Pm.lead || 0.96;
+    let tot = sizes.reduce((a, s) => a + s * lead, 0);
+    const maxH = H * 0.86;
+    if (tot > maxH) { const f = maxH / tot; sizes = sizes.map(s => s * f); tot = maxH; }
+    let y = H / 2 - tot / 2, bb = null;
+    const m = K.motionK(env);
+    units.forEach((u, i) => {
+      const s = sizes[i], yc = y + s * lead / 2; y += s * lead;
+      if (i > k) return;
+      const dt = env.lt - ts[i], e = E.outExpo(clamp(dt / 0.22)), side = i % 2 ? 1 : -1;
+      const dx = Pm.from === 'side' ? side * W * 0.18 * (1 - e) * m : 0, dy = Pm.from === 'below' ? H * 0.06 * (1 - e) * m : 0;
+      const acc = (Pm.accent === 'last' && i === n - 1) || (Pm.accent === 'first' && i === 0);
+      bb = J.unionBB(bb, J.mainDraw(env, { text: u, font: Pm.font, size: s * (1 + 0.06 * K.kick(dt, 16) * m), x: W / 2 + dx, y: yc + dy, track: 0, color: acc ? K.accOn(sc) : sc.fg, alpha: clamp(dt / 0.06), mi: miAt(env, ts[i]) }));
+    });
+    return bb;
+  },
+});
+
+/* ================================================================== tyCropSlide — 見切れスライド */
+reg('tyCropSlide', {
+  name: '見切れスライド', tags: ['graphic', 'pop', 'editorial'], w: 0.7, ae: 'huge', fits: n => n >= 2 && n <= 10,
+  enterBias: { cut: 4 },
+  plan(rng, cut, st) {
+    return { font: rng.pick(J.fontsOf(st, ['display'])), dir: rng.pick([1, -1]), y: rng.pick([0.5, 0.5, 0.42, 0.6]), steps: rng.pick([true, true, false]) };
+  },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, Pm = c.params, port = K.isPort(env);
+    const text = upper(K.hasLatin(c.text) ? String(c.text).trim() : K.strip(c.text));
+    const size = H * (port ? 0.42 : 0.78);
+    const w = J.measure({ text, font: Pm.font, size, track: -0.02 }).w;
+    const travel = Math.max(W * 0.3, w - W * 0.6);                  // the word crosses at least a third of the frame
+    // progress: stepped on the beat (each beat a quick shove), or one continuous glide
+    let p;
+    if (Pm.steps) {
+      const bl = K.beatLen(env, c.start), nB = Math.max(1, Math.round(c.dur / bl)), i = Math.min(nB - 1, Math.floor(env.lt / bl));
+      p = (i + E.outExpo(clamp((env.lt - i * bl) / Math.min(0.2, bl * 0.6)))) / nB;
+    } else p = E.inOutSine(clamp(env.lt / c.dur));
+    const x = W / 2 + Pm.dir * (travel / 2 - travel * p);
+    return J.mainDraw(env, { text, font: Pm.font, size, x, y: H * (Pm.y || 0.5), track: -0.02, color: sc.fg, mi: 0 });
+  },
+});
+
+/* ================================================================== tyGridFill — 升目充填 */
+reg('tyGridFill', {
+  name: '升目充填', tags: ['graphic', 'editorial', 'pop'], w: 0.7, ae: 'center', fits: n => n >= 3 && n <= 24,
+  enterBias: { cut: 4 },
+  plan(rng, cut, st) {
+    return { font: rng.pick(J.fontsOf(st, ['display'])), order: rng.pick(['z', 'z', 'n']), accent: rng.int(0, 5), gap: rng.range(0.02, 0.05) };
+  },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, Pm = c.params, port = K.isPort(env);
+    const units = K.unitsOf(c, 6).map(upper), n = units.length;
+    const cols = n <= 2 ? n : port ? 2 : n <= 4 ? 2 : 3, rows = Math.ceil(n / cols);
+    const ts = K.onsets(env, n), k = K.curIdx(ts, env.lt);
+    if (k < 0) return null;
+    const gw = W * 0.88, gh = H * 0.82, g = Math.min(W, H) * (Pm.gap || 0.03);
+    const cw = (gw - g * (cols - 1)) / cols, ch = (gh - g * (rows - 1)) / rows;
+    const sizes = units.map(u => Math.min(J.fitSize(u, Pm.font, cw * 0.92, ch * 0.8, { track: 0 }), ch * 0.8));
+    const s0 = Math.min(...sizes) * 1.25;                     // similar sizes read as one grid
+    let bb = null;
+    const m = K.motionK(env);
+    for (let i = 0; i <= Math.min(k, n - 1); i++) {
+      const r = Math.floor(i / cols), cc0 = i % cols, cc = Pm.order === 'n' && r % 2 ? cols - 1 - cc0 : cc0;
+      const cx = W / 2 - gw / 2 + cc * (cw + g) + cw / 2, cy = H / 2 - gh / 2 + r * (ch + g) + ch / 2;
+      const dt = env.lt - ts[i];
+      const s = Math.min(sizes[i], s0) * (1 + 0.12 * K.kick(dt, 15) * m);
+      bb = J.unionBB(bb, J.mainDraw(env, { text: units[i], font: Pm.font, size: s, x: cx, y: cy, track: 0, color: i === Pm.accent % n ? K.accOn(sc) : sc.fg, mi: miAt(env, ts[i]) }));
+    }
+    return bb;
+  },
+});
+
+/* ---------------------------------------------------------------- styles */
+const scheme = (bg, fg, accent) => ({ bg, fg, accent, sub: J.mix(fg, bg, 0.45), accent2: fg, ink: fg, dim: J.mix(bg, fg, 0.07), ghostA: accent, ghostB: fg });
+const pool = (o) => Object.assign({ decor: {}, bg: { bigChar: 1 } }, o);
+const S = {
+  edMincho: {
+    name: '明朝の余白', desc: '生成り・墨・朱の明朝体。縦組みと大きな一字、余白で見せる', moods: ['editorial', 'calm', 'emotional'],
+    schemes: [scheme('#F2EEE6', '#16130F', '#B8321F'), scheme('#16130F', '#F2EEE6', '#E0553A'), scheme('#B8321F', '#F7F1E6', '#16130F')],
+    fonts: { display: ['mincho_black'], serif: ['shippori'], body: ['mincho'], mono: ['mono'] }, chorusHit: false, oneCut: 0.45,
+    pool: pool({
+      layout: { vcols: 1.4, tyCropGiant: 1.3, kanjiFocus: 1.2, hanging: 1, columnsBig: 1, tyStackJustify: 0.9, tyMargin: 0.8, headlineDeck: 0.7, tyCropSlide: 0.6, center: 0.6 },
+      enter: { riseMask: 1.2, fadeStagger: 1.2, trackIn: 1, cut: 1, blurStagger: 0.8, tyKeyFirst: 0.8, wipe: 0.6 },
+      exit: { riseOut: 1, blur: 1, cut: 1.2, trackOutWide: 0.8, sinkMask: 0.8 },
+      hold: { still: 1.2, zoomSlow: 1, drift: 0.8, trackBreathe: 0.5 },
+      treat: { none: 3, tyHeadBig: 1 },
+      cam: { push: 1.2, dollyIn: 1, pullOut: 0.8, stepZoom: 0.6 },
+      trans: { pushSlide: 1, cover: 0.8, uncover: 0.8 },
+      fx: { defocus: 1, whiteFrame: 0.5 },
+    }),
+  },
+  street: {
+    name: 'ストリート', desc: '黄・黒・赤の極太ゴシック。語を叩きつけ、見切れ、升目に詰める', moods: ['pop', 'graphic', 'glitch'],
+    schemes: [scheme('#FFD400', '#0B0B0B', '#E8202A'), scheme('#0B0B0B', '#FFD400', '#FFFFFF'), scheme('#E8202A', '#FFFFFF', '#0B0B0B')],
+    fonts: { display: ['dela'], serif: ['gothic_black'], body: ['gothic_bold'], mono: ['mono'] }, chorusHit: true, oneCut: 0.6,
+    pool: pool({
+      layout: { bsBeatWord: 1.5, tyCropSlide: 1.3, tyGridFill: 1.2, tyStackJustify: 1.2, tyCropGiant: 1, knRhythmCuts: 1, huge: 0.8, knZoomDive: 0.6 },
+      enter: { cut: 2, knWordSlam: 1.4, zoom: 0.8, stretch: 0.6, slice: 0.5 },
+      exit: { cut: 2.5, knJumpCutOut: 1, zoomThrough: 0.8, knLaunch: 0.6 },
+      hold: { knWordPulse: 1, knTickShift: 1, still: 0.8, stretchPulse: 0.5 },
+      treat: { none: 2, knWordScale: 1, alternate: 0.5 },
+      cam: { beatPunch: 1.4, stepZoom: 1, knJumpCut: 1, crashZoom: 0.6 },
+      trans: { knStutterCut: 1, whipPan: 0.8, knStripSlam: 0.6 },
+      fx: { zoomPunch: 1, zoomStutter: 0.8, blackFrame: 0.5 },
+    }),
+  },
+  tegaki: {
+    name: '手書きの歌', desc: '紙と墨の手書き書体。一字ずつ書き出し、ゆっくり漂う', moods: ['calm', 'emotional'],
+    schemes: [scheme('#F4EFE4', '#2E2A26', '#C0563B'), scheme('#2E3A33', '#EFE9DC', '#E3B86B'), scheme('#E9DCC8', '#3A2E28', '#7A4B8C')],
+    fonts: { display: ['klee'], serif: ['brush'], body: ['klee'], mono: ['mono'] }, chorusHit: false, oneCut: 0.55, glitchBoost: 0.01,
+    pool: pool({
+      layout: { bsTypeBeat: 1.6, center: 1, vcols: 1, hanging: 0.9, kanjiFocus: 0.7, tyMargin: 0.7, corners: 0.5 },
+      enter: { fadeStagger: 1.4, type: 1, blurStagger: 1, riseMask: 0.8, cut: 0.6 },
+      exit: { blur: 1.2, blurOutStagger: 1, riseOut: 0.8, cut: 0.6 },
+      hold: { drift: 1, still: 1, zoomSlow: 0.8 },
+      treat: { none: 3, fadeChars: 0.8 },
+      cam: { push: 1.2, driftDiag: 1, pullOut: 0.6 },
+      trans: {},
+      fx: {},
+    }),
+  },
+  showa: {
+    name: '昭和ポスター', desc: 'クリーム・紺・朱の太い明朝。縦横を組み替える昭和の宣伝ポスター', moods: ['pop', 'editorial', 'graphic'],
+    schemes: [scheme('#EFE3C8', '#1D2A5B', '#D23A2A'), scheme('#D23A2A', '#F6ECD3', '#1D2A5B'), scheme('#1D2A5B', '#EFE3C8', '#E8B23A')],
+    fonts: { display: ['tokumin'], serif: ['mincho_black'], body: ['mincho_bold'], mono: ['mono'] }, chorusHit: true, oneCut: 0.5,
+    pool: pool({
+      layout: { halfVertical: 1.3, tyStackJustify: 1.2, columnsBig: 1.1, poster: 1, tyScaleSteps: 1, sideways: 0.8, tyGridFill: 0.8, kanjiFocus: 0.7, vcols: 0.7 },
+      enter: { cut: 1.4, wipe: 1, dropMask: 1, riseMask: 0.8, knWordSlam: 0.8, zoomOut: 0.6 },
+      exit: { cut: 1.6, wipe: 1, sinkMask: 0.8, riseOut: 0.6 },
+      hold: { still: 1.2, knWordPulse: 0.8, zoomSlow: 0.6 },
+      treat: { none: 2, tyHeadBig: 1, knWordScale: 0.8 },
+      cam: { stepZoom: 1, push: 1, beatPunch: 0.8 },
+      trans: { pushSlide: 1, cover: 0.8, knStutterCut: 0.5 },
+      fx: { zoomPunch: 0.8, whiteFrame: 0.5 },
+    }),
+  },
+  minimal: {
+    name: '白い余白', desc: '白地に細いゴシックと大きな一語。余白と大小の差だけで見せる', moods: ['calm', 'editorial', 'graphic'],
+    schemes: [scheme('#FAFAF8', '#111111', '#111111'), scheme('#111111', '#FAFAF8', '#FAFAF8'), scheme('#E9E7E2', '#111111', '#111111')],
+    fonts: { display: ['gothic_black'], serif: ['gothic_light'], body: ['gothic_light'], mono: ['mono'] }, chorusHit: true, oneCut: 0.55,
+    pool: pool({
+      layout: { bsScaleLine: 1.4, tyMargin: 1.2, corners: 1, tyCropGiant: 1, bsBeatWord: 0.9, tyCropSlide: 0.8, center: 0.7, dropCap: 0.6 },
+      enter: { cut: 1.6, trackIn: 1, riseMask: 0.8, fadeStagger: 0.8, wipe: 0.6 },
+      exit: { cut: 1.8, trackOutWide: 1, blur: 0.6, riseOut: 0.6 },
+      hold: { still: 1.4, zoomSlow: 0.8, trackBreathe: 0.6 },
+      treat: { none: 3, knWordScale: 1 },
+      cam: { push: 1, stepZoom: 1, beatPunch: 0.6, pullOut: 0.6 },
+      trans: { cover: 1, uncover: 1, pushSlide: 0.6 },
+      fx: { zoomPunch: 0.6, whiteFrame: 0.5, blackFrame: 0.5 },
+    }),
+  },
+};
+for (const [k, v] of Object.entries(S)) {
+  if (J.STYLES[k]) continue;
+  J.STYLES[k] = Object.assign({ bias: {}, texture: { grain: 0, paper: 0, scan: 0 }, hud: false, glow: 0, decor: {}, ghost: 0, textOnly: true }, v);
+  if (!J.STYLE_ORDER.includes(k)) J.STYLE_ORDER.push(k);
+}
+// the older text-only styles draw from these too
+if (J.TEXT_POOL) Object.assign(J.TEXT_POOL.layout, { tyStackJustify: 0.9, tyCropSlide: 0.6, tyGridFill: 0.6 });
 })();
 
 /* English labels are applied after all expression packs register, before the editor starts.
@@ -36877,7 +37073,12 @@ J.restrainStyle = (st) => {
     bsSlam: ['Beat Slam', 'One word slammed on each beat, heavy white on black, flips at the chorus'],
     bsRefrain: ['Refrain', 'The same words stacked row after row on the beat, older rows in outline, two pop colors'],
     bsScale: ['Big and Small', 'One huge word over one small line, ink on off-white, lots of space'],
-    bsBallad: ['Ballad', 'Letters typed in on the beat, serif on night navy, quiet motion']
+    bsBallad: ['Ballad', 'Letters typed in on the beat, serif on night navy, quiet motion'],
+    edMincho: ['Mincho and Margin', 'Off-white, ink and vermilion Mincho; vertical setting, one huge character, space'],
+    street: ['Street', 'Yellow, black and red heavy Gothic; words slammed, cropped and packed into a grid'],
+    tegaki: ['Handwritten Song', 'Paper and ink handwriting; letters written one by one, drifting slowly'],
+    showa: ['Showa Poster', 'Cream, navy and vermilion heavy Mincho; a Showa-era poster that turns lines vertical and horizontal'],
+    minimal: ['White Space', 'Thin Gothic and one big word on white; only space and scale']
   };
   for (const [key, [name, desc]] of Object.entries(styles)) {
     J.STYLES[key].name = name; J.STYLES[key].desc = desc;
@@ -36889,7 +37090,7 @@ J.restrainStyle = (st) => {
 /* part sets (horror / typo / kinetic): names, styles and the horror mood */
 (() => {
   'use strict';
-  const P = {"layout": {"hrFlashlight": "Flashlight", "hrDoorGap": "Door Gap", "hrWallScrawl": "Wall Scrawl", "hrCctv": "CCTV Monitor", "hrOuija": "Spirit Board", "hrMissing": "Missing Poster", "hrWrongOne": "The Wrong Glyph", "hrRisingDark": "Out of the Dark", "hrRedacted": "Redacted File", "hrStaticTv": "Static TV", "hrSpiritPhoto": "Spirit Photo", "hrWrongShadow": "Wrong Shadow", "tyKeySplit": "Key Glyph Split", "tyCropGiant": "Cropped Giant", "tyCross": "Cross Setting", "tyBandHide": "Band Cover", "tyRuby": "Ruby Notes", "tyBaseline": "Ruled Lines", "tyScaleSteps": "Size Crescendo", "tyJustify": "Justified Stack", "tyIndexTable": "Glyph Table", "tySplitType": "Split Type", "tyErode": "Eroding Repeat", "tyVRuler": "Vertical Scale", "tyFullTrack": "Full-Width Tracking", "tyStatCount": "Glyph Count", "tyMargin": "White Space", "tyRotBlock": "Rotated Block", "tySquare": "Square Setting", "tyLineFocus": "Line Highlight", "knSlamStack": "Slam Stack", "knQuarterTurn": "Quarter Turn", "knSwapCenter": "Word Swap", "knZoomDive": "Dive Into Letter", "knFlowSnap": "Flow and Snap", "knSeesaw": "Seesaw", "knTypeSlam": "Type then Slam", "knRhythmCuts": "Word Jump Cuts", "knPathRide": "Loop Track", "knGearWords": "Gears", "knCollide": "Head-on Crash", "knTumble": "Tumbling Boxes", "knReflow": "Vertical to Line", "knPadGrid": "Drum Pads", "bsBeatWord": "Word per Beat", "bsScaleLine": "Big Word, Small Line", "bsRefrain": "Refrain Rows", "bsTypeBeat": "Beat Typing"}, "enter": {"hrBlinkCreep": "Between Blinks", "hrJumpScare": "Jump Scare", "hrUneasy": "Uneasy Timing", "hrVhold": "Vertical Hold", "hrMirrorSnap": "Mirror Writing", "hrManifest": "Manifest", "hrClawReveal": "Claw Marks", "tyKeyFirst": "Key Glyph First", "tyLineWipe": "Line-by-Line Wipe", "tyZoomOne": "One by One Zoom", "tyUnderLift": "Rise from Underline", "tyDotGrow": "Dot to Glyph", "tyBracketOpen": "Brackets Open", "tyRetype": "Retype", "tyRubyDrop": "From Ruby", "knWordSlam": "Word Slam", "knTypeToSlam": "Type and Grow", "knReplaceIn": "Swap In", "knHingeDrop": "Hinge Drop", "knLoopIn": "Loop In", "knPushIn": "Push In", "knInertia": "Hard Brake", "knWordSpin": "Word Spin", "knDiveIn": "Words From Camera", "knStretchOut": "Tape Stretch"}, "exit": {"hrPulledDown": "Pulled Under", "hrLookBack": "One Remains", "hrTurnAway": "Turn Away", "hrShiver": "Shiver Out", "hrSwallow": "Swallowed", "hrFlickerDie": "Dying Flicker", "hrDrain": "Drain", "tyStrike": "Strike Out", "tyToDot": "Back to Dots", "tyLineFeed": "Line Feed", "tyBracketClose": "Brackets Close", "tyToIndex": "Turn to Numbers", "tyKeyLast": "Key Glyph Last", "tyUnderSink": "Sink into Underline", "tyFoldVert": "Fold to Vertical", "knWordKick": "Word Kick", "knPushOut": "Push Out", "knDiveGlyph": "Dive Into Letter", "knLaunch": "Launch", "knWordBlink": "Words Blink Out", "knCloseGap": "Close the Gaps", "knJumpCutOut": "Jump Cut", "knStackAway": "Stack and Drop"}, "hold": {"hrTwitch": "Twitch", "hrStare": "Staring Glyph", "hrLagOne": "The Late One", "hrFlickerLight": "Failing Light", "tyKeyPulse": "Key Glyph Pulse", "tyReadCursor": "Reading Cursor", "tyOutlineBlink": "Outline Blink", "tyTrackStep": "Tracking Steps", "knWordPulse": "Word Pulse", "knCounterRock": "Counter Rock", "knWordRide": "Word Surf", "knTickShift": "Tick Shift", "knBeatLean": "Beat Lean", "knGapBreath": "Breathing Gaps"}, "decor": {"hrScratches": "Claw Scratches", "hrSigil": "Sigil", "hrWatchEye": "Watching Eye", "hrStaticPatch": "Static Patches", "hrDustBeam": "Dusty Light Beam", "hrDrips": "Ink Drips", "hrCracks": "Cracks", "tyColophon": "Colophon", "tyRunningHead": "Running Head & Folio", "tyGlyphBody": "Glyph Body Lines", "tyTextRule": "Text Rule", "tyTypeScale": "Type Scale", "tyBigPunct": "Big Quote Marks", "knSpeedTrail": "Trailing Speed Lines", "knWordTicks": "Word Counter"}, "treat": {"hrInkBleed": "Bleeding Ink", "hrEroded": "Eroded", "hrRedact": "Redacted", "hrDoubleExp": "Double Exposure", "tyHollowKey": "Hollow Key Glyph", "tyHeadRules": "Head & Foot Rules", "tyHeadBig": "Large Initial", "tyIndexSup": "Glyph Numbers", "knWordScale": "Big and Small Words", "knWordPlate": "Word Knockout"}, "bg": {"hrFailingLamp": "Failing Lamp", "hrCorridor": "Dark Corridor", "hrMold": "Spreading Stains", "hrDeadTrees": "Dead Forest"}, "cam": {"hrNervous": "Frightened Handheld", "hrDutchSnap": "Sudden Tilt", "knReadPan": "Reading Pan", "knTiltKick": "Tilt Kick", "knCardFlip": "Card Flip", "knShearKick": "Shear Kick", "knJumpCut": "Jump Cut", "knRushIn": "Rush In"}, "fx": {"hrSubliminal": "Subliminal", "hrSignalLoss": "Signal Loss", "hrPassingShadow": "Passing Shadow"}, "trans": {"hrStaticCut": "Static Cut", "hrBlink": "Blink", "tyRuleWipe": "Ruled Line Wipe", "tyGridCells": "Grid Cell Fill", "knCornerSwing": "Corner Swing", "knStutterCut": "Stutter Cut", "knStripSlam": "Strip Slam"}};
+  const P = {"layout": {"hrFlashlight": "Flashlight", "hrDoorGap": "Door Gap", "hrWallScrawl": "Wall Scrawl", "hrCctv": "CCTV Monitor", "hrOuija": "Spirit Board", "hrMissing": "Missing Poster", "hrWrongOne": "The Wrong Glyph", "hrRisingDark": "Out of the Dark", "hrRedacted": "Redacted File", "hrStaticTv": "Static TV", "hrSpiritPhoto": "Spirit Photo", "hrWrongShadow": "Wrong Shadow", "tyKeySplit": "Key Glyph Split", "tyCropGiant": "Cropped Giant", "tyCross": "Cross Setting", "tyBandHide": "Band Cover", "tyRuby": "Ruby Notes", "tyBaseline": "Ruled Lines", "tyScaleSteps": "Size Crescendo", "tyJustify": "Justified Stack", "tyIndexTable": "Glyph Table", "tySplitType": "Split Type", "tyErode": "Eroding Repeat", "tyVRuler": "Vertical Scale", "tyFullTrack": "Full-Width Tracking", "tyStatCount": "Glyph Count", "tyMargin": "White Space", "tyRotBlock": "Rotated Block", "tySquare": "Square Setting", "tyLineFocus": "Line Highlight", "knSlamStack": "Slam Stack", "knQuarterTurn": "Quarter Turn", "knSwapCenter": "Word Swap", "knZoomDive": "Dive Into Letter", "knFlowSnap": "Flow and Snap", "knSeesaw": "Seesaw", "knTypeSlam": "Type then Slam", "knRhythmCuts": "Word Jump Cuts", "knPathRide": "Loop Track", "knGearWords": "Gears", "knCollide": "Head-on Crash", "knTumble": "Tumbling Boxes", "knReflow": "Vertical to Line", "knPadGrid": "Drum Pads", "bsBeatWord": "Word per Beat", "bsScaleLine": "Big Word, Small Line", "bsRefrain": "Refrain Rows", "bsTypeBeat": "Beat Typing", "tyStackJustify": "Stacked Words", "tyCropSlide": "Cropped Slide", "tyGridFill": "Grid Fill"}, "enter": {"hrBlinkCreep": "Between Blinks", "hrJumpScare": "Jump Scare", "hrUneasy": "Uneasy Timing", "hrVhold": "Vertical Hold", "hrMirrorSnap": "Mirror Writing", "hrManifest": "Manifest", "hrClawReveal": "Claw Marks", "tyKeyFirst": "Key Glyph First", "tyLineWipe": "Line-by-Line Wipe", "tyZoomOne": "One by One Zoom", "tyUnderLift": "Rise from Underline", "tyDotGrow": "Dot to Glyph", "tyBracketOpen": "Brackets Open", "tyRetype": "Retype", "tyRubyDrop": "From Ruby", "knWordSlam": "Word Slam", "knTypeToSlam": "Type and Grow", "knReplaceIn": "Swap In", "knHingeDrop": "Hinge Drop", "knLoopIn": "Loop In", "knPushIn": "Push In", "knInertia": "Hard Brake", "knWordSpin": "Word Spin", "knDiveIn": "Words From Camera", "knStretchOut": "Tape Stretch"}, "exit": {"hrPulledDown": "Pulled Under", "hrLookBack": "One Remains", "hrTurnAway": "Turn Away", "hrShiver": "Shiver Out", "hrSwallow": "Swallowed", "hrFlickerDie": "Dying Flicker", "hrDrain": "Drain", "tyStrike": "Strike Out", "tyToDot": "Back to Dots", "tyLineFeed": "Line Feed", "tyBracketClose": "Brackets Close", "tyToIndex": "Turn to Numbers", "tyKeyLast": "Key Glyph Last", "tyUnderSink": "Sink into Underline", "tyFoldVert": "Fold to Vertical", "knWordKick": "Word Kick", "knPushOut": "Push Out", "knDiveGlyph": "Dive Into Letter", "knLaunch": "Launch", "knWordBlink": "Words Blink Out", "knCloseGap": "Close the Gaps", "knJumpCutOut": "Jump Cut", "knStackAway": "Stack and Drop"}, "hold": {"hrTwitch": "Twitch", "hrStare": "Staring Glyph", "hrLagOne": "The Late One", "hrFlickerLight": "Failing Light", "tyKeyPulse": "Key Glyph Pulse", "tyReadCursor": "Reading Cursor", "tyOutlineBlink": "Outline Blink", "tyTrackStep": "Tracking Steps", "knWordPulse": "Word Pulse", "knCounterRock": "Counter Rock", "knWordRide": "Word Surf", "knTickShift": "Tick Shift", "knBeatLean": "Beat Lean", "knGapBreath": "Breathing Gaps"}, "decor": {"hrScratches": "Claw Scratches", "hrSigil": "Sigil", "hrWatchEye": "Watching Eye", "hrStaticPatch": "Static Patches", "hrDustBeam": "Dusty Light Beam", "hrDrips": "Ink Drips", "hrCracks": "Cracks", "tyColophon": "Colophon", "tyRunningHead": "Running Head & Folio", "tyGlyphBody": "Glyph Body Lines", "tyTextRule": "Text Rule", "tyTypeScale": "Type Scale", "tyBigPunct": "Big Quote Marks", "knSpeedTrail": "Trailing Speed Lines", "knWordTicks": "Word Counter"}, "treat": {"hrInkBleed": "Bleeding Ink", "hrEroded": "Eroded", "hrRedact": "Redacted", "hrDoubleExp": "Double Exposure", "tyHollowKey": "Hollow Key Glyph", "tyHeadRules": "Head & Foot Rules", "tyHeadBig": "Large Initial", "tyIndexSup": "Glyph Numbers", "knWordScale": "Big and Small Words", "knWordPlate": "Word Knockout"}, "bg": {"hrFailingLamp": "Failing Lamp", "hrCorridor": "Dark Corridor", "hrMold": "Spreading Stains", "hrDeadTrees": "Dead Forest"}, "cam": {"hrNervous": "Frightened Handheld", "hrDutchSnap": "Sudden Tilt", "knReadPan": "Reading Pan", "knTiltKick": "Tilt Kick", "knCardFlip": "Card Flip", "knShearKick": "Shear Kick", "knJumpCut": "Jump Cut", "knRushIn": "Rush In"}, "fx": {"hrSubliminal": "Subliminal", "hrSignalLoss": "Signal Loss", "hrPassingShadow": "Passing Shadow"}, "trans": {"hrStaticCut": "Static Cut", "hrBlink": "Blink", "tyRuleWipe": "Ruled Line Wipe", "tyGridCells": "Grid Cell Fill", "knCornerSwing": "Corner Swing", "knStutterCut": "Stutter Cut", "knStripSlam": "Strip Slam"}};
   for (const [g, m] of Object.entries(P)) { const t = J.registry(g) || {}; for (const [k, n] of Object.entries(m)) if (t[k]) t[k].name = n; }
   const S = {"hrRuin": ["Ruins", "Faded green-grey, rust red and echoing serif type"], "hrNightRec": ["Midnight Recording", "Pitch-black frames, CCTV white and red, static"], "hrCurse": ["Cursed Letter", "Yellowed paper, faded ink and dark red handwriting"]};
   for (const [k, [n, d]] of Object.entries(S)) if (J.STYLES[k]) { J.STYLES[k].name = n; J.STYLES[k].desc = d; }
@@ -36897,7 +37098,7 @@ J.restrainStyle = (st) => {
 })();
 
 (() => {
-  const S = {"noir": ["누아르 크로마", "흑백에 시안과 앰버의 색 어긋남"], "crimson": ["크림슨 시그널", "짙은 빨강, 모노크롬 서체와 깨진 데이터"], "caution": ["코션", "노랑·빨강·파랑과 계기판 그래픽"], "magenta": ["팝 마젠타", "핫핑크, 둥글고 굵은 서체와 지시선"], "paper": ["종이와 잉크", "종이 질감, 남색·마젠타와 세리프 잔상"], "hud": ["다크 HUD", "차콜, 가는 프레임, 오렌지 포인트와 일식"], "mint": ["민트 터미널", "검정·청록·라임과 스캔 효과"], "specimen": ["타입 스페시멘", "잉크색 배경과 세리프 주석"], "transit": ["트랜짓", "올리브와 노랑, 안내 표지와 망점"], "blueprint": ["블루프린트", "파랑·흰색·검정의 그래픽 콜라주"], "rouge": ["루주 그라데이션", "밝은 회색과 빨강 그라데이션, 캡슐"], "mono": ["모노 RGB", "회색 공간, 흰 세리프와 강한 RGB 분리"], "sakura": ["벚꽃", "부드러운 벚꽃색과 자두색, 둥근 서체와 세리프"], "ocean": ["심해", "네이비, 빛나는 시안, 물방울과 가는 산세리프"], "sunset": ["선셋 그라데이션", "오렌지에서 보라로, 굵은 세리프와 역광"], "forest": ["숲의 노트", "이끼색, 내추럴한 종이와 연필 글씨"], "vapor": ["베이퍼웨이브", "파스텔 핑크와 블루, VHS 번짐"], "newsprint": ["신문지", "회색 종이, 검정과 빨강, 망점과 인쇄 어긋남"], "synth80": ["신스 80s", "검정 바탕에 네온 마젠타·시안과 주사선"], "kraft": ["크라프트지", "따뜻한 종이, 빨강·남색 도장과 마스킹 테이프"], "candy": ["캔디", "민트와 과일 파스텔 색, 통통 튀는 글자"], "acid": ["애시드", "검정, 애시드 그린과 마젠타, 거친 서체"], "sumi": ["먹과 주홍", "화지, 붓글씨와 붉은 낙관"], "gold": ["골든 나이트", "깊은 검정, 금박, 아이보리 세리프와 반짝임"], "bsSlam": ["비트 슬램", "한 박자에 한 단어, 검정 바탕의 굵은 흰 글자, 후렴 첫머리에서 흑백 반전"], "bsRefrain": ["리프레인", "같은 말을 박자마다 한 줄씩 쌓기, 지난 줄은 외곽선, 팝한 두 색"], "bsScale": ["대와 소", "큰 한 단어와 작은 한 줄의 대비, 미색 바탕에 먹색, 여백"], "bsBallad": ["발라드", "박자에 맞춰 한 글자씩 타이핑, 밤의 남색과 명조, 조용한 움직임"]};
+  const S = {"noir": ["누아르 크로마", "흑백에 시안과 앰버의 색 어긋남"], "crimson": ["크림슨 시그널", "짙은 빨강, 모노크롬 서체와 깨진 데이터"], "caution": ["코션", "노랑·빨강·파랑과 계기판 그래픽"], "magenta": ["팝 마젠타", "핫핑크, 둥글고 굵은 서체와 지시선"], "paper": ["종이와 잉크", "종이 질감, 남색·마젠타와 세리프 잔상"], "hud": ["다크 HUD", "차콜, 가는 프레임, 오렌지 포인트와 일식"], "mint": ["민트 터미널", "검정·청록·라임과 스캔 효과"], "specimen": ["타입 스페시멘", "잉크색 배경과 세리프 주석"], "transit": ["트랜짓", "올리브와 노랑, 안내 표지와 망점"], "blueprint": ["블루프린트", "파랑·흰색·검정의 그래픽 콜라주"], "rouge": ["루주 그라데이션", "밝은 회색과 빨강 그라데이션, 캡슐"], "mono": ["모노 RGB", "회색 공간, 흰 세리프와 강한 RGB 분리"], "sakura": ["벚꽃", "부드러운 벚꽃색과 자두색, 둥근 서체와 세리프"], "ocean": ["심해", "네이비, 빛나는 시안, 물방울과 가는 산세리프"], "sunset": ["선셋 그라데이션", "오렌지에서 보라로, 굵은 세리프와 역광"], "forest": ["숲의 노트", "이끼색, 내추럴한 종이와 연필 글씨"], "vapor": ["베이퍼웨이브", "파스텔 핑크와 블루, VHS 번짐"], "newsprint": ["신문지", "회색 종이, 검정과 빨강, 망점과 인쇄 어긋남"], "synth80": ["신스 80s", "검정 바탕에 네온 마젠타·시안과 주사선"], "kraft": ["크라프트지", "따뜻한 종이, 빨강·남색 도장과 마스킹 테이프"], "candy": ["캔디", "민트와 과일 파스텔 색, 통통 튀는 글자"], "acid": ["애시드", "검정, 애시드 그린과 마젠타, 거친 서체"], "sumi": ["먹과 주홍", "화지, 붓글씨와 붉은 낙관"], "gold": ["골든 나이트", "깊은 검정, 금박, 아이보리 세리프와 반짝임"], "bsSlam": ["비트 슬램", "한 박자에 한 단어, 검정 바탕의 굵은 흰 글자, 후렴 첫머리에서 흑백 반전"], "bsRefrain": ["리프레인", "같은 말을 박자마다 한 줄씩 쌓기, 지난 줄은 외곽선, 팝한 두 색"], "bsScale": ["대와 소", "큰 한 단어와 작은 한 줄의 대비, 미색 바탕에 먹색, 여백"], "bsBallad": ["발라드", "박자에 맞춰 한 글자씩 타이핑, 밤의 남색과 명조, 조용한 움직임"], "edMincho": ["명조와 여백", "미색·먹·주홍의 명조; 세로쓰기와 커다란 한 글자, 여백"], "street": ["스트리트", "노랑·검정·빨강의 극태 고딕; 단어를 내리찍고 잘라내고 격자에 채움"], "tegaki": ["손글씨 노래", "종이와 먹의 손글씨; 한 글자씩 써 내려가며 천천히 흐름"], "showa": ["쇼와 포스터", "크림·남색·주홍의 굵은 명조; 세로와 가로를 바꿔 짜는 쇼와 시대 포스터"], "minimal": ["하얀 여백", "흰 바탕의 가는 고딕과 큰 한 단어; 여백과 크기 대비만으로"]};
   for (const [k, [n, d]] of Object.entries(S)) if (J.STYLES[k]) { J.STYLES[k].name = n; J.STYLES[k].desc = d; }
   const M = {"glitch": "글리치", "calm": "잔잔함", "pop": "팝", "graphic": "그래픽", "editorial": "에디토리얼", "emotional": "감성", "chaos": "자유분방"};
   for (const [k, n] of Object.entries(M)) if (J.MOODS[k]) J.MOODS[k].name = n;
@@ -37156,7 +37357,12 @@ J.restrainStyle = (st) => {
     bsSlam: ['비트 슬램', '한 박자에 한 단어, 검정 바탕의 굵은 흰 글자, 후렴 첫머리에서 흑백 반전'],
     bsRefrain: ['리프레인', '같은 말을 박자마다 한 줄씩 쌓기, 지난 줄은 외곽선, 팝한 두 색'],
     bsScale: ['대와 소', '큰 한 단어와 작은 한 줄의 대비, 미색 바탕에 먹색, 여백'],
-    bsBallad: ['발라드', '박자에 맞춰 한 글자씩 타이핑, 밤의 남색과 명조, 조용한 움직임']
+    bsBallad: ['발라드', '박자에 맞춰 한 글자씩 타이핑, 밤의 남색과 명조, 조용한 움직임'],
+    edMincho: ['명조와 여백', '미색·먹·주홍의 명조; 세로쓰기와 커다란 한 글자, 여백'],
+    street: ['스트리트', '노랑·검정·빨강의 극태 고딕; 단어를 내리찍고 잘라내고 격자에 채움'],
+    tegaki: ['손글씨 노래', '종이와 먹의 손글씨; 한 글자씩 써 내려가며 천천히 흐름'],
+    showa: ['쇼와 포스터', '크림·남색·주홍의 굵은 명조; 세로와 가로를 바꿔 짜는 쇼와 시대 포스터'],
+    minimal: ['하얀 여백', '흰 바탕의 가는 고딕과 큰 한 단어; 여백과 크기 대비만으로']
   };
   for (const [key, [name, desc]] of Object.entries(styles)) {
     J.STYLES[key].name = name; J.STYLES[key].desc = desc;
@@ -37172,7 +37378,7 @@ J.restrainStyle = (st) => {
 /* part sets (horror / typo / kinetic): names, styles and the horror mood */
 (() => {
   'use strict';
-  const P = {"layout": {"hrFlashlight": "손전등", "hrDoorGap": "문틈", "hrWallScrawl": "벽의 낙서", "hrCctv": "감시 모니터", "hrOuija": "분신사바 판", "hrMissing": "실종 전단", "hrWrongOne": "한 글자만 이상해", "hrRisingDark": "어둠에서 기어 나옴", "hrRedacted": "검게 칠한 문서", "hrStaticTv": "지직거리는 TV", "hrSpiritPhoto": "심령사진", "hrWrongShadow": "어긋난 그림자", "tyKeySplit": "큰 글자 끼우기", "tyCropGiant": "잘린 거대 글자", "tyCross": "십자 조판", "tyBandHide": "띠 가림", "tyRuby": "루비 주석", "tyBaseline": "괘선 조판", "tyScaleSteps": "크기 계단", "tyJustify": "폭 맞춤", "tyIndexTable": "글자 목록표", "tySplitType": "절단 글자", "tyErode": "깎이는 반복", "tyVRuler": "세로 눈금", "tyFullTrack": "전폭 자간", "tyStatCount": "글자 수 표시", "tyMargin": "여백", "tyRotBlock": "회전 블록", "tySquare": "정방형 조판", "tyLineFocus": "행 속 강조", "knSlamStack": "쌓아 올리기", "knQuarterTurn": "직각 턴", "knSwapCenter": "단어 교체", "knZoomDive": "글자 속으로", "knFlowSnap": "흐르다 정렬", "knSeesaw": "시소", "knTypeSlam": "타자→슬램", "knRhythmCuts": "단어 컷 분할", "knPathRide": "루프 궤도", "knGearWords": "톱니바퀴", "knCollide": "정면충돌", "knTumble": "굴러오는 상자", "knReflow": "세로에서 가로로", "knPadGrid": "패드", "bsBeatWord": "한 박자 한 단어", "bsScaleLine": "큰 단어 작은 줄", "bsRefrain": "리프레인 줄", "bsTypeBeat": "박자 타이핑"}, "enter": {"hrBlinkCreep": "눈 깜빡할 사이", "hrJumpScare": "튀어나옴", "hrUneasy": "불안한 등장", "hrVhold": "수직 동기", "hrMirrorSnap": "거울 글자", "hrManifest": "떠오르다", "hrClawReveal": "손톱자국에서", "tyKeyFirst": "핵심 글자 먼저", "tyLineWipe": "행별 와이프", "tyZoomOne": "한 글자씩 확대", "tyUnderLift": "밑줄에서 서기", "tyDotGrow": "점에서 글자로", "tyBracketOpen": "괄호 열기", "tyRetype": "다시 입력", "tyRubyDrop": "루비에서", "knWordSlam": "단어 슬램", "knTypeToSlam": "타자→확대", "knReplaceIn": "교체 등장", "knHingeDrop": "경첩 내리기", "knLoopIn": "루프 등장", "knPushIn": "밀어 넣기", "knInertia": "급브레이크", "knWordSpin": "단어 회전", "knDiveIn": "앞에서 단어", "knStretchOut": "쭉 늘이기"}, "exit": {"hrPulledDown": "끌려 들어감", "hrLookBack": "한 글자 남음", "hrTurnAway": "등을 돌림", "hrShiver": "떨다 사라짐", "hrSwallow": "어둠에 삼켜짐", "hrFlickerDie": "깜빡이며 꺼짐", "hrDrain": "뚝뚝 흘러내림", "tyStrike": "줄 그어 지우기", "tyToDot": "점으로 돌아가기", "tyLineFeed": "줄바꿈 이송", "tyBracketClose": "괄호 닫기", "tyToIndex": "번호로 변신", "tyKeyLast": "한 글자 남기기", "tyUnderSink": "밑줄로 가라앉기", "tyFoldVert": "세로쓰기로 접기", "knWordKick": "단어 차내기", "knPushOut": "밀어내기 퇴장", "knDiveGlyph": "한 글자로 돌진", "knLaunch": "급발진", "knWordBlink": "한 단어씩 소등", "knCloseGap": "좁히며 사라짐", "knJumpCutOut": "점프 컷", "knStackAway": "쌓아서 떨구기"}, "hold": {"hrTwitch": "경련", "hrStare": "응시하는 글자", "hrLagOne": "늦는 한 글자", "hrFlickerLight": "꺼져가는 불빛", "tyKeyPulse": "한 글자 고동", "tyReadCursor": "읽기 커서", "tyOutlineBlink": "윤곽 깜빡임", "tyTrackStep": "자간 단계", "knWordPulse": "단어 박자", "knCounterRock": "역회전 흔들기", "knWordRide": "단어 파도타기", "knTickShift": "째깍 이동", "knBeatLean": "박자에 기울기", "knGapBreath": "단어 간격 호흡"}, "decor": {"hrScratches": "할퀸 자국", "hrSigil": "마법진", "hrWatchEye": "지켜보는 눈", "hrStaticPatch": "노이즈 조각", "hrDustBeam": "빛줄기와 먼지", "hrDrips": "흘러내리는 먹", "hrCracks": "금 간 자국", "tyColophon": "판권", "tyRunningHead": "머리말과 쪽번호", "tyGlyphBody": "글자 몸 분할선", "tyTextRule": "문자 괘선", "tyTypeScale": "크기 견본", "tyBigPunct": "큰 인용 부호", "knSpeedTrail": "따라오는 스피드 선", "knWordTicks": "단어 카운터"}, "treat": {"hrInkBleed": "번지고 흐름", "hrEroded": "풍화", "hrRedact": "검게 칠하기", "hrDoubleExp": "이중 노출", "tyHollowKey": "한 글자 윤곽", "tyHeadRules": "위아래 괘선", "tyHeadBig": "첫 글자 강조", "tyIndexSup": "글자 번호", "knWordScale": "크고 작은 단어", "knWordPlate": "단어별 반전"}, "bg": {"hrFailingLamp": "꺼져가는 등", "hrCorridor": "어두운 복도", "hrMold": "번지는 얼룩", "hrDeadTrees": "고목의 숲"}, "cam": {"hrNervous": "겁먹은 핸드헬드", "hrDutchSnap": "갑작스런 기울기", "knReadPan": "읽기 따라가기", "knTiltKick": "단어마다 기울기", "knCardFlip": "카드 뒤집기", "knShearKick": "시어 킥", "knJumpCut": "점프 컷", "knRushIn": "멀리서 돌진"}, "fx": {"hrSubliminal": "서브리미널", "hrSignalLoss": "신호 끊김", "hrPassingShadow": "스쳐가는 그림자"}, "trans": {"hrStaticCut": "노이즈 컷", "hrBlink": "눈 깜빡임", "tyRuleWipe": "괘선 와이프", "tyGridCells": "칸 채우기", "knCornerSwing": "코너 스윙", "knStutterCut": "스터터 컷", "knStripSlam": "띠 슬램"}};
+  const P = {"layout": {"hrFlashlight": "손전등", "hrDoorGap": "문틈", "hrWallScrawl": "벽의 낙서", "hrCctv": "감시 모니터", "hrOuija": "분신사바 판", "hrMissing": "실종 전단", "hrWrongOne": "한 글자만 이상해", "hrRisingDark": "어둠에서 기어 나옴", "hrRedacted": "검게 칠한 문서", "hrStaticTv": "지직거리는 TV", "hrSpiritPhoto": "심령사진", "hrWrongShadow": "어긋난 그림자", "tyKeySplit": "큰 글자 끼우기", "tyCropGiant": "잘린 거대 글자", "tyCross": "십자 조판", "tyBandHide": "띠 가림", "tyRuby": "루비 주석", "tyBaseline": "괘선 조판", "tyScaleSteps": "크기 계단", "tyJustify": "폭 맞춤", "tyIndexTable": "글자 목록표", "tySplitType": "절단 글자", "tyErode": "깎이는 반복", "tyVRuler": "세로 눈금", "tyFullTrack": "전폭 자간", "tyStatCount": "글자 수 표시", "tyMargin": "여백", "tyRotBlock": "회전 블록", "tySquare": "정방형 조판", "tyLineFocus": "행 속 강조", "knSlamStack": "쌓아 올리기", "knQuarterTurn": "직각 턴", "knSwapCenter": "단어 교체", "knZoomDive": "글자 속으로", "knFlowSnap": "흐르다 정렬", "knSeesaw": "시소", "knTypeSlam": "타자→슬램", "knRhythmCuts": "단어 컷 분할", "knPathRide": "루프 궤도", "knGearWords": "톱니바퀴", "knCollide": "정면충돌", "knTumble": "굴러오는 상자", "knReflow": "세로에서 가로로", "knPadGrid": "패드", "bsBeatWord": "한 박자 한 단어", "bsScaleLine": "큰 단어 작은 줄", "bsRefrain": "리프레인 줄", "bsTypeBeat": "박자 타이핑", "tyStackJustify": "쌓인 단어", "tyCropSlide": "잘린 슬라이드", "tyGridFill": "격자 채우기"}, "enter": {"hrBlinkCreep": "눈 깜빡할 사이", "hrJumpScare": "튀어나옴", "hrUneasy": "불안한 등장", "hrVhold": "수직 동기", "hrMirrorSnap": "거울 글자", "hrManifest": "떠오르다", "hrClawReveal": "손톱자국에서", "tyKeyFirst": "핵심 글자 먼저", "tyLineWipe": "행별 와이프", "tyZoomOne": "한 글자씩 확대", "tyUnderLift": "밑줄에서 서기", "tyDotGrow": "점에서 글자로", "tyBracketOpen": "괄호 열기", "tyRetype": "다시 입력", "tyRubyDrop": "루비에서", "knWordSlam": "단어 슬램", "knTypeToSlam": "타자→확대", "knReplaceIn": "교체 등장", "knHingeDrop": "경첩 내리기", "knLoopIn": "루프 등장", "knPushIn": "밀어 넣기", "knInertia": "급브레이크", "knWordSpin": "단어 회전", "knDiveIn": "앞에서 단어", "knStretchOut": "쭉 늘이기"}, "exit": {"hrPulledDown": "끌려 들어감", "hrLookBack": "한 글자 남음", "hrTurnAway": "등을 돌림", "hrShiver": "떨다 사라짐", "hrSwallow": "어둠에 삼켜짐", "hrFlickerDie": "깜빡이며 꺼짐", "hrDrain": "뚝뚝 흘러내림", "tyStrike": "줄 그어 지우기", "tyToDot": "점으로 돌아가기", "tyLineFeed": "줄바꿈 이송", "tyBracketClose": "괄호 닫기", "tyToIndex": "번호로 변신", "tyKeyLast": "한 글자 남기기", "tyUnderSink": "밑줄로 가라앉기", "tyFoldVert": "세로쓰기로 접기", "knWordKick": "단어 차내기", "knPushOut": "밀어내기 퇴장", "knDiveGlyph": "한 글자로 돌진", "knLaunch": "급발진", "knWordBlink": "한 단어씩 소등", "knCloseGap": "좁히며 사라짐", "knJumpCutOut": "점프 컷", "knStackAway": "쌓아서 떨구기"}, "hold": {"hrTwitch": "경련", "hrStare": "응시하는 글자", "hrLagOne": "늦는 한 글자", "hrFlickerLight": "꺼져가는 불빛", "tyKeyPulse": "한 글자 고동", "tyReadCursor": "읽기 커서", "tyOutlineBlink": "윤곽 깜빡임", "tyTrackStep": "자간 단계", "knWordPulse": "단어 박자", "knCounterRock": "역회전 흔들기", "knWordRide": "단어 파도타기", "knTickShift": "째깍 이동", "knBeatLean": "박자에 기울기", "knGapBreath": "단어 간격 호흡"}, "decor": {"hrScratches": "할퀸 자국", "hrSigil": "마법진", "hrWatchEye": "지켜보는 눈", "hrStaticPatch": "노이즈 조각", "hrDustBeam": "빛줄기와 먼지", "hrDrips": "흘러내리는 먹", "hrCracks": "금 간 자국", "tyColophon": "판권", "tyRunningHead": "머리말과 쪽번호", "tyGlyphBody": "글자 몸 분할선", "tyTextRule": "문자 괘선", "tyTypeScale": "크기 견본", "tyBigPunct": "큰 인용 부호", "knSpeedTrail": "따라오는 스피드 선", "knWordTicks": "단어 카운터"}, "treat": {"hrInkBleed": "번지고 흐름", "hrEroded": "풍화", "hrRedact": "검게 칠하기", "hrDoubleExp": "이중 노출", "tyHollowKey": "한 글자 윤곽", "tyHeadRules": "위아래 괘선", "tyHeadBig": "첫 글자 강조", "tyIndexSup": "글자 번호", "knWordScale": "크고 작은 단어", "knWordPlate": "단어별 반전"}, "bg": {"hrFailingLamp": "꺼져가는 등", "hrCorridor": "어두운 복도", "hrMold": "번지는 얼룩", "hrDeadTrees": "고목의 숲"}, "cam": {"hrNervous": "겁먹은 핸드헬드", "hrDutchSnap": "갑작스런 기울기", "knReadPan": "읽기 따라가기", "knTiltKick": "단어마다 기울기", "knCardFlip": "카드 뒤집기", "knShearKick": "시어 킥", "knJumpCut": "점프 컷", "knRushIn": "멀리서 돌진"}, "fx": {"hrSubliminal": "서브리미널", "hrSignalLoss": "신호 끊김", "hrPassingShadow": "스쳐가는 그림자"}, "trans": {"hrStaticCut": "노이즈 컷", "hrBlink": "눈 깜빡임", "tyRuleWipe": "괘선 와이프", "tyGridCells": "칸 채우기", "knCornerSwing": "코너 스윙", "knStutterCut": "스터터 컷", "knStripSlam": "띠 슬램"}};
   for (const [g, m] of Object.entries(P)) { const t = J.registry(g) || {}; for (const [k, n] of Object.entries(m)) if (t[k]) t[k].name = n; }
   const S = {"hrRuin": ["폐허", "바랜 녹회색, 녹슨 빨강, 울리는 명조체"], "hrNightRec": ["심야의 녹화", "새까만 화면, 감시 영상의 흰색과 빨강, 노이즈"], "hrCurse": ["저주의 편지", "누렇게 바랜 편지지, 흐려진 먹, 검붉은 글씨"]};
   for (const [k, [n, d]] of Object.entries(S)) if (J.STYLES[k]) { J.STYLES[k].name = n; J.STYLES[k].desc = d; }

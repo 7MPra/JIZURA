@@ -335,7 +335,7 @@ J.transPlainOn = (ctx, bgs) => {
 function readable(env, it) {
   const bg = env.sc && env.sc.bg, fg = env.sc && env.sc.fg;
   if (!bg || !fg) return it;
-  const bad = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) && J.contrast(c, bg) < 1.5;
+  const bad = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) && J.contrast(c, bg) < 1.08;   // the ground colour itself (counter text of a plate) — faint on purpose (dim) stays faint
   if (!bad(it.color) && !bad(it.strokeColor)) return it;
   return Object.assign({}, it, bad(it.color) ? { color: fg } : null, bad(it.strokeColor) ? { strokeColor: fg } : null);
 }

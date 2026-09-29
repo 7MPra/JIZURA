@@ -540,7 +540,7 @@ reg('knTypeSlam', {
     const above = Pm.side === 'above';
     const ky = H / 2 + (above ? ts * 1.2 : -ts * 1.2), ty = above ? ky - ks * 0.62 - ts * 1.5 : ky + ks * 0.62 + ts * 1.5;
     const nG = [...t0].length;
-    const tType = clamp(nG * 0.045, 0.25, Math.min(1.1, c.dur * 0.4)), tS = tType + 0.14;
+    const tType = clamp(nG * 0.04, Math.min(0.25, c.dur * 0.18), Math.min(1.1, c.dur * 0.25)), tS = tType + Math.min(0.14, c.dur * 0.08);   // short cuts: the slam still lands early
     const x0 = W / 2 - tm.w / 2;
     // typed line: revealed glyph by glyph (clip), cursor riding at the end
     const k = Math.floor(clamp(lt / tType) * nG + 1e-6);

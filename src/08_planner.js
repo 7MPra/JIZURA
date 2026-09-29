@@ -954,7 +954,7 @@ function pickTreat(rng, st, en, fx, LD, emph, history) {
 }
 function pickBg(rng, st, en, fx, bgHist) {
   if (st.pool && st.pool.bg && !Object.keys(st.pool.bg).length) return 'none';
-  if (!rng.chance(0.2 + 0.35 * (fx.decor ?? 0.5) + 0.2 * (fx.bgSwitch ?? 0.35))) return 'none';
+  if (!rng.chance((0.2 + 0.35 * (fx.decor ?? 0.5) + 0.2 * (fx.bgSwitch ?? 0.35)) * (st.textOnly ? 0.55 : 1))) return 'none';   // テキストのみ: the huge lyric behind is an accent, not a habit
   const last = bgHist.slice(-3);
   const cands = J.BG_ORDER.filter(k => k !== 'none' && en.bg && en.bg[k] !== false && J.BG[k])
     .map(k => [k, wkey(st.bias && st.bias.bg, k, J.BG[k].w ?? 1) * (last.includes(k) ? 0.25 : 1)]);

@@ -1591,7 +1591,9 @@ J.register('layout', 'kanjiFocus', {
     // the full lyric, small, over it
     const mt = mainLines(raw, W, H, 16, 8);
     const base = { text: mt, font: Pm.fs, x: side ? W / 2 - Pm.dir * W * 0.12 : W / 2, y: Pm.low ? H * 0.74 : H / 2, track: 0.14, lead: 1.5 };
-    base.size = Math.min(J.fitSize(mt, Pm.fs, side ? W * 0.44 : W * 0.7, H * 0.2, base), M * 0.075);
+    // テキストのみ: the lyric is the only thing that speaks — set it larger over the faint glyph
+    const tOnly = !!(env.st && env.st.textOnly);
+    base.size = Math.min(J.fitSize(mt, Pm.fs, side ? W * (tOnly ? 0.5 : 0.44) : W * (tOnly ? 0.8 : 0.7), H * (tOnly ? 0.3 : 0.2), base), M * (tOnly ? 0.13 : 0.075));
     const gl = glyphPts(base);
     let bb = null;
     let k = 0;

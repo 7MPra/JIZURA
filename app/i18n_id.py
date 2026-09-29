@@ -42,6 +42,11 @@ STYLES = {
     'bsRefrain': ('Refrain', 'Kata yang sama ditumpuk baris demi baris tiap ketukan, baris lama jadi garis tepi, dua warna pop'),
     'bsScale': ('Besar dan Kecil', 'Satu kata besar di atas satu baris kecil, tinta di atas putih gading, banyak ruang'),
     'bsBallad': ('Balada', 'Huruf diketik mengikuti ketukan, serif di atas biru malam, gerak tenang'),
+    'edMincho': ('Mincho dan Ruang', 'Mincho krem, tinta, dan merah; susunan vertikal, satu huruf besar, ruang kosong'),
+    'street': ('Jalanan', 'Gothic tebal kuning, hitam, merah; kata dihentak, terpotong, dan dipadatkan dalam grid'),
+    'tegaki': ('Lagu Tulisan Tangan', 'Tulisan tangan di atas kertas; huruf ditulis satu per satu, melayang pelan'),
+    'showa': ('Poster Showa', 'Mincho tebal krem, biru tua, merah; poster era Showa yang membolak-balik vertikal dan horizontal'),
+    'minimal': ('Ruang Putih', 'Gothic tipis dan satu kata besar di atas putih; hanya ruang dan skala'),
 }
 
 BODY = {

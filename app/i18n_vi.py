@@ -43,6 +43,11 @@ STYLES = {
     'bsRefrain': ('Điệp khúc', 'Cùng một câu xếp chồng từng dòng theo nhịp, dòng cũ thành chữ viền, hai màu pop'),
     'bsScale': ('Lớn và nhỏ', 'Một từ lớn trên một dòng nhỏ, mực trên nền trắng ngà, nhiều khoảng trống'),
     'bsBallad': ('Ballad', 'Gõ từng chữ theo nhịp, chữ serif trên nền xanh đêm, chuyển động nhẹ'),
+    'edMincho': ('Mincho và khoảng trắng', 'Mincho kem, mực và đỏ son; chữ dọc, một chữ khổng lồ, khoảng trống'),
+    'street': ('Đường phố', 'Gothic cực đậm vàng, đen, đỏ; từ được nện, cắt tràn và xếp vào lưới'),
+    'tegaki': ('Bài ca viết tay', 'Chữ viết tay trên giấy; viết từng chữ, trôi chậm'),
+    'showa': ('Poster Showa', 'Mincho đậm kem, xanh navy, đỏ son; poster thời Showa đổi chiều dọc ngang'),
+    'minimal': ('Khoảng trắng', 'Gothic mảnh và một từ lớn trên nền trắng; chỉ khoảng trống và tỉ lệ'),
 }
 
 BODY = {
