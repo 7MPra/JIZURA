@@ -36911,9 +36911,11 @@ const A = (key, label, family, weight, serif) => {
   J.FONTS[key] = { label: label + '（Adobe）', family: `"${family}"`, weight, kind: 'adobe', adobe: true, loaded: true, fb: serif ? JP_SERIF : JP_SANS };
 };
 // weights as the kit serves them (wf-… classes of the kit): Source Han Sans 100–900, Ten Mincho Antique 200–900,
-// Kinuta Shin Enpitsu 300–700, Ryo Display 500 / 700, MB101 and Tsukushi A Old 300, the rest 400
+// Kinuta Shin Enpitsu 300–700, Ryo Display 500 / 700, Ryo Gothic 400 / 700, MB101 and Tsukushi A Old 300, the rest 400
 A('ad_ryodisp_b', 'りょうディスプレイ B', 'ryo-display-plusn', 700, true);
 A('ad_ryodisp_m', 'りょうディスプレイ M', 'ryo-display-plusn', 500, true);
+A('ad_ryogo', 'りょうゴシック R', 'ryo-gothic-plusn', 400);
+A('ad_ryogo_b', 'りょうゴシック B', 'ryo-gothic-plusn', 700);
 A('ad_logojr', 'VDL ロゴJr', 'vdl-logojr', 400);
 A('ad_logomaru', 'VDL ロゴ丸Jr', 'vdl-logomaru-jr', 400);
 A('ad_ten', '貂明朝', 'ten-mincho', 400, true);
@@ -36933,8 +36935,8 @@ A('ad_komu_e', 'コム E', 'komu-new-e', 400);
 A('ad_komu_f', 'コム F', 'komu-new-f', 400);
 
 /* each style's faces with the kit: display (the big words), serif (the second voice), body (small lines) */
-const G = { display: ['ad_shs_h'], serif: ['ad_ryodisp_b'], body: ['ad_shs'] };            // graphic Gothic
-const POP = { display: ['ad_logojr'], serif: ['ad_shs_h'], body: ['ad_shs'] };              // pop, heavy
+const G = { display: ['ad_ryogo_b'], serif: ['ad_ryodisp_b'], body: ['ad_ryogo'] };          // graphic Gothic (Ryo Gothic)
+const POP = { display: ['ad_logojr'], serif: ['ad_ryogo_b'], body: ['ad_ryogo'] };           // pop, heavy
 const CUTE = { display: ['ad_logomaru'], serif: ['ad_komu_d'], body: ['ad_shs'] };           // round, cute
 const MIN = { display: ['ad_ryodisp_b'], serif: ['ad_ten'], body: ['ad_tsukua'] };           // Mincho, editorial
 const LIT = { display: ['ad_tsukua'], serif: ['ad_ryodisp_m'], body: ['ad_tsukua'] };        // literary, quiet
@@ -36946,7 +36948,7 @@ const MAP = {
   rouge: ANTQ, mono: G, hrRuin: HAND, hrNightRec: G, hrCurse: ANTQ, sakura: CUTE, ocean: LIT, sunset: MIN, forest: LIT,
   vapor: KOMU, newsprint: MIN, synth80: KOMU, kraft: HAND, candy: CUTE, acid: POP, sumi: MIN, gold: MIN,
   bsSlam: POP, bsRefrain: CUTE, bsScale: G, bsBallad: LIT,
-  edMincho: MIN, street: POP, tegaki: HAND, showa: KOMU, minimal: { display: ['ad_shs_h'], serif: ['ad_shs_l'], body: ['ad_mb101'] },
+  edMincho: MIN, street: POP, tegaki: HAND, showa: KOMU, minimal: { display: ['ad_ryogo_b'], serif: ['ad_shs_l'], body: ['ad_ryogo'] },
 };
 for (const [k, f] of Object.entries(MAP)) if (J.STYLES[k]) J.STYLES[k].adobeFonts = f;
 
