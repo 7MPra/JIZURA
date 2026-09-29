@@ -88,7 +88,7 @@ async def main():
         if r['maxSize'] < 0.06: f.append('small')
         if r['coll'] > 0: f.append('collide')
         if r['lowC'] > 0: f.append('lowcontrast')
-        if r['edgeInk'] > 6 and r['layout'] not in ('tyCropGiant', 'huge', 'knZoomDive', 'bsRefrain', 'splitHalves'): f.append('edge')
+        if r['edgeInk'] > 6 and r['layout'] not in ('tyCropGiant', 'huge', 'knZoomDive', 'bsRefrain', 'tyCropSlide', 'sideways', 'knTypeSlam'): f.append('edge')
         return f
     from collections import defaultdict
     by = defaultdict(lambda: defaultdict(int)); tot = defaultdict(int); allf = defaultdict(int)
