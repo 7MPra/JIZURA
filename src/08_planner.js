@@ -31,7 +31,7 @@ J.defaultProject = () => ({
   aspect: '16:9', res: 1080, fps: 24,
   fx: { motion: 0.7, glitch: 0.55, chroma: 0.7, decor: 0.5, density: 0.55, texture: 0.6, flash: true, onTwos: true, koma: 12, hud: 'auto', bgSwitch: 0.35, hideNo: false, hideTime: false },
   enabled: Object.fromEntries(J.GROUP_KEYS.map(g => [g, Object.fromEntries(J.order(g).map(k => [k, true]))])),
-  timing: { bpm: 0, offset: 0.4, snap: true, tail: 0.9, lineTimes: {}, lineScale: 1 },
+  timing: { bpm: 0, offset: 0.4, snap: true, tail: 0.9, lineTimes: {}, lineScale: 1, tempo: [] },   // tempo: BPM グラフ (src/10b_tempo.js)
   overrides: {},
   locks: { tech: {}, params: {} },   // groups and values Randomize / Shuffle must not change (UI side only)
   colors: { enabled: false },
@@ -207,6 +207,9 @@ J.computeTiming = (project, parsed, audio) => {
   const T = project.timing || {};
   const lines = parsed.lines;
   const beat = T.bpm > 0 ? 60 / T.bpm : 0;
+  // BPM グラフ (tempo map): the beat length follows the tempo at each line; without one it is the single BPM
+  const tmap = J.tempoPoints ? J.tempoPoints(T) : null;
+  const beatAt = t => (tmap ? 60 / J.tempoBpmAt(tmap, t || 0) : beat);
   // fixed times: a hand-set time (typed, tapped, dragged) wins over the LRC tag; the rest is estimated
   const fixed = lines.map((l, i) => {
     const man = T.lineTimes && T.lineTimes[i] != null ? +T.lineTimes[i] : null;
@@ -217,12 +220,12 @@ J.computeTiming = (project, parsed, audio) => {
   let lastFix = -Infinity;
   for (let i = 0; i < fixed.length; i++) if (fixed[i] != null) { if (fixed[i] < lastFix + 0.05) fixed[i] = lastFix + 0.05; lastFix = fixed[i]; }
   const natural = i => {         // estimated length of line i
-    const n = [...lines[i].text].length, L = lines[i];
+    const n = [...lines[i].text].length, L = lines[i], b = beatAt(starts[i]);
     let d = L.interlude ? (L.secs > 0 ? L.secs : 4) : J.clamp(0.8 + n * 0.17, 1.3, 5.2) * (T.lineScale || 1);
-    if (beat && !(L.interlude && L.secs > 0)) d = Math.max(2, Math.round(d / beat)) * beat;
+    if (b && !(L.interlude && L.secs > 0)) d = Math.max(2, Math.round(d / b)) * b;
     return d;
   };
-  const gapOf = i => (i > 0 && i < lines.length && lines[i].gapBefore ? (beat ? beat * 2 : 0.8) : 0);
+  const gapOf = i => { const b = i > 0 ? beatAt(starts[i - 1]) : beat; return i > 0 && i < lines.length && lines[i].gapBefore ? (b ? b * 2 : 0.8) : 0; };
   const starts = new Array(lines.length);
   let i = 0, t = T.offset ?? 0.4;
   if (fixed.length && fixed[0] != null) t = fixed[0];
@@ -246,9 +249,9 @@ J.computeTiming = (project, parsed, audio) => {
   }
   const ends = starts.map((s, i) => {
     if (i < starts.length - 1) return Math.max(s + 0.35, starts[i + 1]);
-    const n = [...lines[i].text].length, L = lines[i];
+    const n = [...lines[i].text].length, L = lines[i], b = beatAt(s);
     let d = L.interlude ? (L.secs > 0 ? L.secs : 4) : J.clamp(0.8 + n * 0.17, 1.5, 5.2) * (T.lineScale || 1);
-    if (beat && !(L.interlude && L.secs > 0)) d = Math.max(2, Math.round(d / beat)) * beat;
+    if (b && !(L.interlude && L.secs > 0)) d = Math.max(2, Math.round(d / b)) * b;
     return s + d;
   });
   let duration = (ends.length ? ends[ends.length - 1] : 3) + (T.tail ?? 0.9);

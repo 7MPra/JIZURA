@@ -45,6 +45,17 @@ STYLES = {
 }
 
 BODY = {
+    'title="読み込んだ曲の BPM を 4 秒ごとに読み、変わるところに点を置きます（あとから直せます）">曲から自動で作る</button>': 'title="Baca BPM lagu setiap 4 detik dan taruh titik di tempat yang berubah (bisa diperbaiki nanti)">Buat dari lagu</button>',
+    'title="この点から先の約16秒の BPM を曲から検出します">曲から検出</button>': 'title="Deteksi BPM sekitar 16 detik dari titik ini di lagu">Deteksi dari lagu</button>',
+    'title="BPM の変化をグラフで描きます（DJ ミックスなど、途中でテンポが変わる曲に）">BPMグラフ</button>': 'title="Gambar perubahan BPM sebagai grafik (untuk DJ mix dan lagu yang temponya berubah)">Grafik BPM</button>',
+    'aria-label="BPM グラフ"': 'aria-label="Grafik BPM"',
+    'クリックで点を追加・ドラッグで移動（上下で BPM、左右で時刻）・右クリックで削除': 'Klik untuk menambah titik, seret untuk memindah (atas/bawah = BPM, kiri/kanan = waktu), klik kanan untuk menghapus',
+    '>時刻（秒）<input id="tpT"': '>Waktu (dtk)<input id="tpT"',
+    '> 前の点からなめらかに変化</label>': '> Berubah halus dari titik sebelumnya</label>',
+    '> ここを拍の頭にする</label>': '> Ketukan dimulai di sini</label>',
+    '>点を消す</button>': '>Hapus titik</button>',
+    '>再生位置に点を追加</button>': '>Tambah titik di posisi putar</button>',
+    '>グラフを消す</button>': '>Hapus grafik</button>',
     '1行に複数のカットがあるときは、カットが切り替わる瞬間に <span class="kbd">Tab</span> を押すと、その行のカットの開始時刻も合わせられます。': 'Jika satu baris punya beberapa cut, tekan <span class="kbd">Tab</span> saat cut harus berganti untuk menyesuaikan waktu cut di baris itu juga.',
     '<label>速さ <select id="tapRate" aria-label="タップ中の再生速度">': '<label>Kecepatan <select id="tapRate" aria-label="Kecepatan putar saat mengetuk">',
     '<input type="checkbox" id="tapCount"> カウントダウン</label>': '<input type="checkbox" id="tapCount"> Hitung mundur</label>',
@@ -209,6 +220,11 @@ BODY = {
 }
 
 UI = {
+    "'BPM グラフを作りました：'": "'Grafik BPM dibuat: '",
+    "'検出：'": "'Terdeteksi: '",
+    "'この区間の拍を検出できませんでした'": "'Ketukan di bagian ini tidak terdeteksi'",
+    "'曲を読み込むと検出できます'": "'Muat lagu untuk mendeteksi'",
+    "'クリックで BPM の点を追加（DJ ミックスなど、途中でテンポが変わる曲に）'": "'Klik untuk menambah titik BPM (untuk DJ mix dan lagu yang temponya berubah)'",
     '`前後の行と順番が入れ替わらないよう ${w.toFixed(2)} 秒にしました`': '`Diatur ke ${w.toFixed(2)} dtk agar urutan baris tetap`',
     "'このカットの開始時刻（手動）。空にすると自動に戻ります'": "'Awal cut ini (manual). Kosongkan untuk kembali otomatis'",
     "'このカットの開始時刻（自動）。数値を入れると固定します'": "'Awal cut ini (otomatis). Ketik waktu untuk menguncinya'",

@@ -1,6 +1,17 @@
 """English copy for the browser edition. The Japanese source stays authoritative."""
 
 BODY = {
+    'title="読み込んだ曲の BPM を 4 秒ごとに読み、変わるところに点を置きます（あとから直せます）">曲から自動で作る</button>': 'title="Read the song\'s BPM every 4 seconds and place a point wherever it changes (you can fix it afterwards)">Build from song</button>',
+    'title="この点から先の約16秒の BPM を曲から検出します">曲から検出</button>': 'title="Detect the BPM of about 16 s from this point in the song">Detect from song</button>',
+    'title="BPM の変化をグラフで描きます（DJ ミックスなど、途中でテンポが変わる曲に）">BPMグラフ</button>': 'title="Draw tempo changes as a graph (for DJ mixes and songs whose tempo changes)">BPM graph</button>',
+    'aria-label="BPM グラフ"': 'aria-label="Tempo graph"',
+    'クリックで点を追加・ドラッグで移動（上下で BPM、左右で時刻）・右クリックで削除': 'Click to add a point, drag to move it (up/down = BPM, left/right = time), right-click to delete',
+    '>時刻（秒）<input id="tpT"': '>Time (s)<input id="tpT"',
+    '> 前の点からなめらかに変化</label>': '> Slide from the previous point</label>',
+    '> ここを拍の頭にする</label>': '> A beat starts here</label>',
+    '>点を消す</button>': '>Delete point</button>',
+    '>再生位置に点を追加</button>': '>Add point at playhead</button>',
+    '>グラフを消す</button>': '>Clear graph</button>',
     '1行に複数のカットがあるときは、カットが切り替わる瞬間に <span class="kbd">Tab</span> を押すと、その行のカットの開始時刻も合わせられます。': 'If a line has several cuts, press <span class="kbd">Tab</span> the moment the cut should change to time the cuts of that line too.',
     '<label>速さ <select id="tapRate" aria-label="タップ中の再生速度">': '<label>Speed <select id="tapRate" aria-label="Playback speed while tapping">',
     '<input type="checkbox" id="tapCount"> カウントダウン</label>': '<input type="checkbox" id="tapCount"> Count-in</label>',
@@ -173,6 +184,11 @@ BODY = {
 }
 
 UI = {
+    "'BPM グラフを作りました：'": "'Tempo graph built: '",
+    "'検出：'": "'Detected: '",
+    "'この区間の拍を検出できませんでした'": "'Could not find the beat here'",
+    "'曲を読み込むと検出できます'": "'Load a song to detect it'",
+    "'クリックで BPM の点を追加（DJ ミックスなど、途中でテンポが変わる曲に）'": "'Click to add a BPM point (for DJ mixes and songs whose tempo changes)'",
     '`前後の行と順番が入れ替わらないよう ${w.toFixed(2)} 秒にしました`': '`Set to ${w.toFixed(2)} s so the lines stay in order`',
     "'このカットの開始時刻（手動）。空にすると自動に戻ります'": "'Start of this cut (set by hand). Clear it to go back to automatic'",
     "'このカットの開始時刻（自動）。数値を入れると固定します'": "'Start of this cut (automatic). Type a time to fix it'",

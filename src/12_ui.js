@@ -156,12 +156,14 @@ window.addEventListener('pagehide', () => { if (S.project) flushSave(); });
 
 /* ---------------- planning ---------------- */
 function audioLike() {
-  const T = S.project.timing;
+  const T = S.project.timing, tm = J.tempoPoints(T);         // BPM グラフ wins over the single BPM and the detected beats
   if (S.audio) {
     const a = Object.assign({}, S.audio);
-    if (T.bpm > 0) a.beats = J.beatGrid(T.bpm, T.beatOffset || 0, S.audio.duration);
+    if (tm) a.beats = J.tempoBeats(tm, S.audio.duration);
+    else if (T.bpm > 0) a.beats = J.beatGrid(T.bpm, T.beatOffset || 0, S.audio.duration);
     return a;
   }
+  if (tm) return { beats: J.tempoBeats(tm, 600) };
   if (T.bpm > 0) return { beats: J.beatGrid(T.bpm, T.beatOffset || 0, 600) };
   return null;
 }
@@ -381,6 +383,158 @@ function drawTimeline() {
   }
   const px = X(S.t);
   x.fillStyle = '#f5a50c'; x.fillRect(Math.round(px) - dpr, 0, 2 * dpr, h);
+  drawTempo();
+}
+
+/* ---------------- BPM グラフ (tempo map lane under the timeline, same time axis) ---------------- */
+const TP = { on: false, sel: -1, drag: -1, moved: false };
+const tempoArr = () => { const T = S.project.timing; if (!Array.isArray(T.tempo)) T.tempo = []; return T.tempo; };
+const tempoSort = () => { const a = tempoArr(), cur = a[TP.sel]; a.sort((p, q) => p.t - q.t); TP.sel = cur ? a.indexOf(cur) : -1; };
+function tempoRange() {
+  const a = tempoArr(), T = S.project.timing;
+  const vals = a.map(p => +p.bpm).concat(a.length ? [] : [T.bpm > 0 ? T.bpm : S.audio && S.audio.bpm ? S.audio.bpm : 128]);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = Math.max(6, (hi - lo) * 0.25);
+  lo = Math.floor((lo - pad) / 5) * 5; hi = Math.ceil((hi + pad) / 5) * 5;
+  return { lo: Math.max(20, lo), hi: Math.min(400, Math.max(hi, lo + 10)) };
+}
+function tempoGeo() {
+  const c = $('tempoLane'), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.max(10, Math.round(c.clientWidth * dpr)), h = Math.max(10, Math.round(c.clientHeight * dpr));
+  const { vd, off } = tlView(), R = tempoRange(), pad = 8 * dpr;
+  return { c, dpr, w, h, vd, off, R, pad, X: t => (t - off) / vd * w, Y: b => h - pad - (b - R.lo) / (R.hi - R.lo) * (h - pad * 2), T: px => off + px / w * vd, B: py => R.lo + (h - pad - py) / (h - pad * 2) * (R.hi - R.lo) };
+}
+function drawTempo() {
+  const wrap = $('tempoWrap'); if (!wrap || wrap.hidden) return;
+  const G = tempoGeo(), { c, dpr, w, h, X, Y, R } = G;
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const x = c.getContext('2d');
+  x.fillStyle = '#101013'; x.fillRect(0, 0, w, h);
+  x.font = `${9 * dpr}px monospace`; x.textBaseline = 'middle';
+  const step = R.hi - R.lo > 60 ? 20 : R.hi - R.lo > 25 ? 10 : 5;
+  for (let b = Math.ceil(R.lo / step) * step; b <= R.hi; b += step) {
+    x.fillStyle = '#24242b'; x.fillRect(0, Math.round(Y(b)), w, 1);
+    x.fillStyle = '#5d5a63'; x.fillText(String(b), 3 * dpr, Y(b) - 6 * dpr);
+  }
+  const beats = S.plan.beats || [];
+  x.fillStyle = '#2e2e36';
+  for (const b of beats) { const bx = X(b); if (bx < 0) continue; if (bx > w) break; x.fillRect(Math.round(bx), h - 5 * dpr, 1, 5 * dpr); }
+  const pts = J.tempoPoints(S.project.timing), a = tempoArr();
+  if (!pts) {
+    x.fillStyle = '#8e8a94'; x.fillText('クリックで BPM の点を追加（DJ ミックスなど、途中でテンポが変わる曲に）', 10 * dpr, h / 2);
+  } else {
+    // the tempo curve: steps, or straight slides into ramped points
+    x.strokeStyle = '#6fb7c8'; x.lineWidth = 2 * dpr; x.beginPath();
+    x.moveTo(0, Y(pts[0].bpm));
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      if (i > 0 && !p.ramp) x.lineTo(X(p.t), Y(pts[i - 1].bpm));
+      x.lineTo(X(p.t), Y(p.bpm));
+    }
+    x.lineTo(w, Y(pts[pts.length - 1].bpm)); x.stroke();
+  }
+  a.forEach((p, i) => {
+    const px = X(+p.t), py = Y(+p.bpm), on = i === TP.sel;
+    if (px < -20 || px > w + 20) return;
+    if (p.anchor !== false) { x.fillStyle = on ? 'rgba(245,165,12,0.5)' : 'rgba(111,183,200,0.35)'; x.fillRect(Math.round(px), 0, 1, h); }
+    x.fillStyle = on ? '#f5a50c' : '#6fb7c8';
+    x.beginPath(); x.arc(px, py, (on ? 5 : 4) * dpr, 0, J.TAU); x.fill();
+    x.fillStyle = on ? '#f5a50c' : '#c9c5cf'; x.fillText((+p.bpm).toFixed(+p.bpm % 1 ? 2 : 0).replace(/0$/, ''), px + 6 * dpr, Math.max(8 * dpr, py - 9 * dpr));
+  });
+  const ph = X(S.t);
+  x.fillStyle = '#f5a50c'; x.fillRect(Math.round(ph) - dpr, 0, 2 * dpr, h);
+  syncTempoSel();
+}
+function syncTempoSel() {
+  const p = tempoArr()[TP.sel], box = $('tempoSel'); if (!box) return;
+  box.hidden = !p; if (!p) return;
+  const set = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
+  set('tpT', (+p.t).toFixed(2)); set('tpB', String(+(+p.bpm).toFixed(2)));
+  $('tpRamp').checked = !!p.ramp; $('tpAnchor').checked = p.anchor !== false;
+  $('tpRamp').disabled = TP.sel === 0;
+}
+function tempoChanged() { tempoSort(); replan(); }
+function tempoHit(ev) {
+  const G = tempoGeo(), r = G.c.getBoundingClientRect(), mx = (ev.clientX - r.left) * G.dpr, my = (ev.clientY - r.top) * G.dpr;
+  let best = -1, bd = 10 * G.dpr;
+  tempoArr().forEach((p, i) => { const d = Math.hypot(G.X(+p.t) - mx, G.Y(+p.bpm) - my); if (d < bd) { bd = d; best = i; } });
+  return { i: best, t: G.T(mx), bpm: G.B(my), G };
+}
+// a new point's time lands on a beat of the grid so far (Shift: free)
+function tempoSnapT(t, ev) {
+  if (ev && ev.shiftKey) return t;
+  let bt = t, bd = 0.1; for (const b of S.plan.beats || []) { const d = Math.abs(b - t); if (d < bd) { bd = d; bt = b; } if (b > t + 0.2) break; }
+  return bt;
+}
+function tempoAdd(t, bpm) {
+  pushEdit();
+  const pts = J.tempoPoints(S.project.timing);
+  const b = bpm != null ? bpm : pts ? J.tempoBpmAt(pts, t) : (S.project.timing.bpm > 0 ? S.project.timing.bpm : S.audio && S.audio.bpm ? S.audio.bpm : 128);
+  const p = { t: +Math.max(0, t).toFixed(3), bpm: +J.clamp(b, 20, 400).toFixed(2), ramp: false, anchor: true };
+  tempoArr().push(p); TP.sel = tempoArr().indexOf(p); tempoChanged();
+  return p;
+}
+function bindTempo() {
+  const lane = $('tempoLane'); if (!lane) return;
+  $('tlTempo').addEventListener('click', () => {
+    TP.on = !TP.on; $('tempoWrap').hidden = !TP.on; $('tlTempo').setAttribute('aria-pressed', String(TP.on)); drawTimeline();
+  });
+  if (S.project && tempoArr().length) $('tlTempo').click();   // a project with a tempo map opens with its graph shown
+  lane.addEventListener('pointerdown', e => {
+    if (S.exporting) return;
+    lane.setPointerCapture(e.pointerId);
+    const hit = tempoHit(e);
+    if (e.button === 2) return;
+    if (hit.i >= 0) { pushEdit(); TP.sel = hit.i; TP.drag = hit.i; TP.moved = false; drawTempo(); return; }
+    // empty space: a new point where you clicked (its BPM follows the height)
+    const p = tempoAdd(tempoSnapT(hit.t, e), Math.round(hit.bpm * 2) / 2);
+    TP.drag = tempoArr().indexOf(p); TP.moved = false;
+  });
+  lane.addEventListener('pointermove', e => {
+    if (TP.drag < 0) { lane.style.cursor = tempoHit(e).i >= 0 ? 'grab' : 'crosshair'; return; }
+    const hit = tempoHit(e), p = tempoArr()[TP.drag]; if (!p) return;
+    TP.moved = true;
+    p.t = +Math.max(0, tempoSnapT(hit.t, e)).toFixed(3);
+    p.bpm = +J.clamp(e.altKey ? hit.bpm : Math.round(hit.bpm * 2) / 2, 20, 400).toFixed(2);   // 0.5 BPM steps (Alt: free)
+    TP.sel = TP.drag; tempoSort(); TP.drag = TP.sel;
+    S.plan = J.plan(S.project, audioLike()); drawTimeline();
+  });
+  const end = () => { if (TP.drag >= 0) { TP.drag = -1; replan(); flushSave(); } };
+  lane.addEventListener('pointerup', end); lane.addEventListener('pointercancel', end);
+  lane.addEventListener('contextmenu', e => {                // right click: remove a point
+    e.preventDefault();
+    const hit = tempoHit(e); if (hit.i < 0) return;
+    pushEdit(); tempoArr().splice(hit.i, 1); TP.sel = -1; tempoChanged();
+  });
+  lane.addEventListener('wheel', e => { e.preventDefault(); tlZoom(Math.exp(-e.deltaY * 0.0025), tempoHit(e).t); }, { passive: false });
+  const edit = (fn) => () => { const p = tempoArr()[TP.sel]; if (!p) return; pushEdit(); fn(p); tempoChanged(); };
+  $('tpT').addEventListener('change', edit(p => { p.t = Math.max(0, parseFloat($('tpT').value) || 0); }));
+  $('tpB').addEventListener('change', edit(p => { p.bpm = J.clamp(parseFloat($('tpB').value) || p.bpm, 20, 400); }));
+  $('tpRamp').addEventListener('change', edit(p => { p.ramp = $('tpRamp').checked; }));
+  $('tpAnchor').addEventListener('change', edit(p => { p.anchor = $('tpAnchor').checked; }));
+  $('tpDel').addEventListener('click', edit(p => { tempoArr().splice(tempoArr().indexOf(p), 1); TP.sel = -1; }));
+  // with a song: the BPM of the next ~16 s is detected, and the point goes on its first beat (a DJ mix: one track at a time)
+  $('tpAddHere').addEventListener('click', () => {
+    const pts = J.tempoPoints(S.project.timing), near = pts ? J.tempoBpmAt(pts, S.t) : 0;
+    const d = J.localTempo(S.audio, S.t, 16, near);
+    if (d) { tempoAdd(d.beat, d.bpm); toast('検出：' + d.bpm + ' BPM'); }
+    else tempoAdd(tempoSnapT(S.t, null));
+  });
+  $('tpAuto').addEventListener('click', () => {
+    if (!S.audio) { toast('曲を読み込むと検出できます'); return; }
+    const pts = J.autoTempoMap(S.audio);
+    if (!pts.length) { toast('この区間の拍を検出できませんでした'); return; }
+    pushEdit(); S.project.timing.tempo = pts; TP.sel = -1; replan();
+    toast('BPM グラフを作りました：' + pts.length);
+  });
+  $('tpDetect').addEventListener('click', () => {
+    const a = tempoArr(), p = a[TP.sel]; if (!p) return;
+    const prev = a[TP.sel - 1], d = J.localTempo(S.audio, Math.max(0, +p.t - 0.05), 16, prev ? +prev.bpm : +p.bpm);
+    if (!d) { toast(S.audio ? 'この区間の拍を検出できませんでした' : '曲を読み込むと検出できます'); return; }
+    pushEdit(); p.bpm = d.bpm; if (p.anchor !== false && Math.abs(d.beat - p.t) < 60 / d.bpm) p.t = d.beat;
+    tempoChanged(); toast('検出：' + d.bpm + ' BPM');
+  });
+  $('tpClear').addEventListener('click', () => { if (!tempoArr().length) return; pushEdit(); S.project.timing.tempo = []; TP.sel = -1; replan(); });
 }
 function tlTime(ev) {
   const r = $('timeline').getBoundingClientRect(), { vd, off } = tlView();
@@ -767,7 +921,7 @@ function editLine(li, ln) {
 /* ---------------- 歌詞・タイミングの取り消し（Ctrl+Z） ---------------- */
 // separate from the ◀ ▶ history of looks: lyric edits, dragged / typed / tapped line times
 const ED = { undo: [], redo: [] };
-const edSnap = () => JSON.stringify({ lyrics: S.project.lyrics, lineTimes: S.project.timing.lineTimes || {} });
+const edSnap = () => JSON.stringify({ lyrics: S.project.lyrics, lineTimes: S.project.timing.lineTimes || {}, tempo: S.project.timing.tempo || [] });
 function pushEdit() { const s = edSnap(); if (ED.undo[ED.undo.length - 1] !== s) ED.undo.push(s); if (ED.undo.length > 60) ED.undo.shift(); ED.redo = []; updateEditBtns(); }
 function edGo(d) {
   const from = d < 0 ? ED.undo : ED.redo, to = d < 0 ? ED.redo : ED.undo;
@@ -776,6 +930,7 @@ function edGo(d) {
   if ('ov' in o) { cur.ov = S.project.overrides; cur.range = S.project.exportRange || null; }   // clearLyrics() also cleared these
   to.push(JSON.stringify(cur));
   S.project.lyrics = o.lyrics; S.project.timing.lineTimes = o.lineTimes; $('lyrics').value = o.lyrics;
+  if (Array.isArray(o.tempo)) { S.project.timing.tempo = o.tempo; TP.sel = Math.min(TP.sel, o.tempo.length - 1); }
   if ('ov' in o) { S.project.overrides = o.ov || {}; S.project.exportRange = o.range || null; }
   replan(); flushSave(); updateEditBtns();
   toast(d < 0 ? '元に戻しました' : 'やり直しました');
@@ -1650,6 +1805,7 @@ function bind() {
   $('tlIn').addEventListener('click', () => tlZoom(1.6));
   $('tlOut').addEventListener('click', () => tlZoom(1 / 1.6));
   $('tlFit').addEventListener('click', () => { TL.z = 1; TL.off = 0; drawTimeline(); });
+  bindTempo();
   $('btnUndoEdit').addEventListener('click', () => edGo(-1));
   $('tapBack').addEventListener('click', tapBack);
   bindRangeUI();

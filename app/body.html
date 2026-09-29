@@ -108,9 +108,27 @@
           <button id="tlOut" class="ghost small icon-txt" title="縮小" aria-label="タイムラインを縮小">−</button>
           <button id="tlIn" class="ghost small icon-txt" title="拡大（タイムライン上でホイールでも）" aria-label="タイムラインを拡大">＋</button>
           <button id="tlFit" class="ghost small" title="全体を表示">全体</button>
+          <button id="tlTempo" class="ghost small" aria-pressed="false" title="BPM の変化をグラフで描きます（DJ ミックスなど、途中でテンポが変わる曲に）">BPMグラフ</button>
         </span>
       </div>
       <canvas id="timeline" aria-label="タイムライン（クリックで移動・行の区切りはドラッグで調整）"></canvas>
+      <div id="tempoWrap" class="tempo-wrap" hidden>
+        <canvas id="tempoLane" aria-label="BPM グラフ"></canvas>
+        <div class="tempo-bar">
+          <span class="muted tempo-hint">クリックで点を追加・ドラッグで移動（上下で BPM、左右で時刻）・右クリックで削除</span>
+          <span id="tempoSel" class="tempo-sel" hidden>
+            <label class="field">時刻（秒）<input id="tpT" type="number" min="0" step="0.01"></label>
+            <label class="field">BPM<input id="tpB" type="number" min="20" max="400" step="0.01"></label>
+            <label class="row"><input id="tpRamp" type="checkbox"> 前の点からなめらかに変化</label>
+            <label class="row"><input id="tpAnchor" type="checkbox"> ここを拍の頭にする</label>
+            <button id="tpDetect" class="ghost small" title="この点から先の約16秒の BPM を曲から検出します">曲から検出</button>
+            <button id="tpDel" class="ghost small">点を消す</button>
+          </span>
+          <button id="tpAddHere" class="ghost small">再生位置に点を追加</button>
+          <button id="tpAuto" class="ghost small" title="読み込んだ曲の BPM を 4 秒ごとに読み、変わるところに点を置きます（あとから直せます）">曲から自動で作る</button>
+          <button id="tpClear" class="ghost small">グラフを消す</button>
+        </div>
+      </div>
       <div class="cutinfo" id="cutInfo"></div>
       <div id="cutPick" class="cut-pick pro-only" hidden>
         <div class="cut-pick-h">

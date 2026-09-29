@@ -1,6 +1,17 @@
 """Traditional Chinese (Taiwan) copy for the browser edition. Same glossary keys as app/english.py."""
 
 BODY = {
+    'title="読み込んだ曲の BPM を 4 秒ごとに読み、変わるところに点を置きます（あとから直せます）">曲から自動で作る</button>': 'title="每4秒讀取歌曲的 BPM，在變化處放置點（之後可修改）">從歌曲自動建立</button>',
+    'title="この点から先の約16秒の BPM を曲から検出します">曲から検出</button>': 'title="從歌曲偵測此點起約16秒的 BPM">從歌曲偵測</button>',
+    'title="BPM の変化をグラフで描きます（DJ ミックスなど、途中でテンポが変わる曲に）">BPMグラフ</button>': 'title="以圖表繪製 BPM 的變化（DJ 混音等中途變速的曲子）">BPM 圖表</button>',
+    'aria-label="BPM グラフ"': 'aria-label="BPM 圖表"',
+    'クリックで点を追加・ドラッグで移動（上下で BPM、左右で時刻）・右クリックで削除': '點擊新增點、拖曳移動（上下為 BPM、左右為時間）、右鍵刪除',
+    '>時刻（秒）<input id="tpT"': '>時間（秒）<input id="tpT"',
+    '> 前の点からなめらかに変化</label>': '> 從前一點平滑變化</label>',
+    '> ここを拍の頭にする</label>': '> 以此處為拍首</label>',
+    '>点を消す</button>': '>刪除點</button>',
+    '>再生位置に点を追加</button>': '>在播放位置新增點</button>',
+    '>グラフを消す</button>': '>清除圖表</button>',
     '1行に複数のカットがあるときは、カットが切り替わる瞬間に <span class="kbd">Tab</span> を押すと、その行のカットの開始時刻も合わせられます。': '一行有多個片段時，在片段切換的瞬間按 <span class="kbd">Tab</span>，也能對齊該行各片段的開始時間。',
     '<label>速さ <select id="tapRate" aria-label="タップ中の再生速度">': '<label>速度 <select id="tapRate" aria-label="點按時的播放速度">',
     '<input type="checkbox" id="tapCount"> カウントダウン</label>': '<input type="checkbox" id="tapCount"> 倒數</label>',
@@ -171,6 +182,11 @@ BODY = {
 }
 
 UI = {
+    "'BPM グラフを作りました：'": "'已建立 BPM 圖表：'",
+    "'検出：'": "'偵測結果：'",
+    "'この区間の拍を検出できませんでした'": "'無法偵測這一段的節拍'",
+    "'曲を読み込むと検出できます'": "'載入歌曲後即可偵測'",
+    "'クリックで BPM の点を追加（DJ ミックスなど、途中でテンポが変わる曲に）'": "'點擊新增 BPM 點（DJ 混音等中途變速的曲子）'",
     '`前後の行と順番が入れ替わらないよう ${w.toFixed(2)} 秒にしました`': '`為了不與前後的行交換順序，已設為 ${w.toFixed(2)} 秒`',
     "'このカットの開始時刻（手動）。空にすると自動に戻ります'": "'此片段的開始時間（手動）。清空即恢復自動'",
     "'このカットの開始時刻（自動）。数値を入れると固定します'": "'此片段的開始時間（自動）。輸入數值即可固定'",

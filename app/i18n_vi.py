@@ -46,6 +46,17 @@ STYLES = {
 }
 
 BODY = {
+    'title="読み込んだ曲の BPM を 4 秒ごとに読み、変わるところに点を置きます（あとから直せます）">曲から自動で作る</button>': 'title="Đọc BPM của bài mỗi 4 giây và đặt điểm ở chỗ thay đổi (có thể sửa sau)">Tự tạo từ bài hát</button>',
+    'title="この点から先の約16秒の BPM を曲から検出します">曲から検出</button>': 'title="Dò BPM khoảng 16 giây từ điểm này trong bài">Dò từ bài hát</button>',
+    'title="BPM の変化をグラフで描きます（DJ ミックスなど、途中でテンポが変わる曲に）">BPMグラフ</button>': 'title="Vẽ thay đổi BPM thành biểu đồ (cho DJ mix và bài đổi nhịp giữa chừng)">Biểu đồ BPM</button>',
+    'aria-label="BPM グラフ"': 'aria-label="Biểu đồ BPM"',
+    'クリックで点を追加・ドラッグで移動（上下で BPM、左右で時刻）・右クリックで削除': 'Nhấp để thêm điểm, kéo để di chuyển (lên/xuống = BPM, trái/phải = thời gian), nhấp chuột phải để xóa',
+    '>時刻（秒）<input id="tpT"': '>Thời điểm (giây)<input id="tpT"',
+    '> 前の点からなめらかに変化</label>': '> Chuyển dần từ điểm trước</label>',
+    '> ここを拍の頭にする</label>': '> Nhịp bắt đầu tại đây</label>',
+    '>点を消す</button>': '>Xóa điểm</button>',
+    '>再生位置に点を追加</button>': '>Thêm điểm tại vị trí phát</button>',
+    '>グラフを消す</button>': '>Xóa biểu đồ</button>',
     '1行に複数のカットがあるときは、カットが切り替わる瞬間に <span class="kbd">Tab</span> を押すと、その行のカットの開始時刻も合わせられます。': 'Nếu một dòng có nhiều cảnh, nhấn <span class="kbd">Tab</span> đúng lúc cảnh cần chuyển để canh cả thời điểm bắt đầu các cảnh của dòng đó.',
     '<label>速さ <select id="tapRate" aria-label="タップ中の再生速度">': '<label>Tốc độ <select id="tapRate" aria-label="Tốc độ phát khi nhấn">',
     '<input type="checkbox" id="tapCount"> カウントダウン</label>': '<input type="checkbox" id="tapCount"> Đếm ngược</label>',
@@ -267,6 +278,11 @@ BODY = {
 }
 
 UI = {
+    "'BPM グラフを作りました：'": "'Đã tạo biểu đồ BPM: '",
+    "'検出：'": "'Đã dò: '",
+    "'この区間の拍を検出できませんでした'": "'Không dò được nhịp ở đoạn này'",
+    "'曲を読み込むと検出できます'": "'Hãy mở bài hát để dò'",
+    "'クリックで BPM の点を追加（DJ ミックスなど、途中でテンポが変わる曲に）'": "'Nhấp để thêm điểm BPM (cho DJ mix và bài đổi nhịp giữa chừng)'",
     '`前後の行と順番が入れ替わらないよう ${w.toFixed(2)} 秒にしました`': '`Đã đặt ${w.toFixed(2)} giây để giữ thứ tự các dòng`',
     "'このカットの開始時刻（手動）。空にすると自動に戻ります'": "'Thời điểm bắt đầu cảnh này (thủ công). Xóa trống để về tự động'",
     "'このカットの開始時刻（自動）。数値を入れると固定します'": "'Thời điểm bắt đầu cảnh này (tự động). Nhập số để cố định'",

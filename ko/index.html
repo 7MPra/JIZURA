@@ -183,6 +183,15 @@ button.play { width: 40px; height: 34px; padding: 0; font-size: 14px; }
 .ln .txt-edit { width: 100%; padding: 3px 6px; font-size: 13px; }
 .ln .tools .icon[aria-pressed=true] { color: var(--amber); }
 #timeline { width: 100%; height: 76px; display: block; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); cursor: pointer; touch-action: none; }
+.tempo-wrap { margin-top: 6px; }
+.tempo-wrap[hidden] { display: none; }
+#tempoLane { width: 100%; height: 96px; display: block; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); cursor: crosshair; touch-action: none; }
+.tempo-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 6px; font-size: 12px; }
+.tempo-hint { flex: 1 1 260px; }
+.tempo-sel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.tempo-sel[hidden] { display: none; }
+.tempo-sel .field input { width: 84px; }
+#tlTempo[aria-pressed="true"] { color: var(--amber); border-color: currentColor; }
 .cutinfo { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-height: 26px; flex: none; }
 .cutinfo .cut-roll { margin-left: 2px; }
 .chip { font-size: 11px; padding: 2px 8px; border-radius: 2px; border: 1px solid var(--line2); color: var(--text); background: var(--raised); }
@@ -423,7 +432,7 @@ button.small.primary { padding: 4px 12px; }
 #app.is-mobile .col-left, #app.is-mobile .col-right { overflow: visible; border: 0; border-top: 1px solid var(--line); }
 #app.is-mobile .col-stage { order: -1; position: sticky; top: var(--mbar, 96px); z-index: 30; background: var(--ink); padding: 8px 10px; gap: 6px; box-shadow: 0 8px 18px rgba(0,0,0,0.45); }
 #app.is-mobile .viewport canvas { max-height: 34vh; }
-#app.is-mobile .tl-bar, #app.is-mobile #timeline, #app.is-mobile .cutinfo, #app.is-mobile .transport .vol, #app.is-mobile #btnLoop, #app.is-mobile #btnShuffle, #app.is-mobile #btnOmakase { display: none; }
+#app.is-mobile .tl-bar, #app.is-mobile #timeline, #app.is-mobile .tempo-wrap, #app.is-mobile .cutinfo, #app.is-mobile .transport .vol, #app.is-mobile #btnLoop, #app.is-mobile #btnShuffle, #app.is-mobile #btnOmakase { display: none; }
 #app.is-mobile .transport { gap: 8px; flex-wrap: nowrap; }
 #app.is-mobile .transport .hist-btns { display: inline-flex; }
 #app.is-mobile .col-right { order: 0; }
@@ -575,9 +584,27 @@ button.small.primary { padding: 4px 12px; }
           <button id="tlOut" class="ghost small icon-txt" title="축소" aria-label="타임라인 축소">−</button>
           <button id="tlIn" class="ghost small icon-txt" title="확대(타임라인에서 휠로도 가능)" aria-label="타임라인 확대">＋</button>
           <button id="tlFit" class="ghost small" title="곡 전체 보기">전체</button>
+          <button id="tlTempo" class="ghost small" aria-pressed="false" title="BPM 변화를 그래프로 그립니다(DJ 믹스처럼 도중에 템포가 바뀌는 곡에)">BPM 그래프</button>
         </span>
       </div>
       <canvas id="timeline" aria-label="타임라인(클릭으로 이동, 줄 구분은 드래그로 조정)"></canvas>
+      <div id="tempoWrap" class="tempo-wrap" hidden>
+        <canvas id="tempoLane" aria-label="BPM 그래프"></canvas>
+        <div class="tempo-bar">
+          <span class="muted tempo-hint">클릭으로 점 추가, 드래그로 이동(위아래는 BPM, 좌우는 시간), 오른쪽 클릭으로 삭제</span>
+          <span id="tempoSel" class="tempo-sel" hidden>
+            <label class="field">시간(초)<input id="tpT" type="number" min="0" step="0.01"></label>
+            <label class="field">BPM<input id="tpB" type="number" min="20" max="400" step="0.01"></label>
+            <label class="row"><input id="tpRamp" type="checkbox"> 이전 점에서 부드럽게 변화</label>
+            <label class="row"><input id="tpAnchor" type="checkbox"> 여기를 박자의 시작으로</label>
+            <button id="tpDetect" class="ghost small" title="이 점부터 약 16초 동안의 BPM을 곡에서 검출합니다">곡에서 검출</button>
+            <button id="tpDel" class="ghost small">점 삭제</button>
+          </span>
+          <button id="tpAddHere" class="ghost small">재생 위치에 점 추가</button>
+          <button id="tpAuto" class="ghost small" title="불러온 곡의 BPM을 4초마다 읽어 바뀌는 곳에 점을 둡니다(나중에 고칠 수 있습니다)">곡에서 자동 생성</button>
+          <button id="tpClear" class="ghost small">그래프 지우기</button>
+        </div>
+      </div>
       <div class="cutinfo" id="cutInfo"></div>
       <div id="cutPick" class="cut-pick pro-only" hidden>
         <div class="cut-pick-h">
@@ -3536,7 +3563,7 @@ J.defaultProject = () => ({
   aspect: '16:9', res: 1080, fps: 24,
   fx: { motion: 0.7, glitch: 0.55, chroma: 0.7, decor: 0.5, density: 0.55, texture: 0.6, flash: true, onTwos: true, koma: 12, hud: 'auto', bgSwitch: 0.35, hideNo: false, hideTime: false },
   enabled: Object.fromEntries(J.GROUP_KEYS.map(g => [g, Object.fromEntries(J.order(g).map(k => [k, true]))])),
-  timing: { bpm: 0, offset: 0.4, snap: true, tail: 0.9, lineTimes: {}, lineScale: 1 },
+  timing: { bpm: 0, offset: 0.4, snap: true, tail: 0.9, lineTimes: {}, lineScale: 1, tempo: [] },   // tempo: BPM グラフ (src/10b_tempo.js)
   overrides: {},
   locks: { tech: {}, params: {} },   // groups and values Randomize / Shuffle must not change (UI side only)
   colors: { enabled: false },
@@ -3712,6 +3739,9 @@ J.computeTiming = (project, parsed, audio) => {
   const T = project.timing || {};
   const lines = parsed.lines;
   const beat = T.bpm > 0 ? 60 / T.bpm : 0;
+  // BPM グラフ (tempo map): the beat length follows the tempo at each line; without one it is the single BPM
+  const tmap = J.tempoPoints ? J.tempoPoints(T) : null;
+  const beatAt = t => (tmap ? 60 / J.tempoBpmAt(tmap, t || 0) : beat);
   // fixed times: a hand-set time (typed, tapped, dragged) wins over the LRC tag; the rest is estimated
   const fixed = lines.map((l, i) => {
     const man = T.lineTimes && T.lineTimes[i] != null ? +T.lineTimes[i] : null;
@@ -3722,12 +3752,12 @@ J.computeTiming = (project, parsed, audio) => {
   let lastFix = -Infinity;
   for (let i = 0; i < fixed.length; i++) if (fixed[i] != null) { if (fixed[i] < lastFix + 0.05) fixed[i] = lastFix + 0.05; lastFix = fixed[i]; }
   const natural = i => {         // estimated length of line i
-    const n = [...lines[i].text].length, L = lines[i];
+    const n = [...lines[i].text].length, L = lines[i], b = beatAt(starts[i]);
     let d = L.interlude ? (L.secs > 0 ? L.secs : 4) : J.clamp(0.8 + n * 0.17, 1.3, 5.2) * (T.lineScale || 1);
-    if (beat && !(L.interlude && L.secs > 0)) d = Math.max(2, Math.round(d / beat)) * beat;
+    if (b && !(L.interlude && L.secs > 0)) d = Math.max(2, Math.round(d / b)) * b;
     return d;
   };
-  const gapOf = i => (i > 0 && i < lines.length && lines[i].gapBefore ? (beat ? beat * 2 : 0.8) : 0);
+  const gapOf = i => { const b = i > 0 ? beatAt(starts[i - 1]) : beat; return i > 0 && i < lines.length && lines[i].gapBefore ? (b ? b * 2 : 0.8) : 0; };
   const starts = new Array(lines.length);
   let i = 0, t = T.offset ?? 0.4;
   if (fixed.length && fixed[0] != null) t = fixed[0];
@@ -3751,9 +3781,9 @@ J.computeTiming = (project, parsed, audio) => {
   }
   const ends = starts.map((s, i) => {
     if (i < starts.length - 1) return Math.max(s + 0.35, starts[i + 1]);
-    const n = [...lines[i].text].length, L = lines[i];
+    const n = [...lines[i].text].length, L = lines[i], b = beatAt(s);
     let d = L.interlude ? (L.secs > 0 ? L.secs : 4) : J.clamp(0.8 + n * 0.17, 1.5, 5.2) * (T.lineScale || 1);
-    if (beat && !(L.interlude && L.secs > 0)) d = Math.max(2, Math.round(d / beat)) * beat;
+    if (b && !(L.interlude && L.secs > 0)) d = Math.max(2, Math.round(d / b)) * b;
     return s + d;
   });
   let duration = (ends.length ? ends[ends.length - 1] : 3) + (T.tail ?? 0.9);
@@ -5298,28 +5328,8 @@ J.analyzeAudio = async (file) => {
     onset[f] = Math.max(0, cur - m / Math.max(1, k));
   }
   // tempo via autocorrelation (70..180 BPM)
-  const minLag = Math.round(rate * 60 / 180), maxLag = Math.round(rate * 60 / 70);
-  let best = 0, bestLag = Math.round(rate * 0.5);
-  const scores = [];
-  for (let lag = minLag; lag <= maxLag; lag++) {
-    let s = 0; for (let f = lag; f < n; f++) s += onset[f] * onset[f - lag];
-    const bpm = 60 * rate / lag;
-    const w = Math.exp(-0.5 * Math.pow(Math.log2(bpm / 125) / 0.7, 2));
-    s *= w; scores[lag] = s;
-    if (s > best) { best = s; bestLag = lag; }
-  }
-  let lagF = bestLag;
-  if (scores[bestLag - 1] != null && scores[bestLag + 1] != null) {
-    const a = scores[bestLag - 1], b = scores[bestLag], c = scores[bestLag + 1];
-    const d = (a - 2 * b + c); if (d !== 0) lagF = bestLag + 0.5 * (a - c) / d;
-  }
-  const period = lagF / rate;
-  // phase
-  let bestPh = 0, bestPS = -1;
-  for (let ph = 0; ph < lagF; ph += 0.5) {
-    let s = 0; for (let t = ph; t < n; t += lagF) s += onset[Math.round(t)] || 0;
-    if (s > bestPS) { bestPS = s; bestPh = ph; }
-  }
+  const tm = J.tempoFromOnset(onset, rate, 0, n);
+  const lagF = tm.lag, period = lagF / rate, bestPh = tm.phase;
   const beats = [];
   for (let t = bestPh / rate; t < audioBuffer.duration; t += period) beats.push(+t.toFixed(4));
   // normalised energy (0..1, 95th percentile)
@@ -5332,8 +5342,107 @@ J.analyzeAudio = async (file) => {
   for (let b = 0; b < bins; b++) { let m = 0; for (let i = b * per, e = Math.min(len, (b + 1) * per); i < e; i += 4) { const v = Math.abs(mono[i]); if (v > m) m = v; } peaks[b] = m; }
   return {
     name: file.name, duration: audioBuffer.duration, sampleRate: sr, buffer: audioBuffer,
-    bpm: Math.round(60 / period * 10) / 10, beats, energy: energyN, energyRate: rate, peaks,
+    bpm: Math.round(60 / period * 10) / 10, beats, energy: energyN, energyRate: rate, peaks, onset,
   };
+};
+
+/* beat period and phase from an onset-strength envelope (rate frames/s) over frames [f0, f1):
+   autocorrelation over 70..180 BPM weighted towards `center` BPM, refined to a fractional lag, then the phase
+   (frames from f0) whose comb collects the most onsets */
+J.tempoFromOnset = (onset, rate, f0, f1, center = 125, lo = 70, hi = 180) => {
+  const minLag = Math.round(rate * 60 / hi), maxLag = Math.round(rate * 60 / lo);
+  let best = 0, bestLag = Math.round(rate * 0.5);
+  const scores = [];
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let s = 0; for (let f = f0 + lag; f < f1; f++) s += onset[f] * onset[f - lag];
+    const bpm = 60 * rate / lag;
+    const w = Math.exp(-0.5 * Math.pow(Math.log2(bpm / center) / 0.7, 2));
+    s *= w; scores[lag] = s;
+    if (s > best) { best = s; bestLag = lag; }
+  }
+  let lagF = bestLag;
+  if (scores[bestLag - 1] != null && scores[bestLag + 1] != null) {
+    const a = scores[bestLag - 1], b = scores[bestLag], c = scores[bestLag + 1];
+    const d = (a - 2 * b + c); if (d !== 0) lagF = bestLag + 0.5 * (a - c) / d;
+  }
+  let bestPh = 0, bestPS = -1;
+  for (let ph = 0; ph < lagF; ph += 0.5) {
+    let s = 0; for (let t = f0 + ph; t < f1; t += lagF) s += onset[Math.round(t)] || 0;
+    if (s > bestPS) { bestPS = s; bestPh = ph; }
+  }
+  return { lag: lagF, phase: bestPh, strength: best };
+};
+
+/* BPM グラフ: tempo of the song around time t (the next `span` seconds) — for a DJ mix, one section at a time.
+   near: a BPM to stay close to (the tempo so far), so a half / double reading folds back. Returns { bpm, beat }
+   with beat = the first detected beat at or after t, or null without an analysed song. */
+/* BPM グラフ: a first tempo map for a whole song / DJ mix — the tempo read every 4 s over 12 s windows; a new point
+   where it changes and the next reading agrees (a crossfade's mixed reading is skipped), on that section's first beat */
+J.autoTempoMap = (audio, step = 4, span = 12) => {
+  if (!audio || !audio.onset) return [];
+  const reads = [];
+  for (let t = 0; t + 6 < audio.duration; t += step) { const d = J.localTempo(audio, t, span, reads.length ? reads[reads.length - 1].bpm : 0); if (d) reads.push(Object.assign({ t }, d)); }
+  const out = [], same = (a, b) => Math.abs(a - b) <= Math.max(0.8, a * 0.006);
+  for (let i = 0; i < reads.length; i++) {
+    const r = reads[i], last = out[out.length - 1], next = reads[i + 1];
+    if (!last) { out.push({ t: r.beat, bpm: r.bpm, ramp: false, anchor: true }); continue; }
+    if (same(r.bpm, last.bpm)) continue;
+    if (next && !same(next.bpm, r.bpm)) continue;          // not settled yet
+    out.push({ t: r.beat, bpm: r.bpm, ramp: false, anchor: true });
+  }
+  // where a new section really starts: walk its beat grid back from a settled reading while its beats are still
+  // heard (two misses in a row end it) — a window that straddles the change is read as the new tempo too early
+  const on = audio.onset, rate = audio.energyRate;
+  const peakAt = (c, w) => { let v = 0; for (let f = Math.max(0, Math.round(c - w)); f <= Math.min(on.length - 1, Math.round(c + w)); f++) v = Math.max(v, on[f]); return v; };
+  for (let k = 1; k < out.length; k++) {
+    const p = out[k], P = 60 * rate / p.bpm, lo = out[k - 1].t * rate + P;
+    const settled = reads.find(r => r.t >= p.t + span * 0.5 && same(r.bpm, p.bpm));
+    let A = (settled ? settled.beat : p.t) * rate;
+    let ref = 0; for (let j = 0; j < 8; j++) ref += peakAt(A + j * P, P * 0.12) / 8;
+    let miss = 0;
+    for (let f = A - P; f > lo && miss < 2; f -= P) { if (peakAt(f, P * 0.12) > ref * 0.35) { A = f; miss = 0; } else miss++; }
+    p.t = +(A / rate).toFixed(3);
+  }
+  // a section's BPM: the average of the readings that agree with it (steadier than one window)
+  out.forEach((p, k) => {
+    const end = k + 1 < out.length ? out[k + 1].t : Infinity, xs = reads.filter(r => r.t >= p.t - 0.5 && r.t + span <= end + 0.5 && same(r.bpm, p.bpm)).map(r => r.bpm);
+    if (xs.length) p.bpm = Math.round(xs.reduce((a, b) => a + b, 0) / xs.length * 100) / 100;
+  });
+  return out;
+};
+
+J.localTempo = (audio, t, span = 16, near = 0) => {
+  if (!audio || !audio.onset || !audio.energyRate) return null;
+  const rate = audio.energyRate, n = audio.onset.length;
+  const f0 = Math.max(0, Math.floor(t * rate)), f1 = Math.min(n, Math.floor((t + span) * rate));
+  if (f1 - f0 < rate * 5) return null;
+  const on = audio.onset, r = J.tempoFromOnset(on, rate, f0, f1, near > 0 ? near : 125, 60, 200);
+  if (!(r.strength > 0)) return null;
+  // refine: the onset peak nearest each predicted beat (sub-frame), then a least-squares line through them
+  let P = r.lag, A = f0 + r.phase;
+  for (let pass = 0; pass < 3; pass++) {
+    const ks = [], ys = [];
+    for (let k = 0; A + k * P < f1; k++) {
+      const c = A + k * P, w = P * 0.22;
+      let bi = -1, bv = 0;
+      for (let f = Math.max(f0, Math.round(c - w)); f <= Math.min(f1 - 1, Math.round(c + w)); f++) if (on[f] > bv) { bv = on[f]; bi = f; }
+      if (bi < 1 || bv <= 0) continue;
+      const a0 = on[bi - 1] || 0, b0 = on[bi], c0 = on[bi + 1] || 0, d = a0 - 2 * b0 + c0;
+      ks.push(k); ys.push(bi + (d < 0 ? J.clamp(0.5 * (a0 - c0) / d, -0.5, 0.5) : 0));
+    }
+    if (ks.length < 6) break;
+    const m = ks.length, sk = ks.reduce((x, y) => x + y, 0), sy = ys.reduce((x, y) => x + y, 0);
+    const skk = ks.reduce((x, k) => x + k * k, 0), sky = ks.reduce((x, k, i) => x + k * ys[i], 0);
+    const den = m * skk - sk * sk; if (!den) break;
+    const P2 = (m * sky - sk * sy) / den, A2 = (sy - P2 * sk) / m;
+    if (!(P2 > P * 0.8 && P2 < P * 1.25)) break;
+    P = P2; A = A2;
+  }
+  while (A - P >= f0 - 0.5) A -= P;                          // the first beat at or after t
+  while (A < f0 - 0.5) A += P;
+  let bpm = 60 * rate / P;
+  if (near > 0) { while (bpm < near / 1.42) bpm *= 2; while (bpm > near * 1.42) bpm /= 2; }
+  return { bpm: Math.round(bpm * 100) / 100, beat: +(A / rate).toFixed(3) };
 };
 
 /* 16-bit PCM WAV of an AudioBuffer, cut / padded to `duration` seconds (the soundtrack next to an MP4 whose
@@ -5394,6 +5503,73 @@ J.beatGrid = (bpm, offset, duration) => {
   const p = 60 / bpm;
   for (let t = offset; t < duration + 0.01; t += p) if (t >= 0) out.push(+t.toFixed(4));
   return out;
+};
+})();
+
+/* ============================================================
+   JIZURA — tempo map (BPM グラフ): tempo changes over a song or a DJ mix
+   project.timing.tempo = [{ t, bpm, ramp, anchor }, …]   (seconds, BPM)
+     ramp    the tempo slides linearly from the previous point to this one (a DJ's pitch ride);
+             off = it jumps to this BPM at t
+     anchor  a beat falls exactly on t (the next track's first beat); off = the beats carry on
+             from the previous section
+   Before the first point the first BPM runs back to 0 s. When the map has points it replaces the
+   single BPM and the detected beat grid.
+   ============================================================ */
+(() => {
+'use strict';
+
+/* the points, cleaned and in time order (null when there is no map) */
+J.tempoPoints = (timing) => {
+  const a = timing && Array.isArray(timing.tempo) ? timing.tempo : [];
+  const pts = a.filter(p => p && isFinite(+p.t) && +p.bpm >= 20 && +p.bpm <= 400)
+    .map(p => ({ t: Math.max(0, +p.t), bpm: +p.bpm, ramp: !!p.ramp, anchor: p.anchor !== false }))
+    .sort((x, y) => x.t - y.t);
+  return pts.length ? pts : null;
+};
+
+/* BPM at time t */
+J.tempoBpmAt = (pts, t) => {
+  if (!pts || !pts.length) return 0;
+  if (t <= pts[0].t) return pts[0].bpm;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    if (t < b.t) return b.ramp && b.t > a.t ? J.lerp(a.bpm, b.bpm, (t - a.t) / (b.t - a.t)) : a.bpm;
+  }
+  return pts[pts.length - 1].bpm;
+};
+
+/* beat times (seconds) from 0 to duration */
+J.tempoBeats = (pts, duration) => {
+  const out = [];
+  if (!pts || !pts.length) return out;
+  const D = Math.max(1, duration || 600), MAX = 20000;
+  // before the first point: its tempo, counted back from it
+  const L0 = 60 / pts[0].bpm, back = [];
+  for (let t = pts[0].t - L0; t > -1e-6 && back.length < MAX; t -= L0) back.push(t);
+  back.reverse().forEach(t => out.push(+Math.max(0, t).toFixed(4)));
+  let t = pts[0].t;
+  for (let i = 0; i < pts.length && out.length < MAX; i++) {
+    const p = pts[i], end = i + 1 < pts.length ? pts[i + 1].t : D, next = pts[i + 1];
+    if (i > 0 && p.anchor) t = p.t;                         // this point starts a fresh beat grid
+    const nextAnch = next && next.anchor;
+    while (t < end - 1e-6 && out.length < MAX) {
+      const len = 60 / J.tempoBpmAt(pts, t);
+      // the next point re-anchors the grid: a beat closer than 40% of a beat before it would make a stutter
+      if (nextAnch && end - t < len * 0.4) break;
+      out.push(+t.toFixed(4));
+      t += 60 / J.tempoBpmAt(pts, t + len / 2);              // midpoint step: follows a ramp closely
+    }
+    if (nextAnch) t = end;
+  }
+  return out;
+};
+
+/* beat length (s) at time t for a timing block: the map when there is one, else the single BPM (0 = none) */
+J.beatLenAt = (timing, t) => {
+  const pts = J.tempoPoints(timing);
+  if (pts) return 60 / J.tempoBpmAt(pts, t || 0);
+  return timing && timing.bpm > 0 ? 60 / timing.bpm : 0;
 };
 })();
 
@@ -36983,12 +37159,14 @@ window.addEventListener('pagehide', () => { if (S.project) flushSave(); });
 
 /* ---------------- planning ---------------- */
 function audioLike() {
-  const T = S.project.timing;
+  const T = S.project.timing, tm = J.tempoPoints(T);         // BPM グラフ wins over the single BPM and the detected beats
   if (S.audio) {
     const a = Object.assign({}, S.audio);
-    if (T.bpm > 0) a.beats = J.beatGrid(T.bpm, T.beatOffset || 0, S.audio.duration);
+    if (tm) a.beats = J.tempoBeats(tm, S.audio.duration);
+    else if (T.bpm > 0) a.beats = J.beatGrid(T.bpm, T.beatOffset || 0, S.audio.duration);
     return a;
   }
+  if (tm) return { beats: J.tempoBeats(tm, 600) };
   if (T.bpm > 0) return { beats: J.beatGrid(T.bpm, T.beatOffset || 0, 600) };
   return null;
 }
@@ -37208,6 +37386,158 @@ function drawTimeline() {
   }
   const px = X(S.t);
   x.fillStyle = '#f5a50c'; x.fillRect(Math.round(px) - dpr, 0, 2 * dpr, h);
+  drawTempo();
+}
+
+/* ---------------- BPM グラフ (tempo map lane under the timeline, same time axis) ---------------- */
+const TP = { on: false, sel: -1, drag: -1, moved: false };
+const tempoArr = () => { const T = S.project.timing; if (!Array.isArray(T.tempo)) T.tempo = []; return T.tempo; };
+const tempoSort = () => { const a = tempoArr(), cur = a[TP.sel]; a.sort((p, q) => p.t - q.t); TP.sel = cur ? a.indexOf(cur) : -1; };
+function tempoRange() {
+  const a = tempoArr(), T = S.project.timing;
+  const vals = a.map(p => +p.bpm).concat(a.length ? [] : [T.bpm > 0 ? T.bpm : S.audio && S.audio.bpm ? S.audio.bpm : 128]);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = Math.max(6, (hi - lo) * 0.25);
+  lo = Math.floor((lo - pad) / 5) * 5; hi = Math.ceil((hi + pad) / 5) * 5;
+  return { lo: Math.max(20, lo), hi: Math.min(400, Math.max(hi, lo + 10)) };
+}
+function tempoGeo() {
+  const c = $('tempoLane'), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.max(10, Math.round(c.clientWidth * dpr)), h = Math.max(10, Math.round(c.clientHeight * dpr));
+  const { vd, off } = tlView(), R = tempoRange(), pad = 8 * dpr;
+  return { c, dpr, w, h, vd, off, R, pad, X: t => (t - off) / vd * w, Y: b => h - pad - (b - R.lo) / (R.hi - R.lo) * (h - pad * 2), T: px => off + px / w * vd, B: py => R.lo + (h - pad - py) / (h - pad * 2) * (R.hi - R.lo) };
+}
+function drawTempo() {
+  const wrap = $('tempoWrap'); if (!wrap || wrap.hidden) return;
+  const G = tempoGeo(), { c, dpr, w, h, X, Y, R } = G;
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const x = c.getContext('2d');
+  x.fillStyle = '#101013'; x.fillRect(0, 0, w, h);
+  x.font = `${9 * dpr}px monospace`; x.textBaseline = 'middle';
+  const step = R.hi - R.lo > 60 ? 20 : R.hi - R.lo > 25 ? 10 : 5;
+  for (let b = Math.ceil(R.lo / step) * step; b <= R.hi; b += step) {
+    x.fillStyle = '#24242b'; x.fillRect(0, Math.round(Y(b)), w, 1);
+    x.fillStyle = '#5d5a63'; x.fillText(String(b), 3 * dpr, Y(b) - 6 * dpr);
+  }
+  const beats = S.plan.beats || [];
+  x.fillStyle = '#2e2e36';
+  for (const b of beats) { const bx = X(b); if (bx < 0) continue; if (bx > w) break; x.fillRect(Math.round(bx), h - 5 * dpr, 1, 5 * dpr); }
+  const pts = J.tempoPoints(S.project.timing), a = tempoArr();
+  if (!pts) {
+    x.fillStyle = '#8e8a94'; x.fillText('클릭해서 BPM 점 추가(DJ 믹스처럼 도중에 템포가 바뀌는 곡에)', 10 * dpr, h / 2);
+  } else {
+    // the tempo curve: steps, or straight slides into ramped points
+    x.strokeStyle = '#6fb7c8'; x.lineWidth = 2 * dpr; x.beginPath();
+    x.moveTo(0, Y(pts[0].bpm));
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      if (i > 0 && !p.ramp) x.lineTo(X(p.t), Y(pts[i - 1].bpm));
+      x.lineTo(X(p.t), Y(p.bpm));
+    }
+    x.lineTo(w, Y(pts[pts.length - 1].bpm)); x.stroke();
+  }
+  a.forEach((p, i) => {
+    const px = X(+p.t), py = Y(+p.bpm), on = i === TP.sel;
+    if (px < -20 || px > w + 20) return;
+    if (p.anchor !== false) { x.fillStyle = on ? 'rgba(245,165,12,0.5)' : 'rgba(111,183,200,0.35)'; x.fillRect(Math.round(px), 0, 1, h); }
+    x.fillStyle = on ? '#f5a50c' : '#6fb7c8';
+    x.beginPath(); x.arc(px, py, (on ? 5 : 4) * dpr, 0, J.TAU); x.fill();
+    x.fillStyle = on ? '#f5a50c' : '#c9c5cf'; x.fillText((+p.bpm).toFixed(+p.bpm % 1 ? 2 : 0).replace(/0$/, ''), px + 6 * dpr, Math.max(8 * dpr, py - 9 * dpr));
+  });
+  const ph = X(S.t);
+  x.fillStyle = '#f5a50c'; x.fillRect(Math.round(ph) - dpr, 0, 2 * dpr, h);
+  syncTempoSel();
+}
+function syncTempoSel() {
+  const p = tempoArr()[TP.sel], box = $('tempoSel'); if (!box) return;
+  box.hidden = !p; if (!p) return;
+  const set = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
+  set('tpT', (+p.t).toFixed(2)); set('tpB', String(+(+p.bpm).toFixed(2)));
+  $('tpRamp').checked = !!p.ramp; $('tpAnchor').checked = p.anchor !== false;
+  $('tpRamp').disabled = TP.sel === 0;
+}
+function tempoChanged() { tempoSort(); replan(); }
+function tempoHit(ev) {
+  const G = tempoGeo(), r = G.c.getBoundingClientRect(), mx = (ev.clientX - r.left) * G.dpr, my = (ev.clientY - r.top) * G.dpr;
+  let best = -1, bd = 10 * G.dpr;
+  tempoArr().forEach((p, i) => { const d = Math.hypot(G.X(+p.t) - mx, G.Y(+p.bpm) - my); if (d < bd) { bd = d; best = i; } });
+  return { i: best, t: G.T(mx), bpm: G.B(my), G };
+}
+// a new point's time lands on a beat of the grid so far (Shift: free)
+function tempoSnapT(t, ev) {
+  if (ev && ev.shiftKey) return t;
+  let bt = t, bd = 0.1; for (const b of S.plan.beats || []) { const d = Math.abs(b - t); if (d < bd) { bd = d; bt = b; } if (b > t + 0.2) break; }
+  return bt;
+}
+function tempoAdd(t, bpm) {
+  pushEdit();
+  const pts = J.tempoPoints(S.project.timing);
+  const b = bpm != null ? bpm : pts ? J.tempoBpmAt(pts, t) : (S.project.timing.bpm > 0 ? S.project.timing.bpm : S.audio && S.audio.bpm ? S.audio.bpm : 128);
+  const p = { t: +Math.max(0, t).toFixed(3), bpm: +J.clamp(b, 20, 400).toFixed(2), ramp: false, anchor: true };
+  tempoArr().push(p); TP.sel = tempoArr().indexOf(p); tempoChanged();
+  return p;
+}
+function bindTempo() {
+  const lane = $('tempoLane'); if (!lane) return;
+  $('tlTempo').addEventListener('click', () => {
+    TP.on = !TP.on; $('tempoWrap').hidden = !TP.on; $('tlTempo').setAttribute('aria-pressed', String(TP.on)); drawTimeline();
+  });
+  if (S.project && tempoArr().length) $('tlTempo').click();   // a project with a tempo map opens with its graph shown
+  lane.addEventListener('pointerdown', e => {
+    if (S.exporting) return;
+    lane.setPointerCapture(e.pointerId);
+    const hit = tempoHit(e);
+    if (e.button === 2) return;
+    if (hit.i >= 0) { pushEdit(); TP.sel = hit.i; TP.drag = hit.i; TP.moved = false; drawTempo(); return; }
+    // empty space: a new point where you clicked (its BPM follows the height)
+    const p = tempoAdd(tempoSnapT(hit.t, e), Math.round(hit.bpm * 2) / 2);
+    TP.drag = tempoArr().indexOf(p); TP.moved = false;
+  });
+  lane.addEventListener('pointermove', e => {
+    if (TP.drag < 0) { lane.style.cursor = tempoHit(e).i >= 0 ? 'grab' : 'crosshair'; return; }
+    const hit = tempoHit(e), p = tempoArr()[TP.drag]; if (!p) return;
+    TP.moved = true;
+    p.t = +Math.max(0, tempoSnapT(hit.t, e)).toFixed(3);
+    p.bpm = +J.clamp(e.altKey ? hit.bpm : Math.round(hit.bpm * 2) / 2, 20, 400).toFixed(2);   // 0.5 BPM steps (Alt: free)
+    TP.sel = TP.drag; tempoSort(); TP.drag = TP.sel;
+    S.plan = J.plan(S.project, audioLike()); drawTimeline();
+  });
+  const end = () => { if (TP.drag >= 0) { TP.drag = -1; replan(); flushSave(); } };
+  lane.addEventListener('pointerup', end); lane.addEventListener('pointercancel', end);
+  lane.addEventListener('contextmenu', e => {                // right click: remove a point
+    e.preventDefault();
+    const hit = tempoHit(e); if (hit.i < 0) return;
+    pushEdit(); tempoArr().splice(hit.i, 1); TP.sel = -1; tempoChanged();
+  });
+  lane.addEventListener('wheel', e => { e.preventDefault(); tlZoom(Math.exp(-e.deltaY * 0.0025), tempoHit(e).t); }, { passive: false });
+  const edit = (fn) => () => { const p = tempoArr()[TP.sel]; if (!p) return; pushEdit(); fn(p); tempoChanged(); };
+  $('tpT').addEventListener('change', edit(p => { p.t = Math.max(0, parseFloat($('tpT').value) || 0); }));
+  $('tpB').addEventListener('change', edit(p => { p.bpm = J.clamp(parseFloat($('tpB').value) || p.bpm, 20, 400); }));
+  $('tpRamp').addEventListener('change', edit(p => { p.ramp = $('tpRamp').checked; }));
+  $('tpAnchor').addEventListener('change', edit(p => { p.anchor = $('tpAnchor').checked; }));
+  $('tpDel').addEventListener('click', edit(p => { tempoArr().splice(tempoArr().indexOf(p), 1); TP.sel = -1; }));
+  // with a song: the BPM of the next ~16 s is detected, and the point goes on its first beat (a DJ mix: one track at a time)
+  $('tpAddHere').addEventListener('click', () => {
+    const pts = J.tempoPoints(S.project.timing), near = pts ? J.tempoBpmAt(pts, S.t) : 0;
+    const d = J.localTempo(S.audio, S.t, 16, near);
+    if (d) { tempoAdd(d.beat, d.bpm); toast('검출: ' + d.bpm + ' BPM'); }
+    else tempoAdd(tempoSnapT(S.t, null));
+  });
+  $('tpAuto').addEventListener('click', () => {
+    if (!S.audio) { toast('곡을 불러오면 검출할 수 있습니다'); return; }
+    const pts = J.autoTempoMap(S.audio);
+    if (!pts.length) { toast('이 구간의 박자를 검출하지 못했습니다'); return; }
+    pushEdit(); S.project.timing.tempo = pts; TP.sel = -1; replan();
+    toast('BPM 그래프를 만들었습니다: ' + pts.length);
+  });
+  $('tpDetect').addEventListener('click', () => {
+    const a = tempoArr(), p = a[TP.sel]; if (!p) return;
+    const prev = a[TP.sel - 1], d = J.localTempo(S.audio, Math.max(0, +p.t - 0.05), 16, prev ? +prev.bpm : +p.bpm);
+    if (!d) { toast(S.audio ? '이 구간의 박자를 검출하지 못했습니다' : '곡을 불러오면 검출할 수 있습니다'); return; }
+    pushEdit(); p.bpm = d.bpm; if (p.anchor !== false && Math.abs(d.beat - p.t) < 60 / d.bpm) p.t = d.beat;
+    tempoChanged(); toast('검출: ' + d.bpm + ' BPM');
+  });
+  $('tpClear').addEventListener('click', () => { if (!tempoArr().length) return; pushEdit(); S.project.timing.tempo = []; TP.sel = -1; replan(); });
 }
 function tlTime(ev) {
   const r = $('timeline').getBoundingClientRect(), { vd, off } = tlView();
@@ -37594,7 +37924,7 @@ function editLine(li, ln) {
 /* ---------------- 歌詞 · タイミングの取り消し（Ctrl+Z） ---------------- */
 // separate from the ◀ ▶ history of looks: lyric edits, dragged / typed / tapped line times
 const ED = { undo: [], redo: [] };
-const edSnap = () => JSON.stringify({ lyrics: S.project.lyrics, lineTimes: S.project.timing.lineTimes || {} });
+const edSnap = () => JSON.stringify({ lyrics: S.project.lyrics, lineTimes: S.project.timing.lineTimes || {}, tempo: S.project.timing.tempo || [] });
 function pushEdit() { const s = edSnap(); if (ED.undo[ED.undo.length - 1] !== s) ED.undo.push(s); if (ED.undo.length > 60) ED.undo.shift(); ED.redo = []; updateEditBtns(); }
 function edGo(d) {
   const from = d < 0 ? ED.undo : ED.redo, to = d < 0 ? ED.redo : ED.undo;
@@ -37603,6 +37933,7 @@ function edGo(d) {
   if ('ov' in o) { cur.ov = S.project.overrides; cur.range = S.project.exportRange || null; }   // clearLyrics() also cleared these
   to.push(JSON.stringify(cur));
   S.project.lyrics = o.lyrics; S.project.timing.lineTimes = o.lineTimes; $('lyrics').value = o.lyrics;
+  if (Array.isArray(o.tempo)) { S.project.timing.tempo = o.tempo; TP.sel = Math.min(TP.sel, o.tempo.length - 1); }
   if ('ov' in o) { S.project.overrides = o.ov || {}; S.project.exportRange = o.range || null; }
   replan(); flushSave(); updateEditBtns();
   toast(d < 0 ? '되돌렸습니다' : '다시 실줄했습니다');
@@ -38477,6 +38808,7 @@ function bind() {
   $('tlIn').addEventListener('click', () => tlZoom(1.6));
   $('tlOut').addEventListener('click', () => tlZoom(1 / 1.6));
   $('tlFit').addEventListener('click', () => { TL.z = 1; TL.off = 0; drawTimeline(); });
+  bindTempo();
   $('btnUndoEdit').addEventListener('click', () => edGo(-1));
   $('tapBack').addEventListener('click', tapBack);
   bindRangeUI();
