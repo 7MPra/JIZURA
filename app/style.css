@@ -435,3 +435,5 @@ button.small.primary { padding: 4px 12px; }
 .theme-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; margin-top: 8px; }
 .theme-row select { min-width: 9em; }
 #app.is-easy .ln .cut-pair { display: none; }
+.outbtns.out-png { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-top: 8px; }
+.outbtns.out-png button { padding: 8px 10px; font-size: 12px; }

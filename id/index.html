@@ -458,6 +458,8 @@ button.small.primary { padding: 4px 12px; }
 .theme-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; margin-top: 8px; }
 .theme-row select { min-width: 9em; }
 #app.is-easy .ln .cut-pair { display: none; }
+.outbtns.out-png { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-top: 8px; }
+.outbtns.out-png button { padding: 8px 10px; font-size: 12px; }
 
 </style>
 </head>
@@ -635,6 +637,7 @@ button.small.primary { padding: 4px 12px; }
           <label class="row center-dir" hidden>Pada layar tegak<select class="centerDirSel" aria-label="Cara membagi pada layar tegak"><option value="tb">Atas / bawah</option><option value="lr">Kiri / kanan</option></select></label>
           <div class="rng-row"><span class="rng-lab">Rentang ekspor</span><select class="rngFrom" aria-label="Baris pertama rentang ekspor"></select><span class="muted">〜</span><select class="rngTo" aria-label="Baris terakhir rentang ekspor"></select><span class="rngInfo muted mono"></span></div>
           <div class="outbtns"><button id="eMP4" class="primary">Ekspor MP4</button><button id="eMP4File" class="ghost mp4file" hidden title="Pilih file tujuan dulu; video langsung ditulis ke file itu. Gunakan jika lagu panjang atau 1080p ke atas gagal karena memori browser tidak cukup (Chrome / Edge)">Untuk video besar (simpan langsung ke file)</button><button id="eLRC" class="ghost" title="Simpan lirik dengan waktu mulai tiap baris (.lrc). Jika rentang ekspor dipilih, hanya baris itu, dengan waktu dari awal video">Simpan LRC</button></div>
+          <div class="outbtns out-png"><button id="ePNG" class="ghost">PNG berurutan (ZIP)</button><button id="ePNGA" class="ghost">PNG transparan (ZIP, tanpa latar)</button><button id="ePNGL" class="ghost" title="Ekspor PNG transparan ke dua folder: back/ (grafik latar dan dekorasi di belakang lirik) serta front/ (lirik, dekorasi, dan efek ghost). Efek layar diterapkan ke keduanya, jadi tumpuk front di atas back untuk mendapatkan tampilan normal.">Layer PNG transparan (ZIP)</button></div>
           <button class="terms-open linkish">Hak atas video yang diekspor</button>
           <div class="exp-box" hidden>
             <button class="exp-share primary" hidden>Bagikan / simpan</button>
@@ -37444,7 +37447,7 @@ async function codecNote() {
   ['btnMP4File', 'eMP4File'].forEach(id => { $(id).hidden = !vc || !canPickFile(); });
   if (!vc) $('eMP4').title = 'Browser ini tidak mendukung ekspor MP4 (disarankan Chrome atau Edge)';
 }
-const EXP_BTNS = ['btnMP4', 'btnPNG', 'btnPNGA', 'btnPNGL', 'eMP4', 'btnMP4File', 'eMP4File'];
+const EXP_BTNS = ['btnMP4', 'btnPNG', 'btnPNGA', 'btnPNGL', 'eMP4', 'btnMP4File', 'eMP4File', 'ePNG', 'ePNGA', 'ePNGL'];
 function baseName() {
   const k = J.keyMode(S.project);
   return ((S.project.title || 'jizura').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 60) || 'jizura') + (k ? (k === 'green' ? '_greenback' : '_blackback') : '');
@@ -37789,6 +37792,9 @@ function bind() {
   $('btnPNG').addEventListener('click', () => runExport('png'));
   $('btnPNGA').addEventListener('click', () => runExport('pnga'));
   $('btnPNGL').addEventListener('click', () => runExport('pngl'));
+  $('ePNG').addEventListener('click', () => runExport('png'));
+  $('ePNGA').addEventListener('click', () => runExport('pnga'));
+  $('ePNGL').addEventListener('click', () => runExport('pngl'));
   document.querySelectorAll('.exp-cancel').forEach(b => b.addEventListener('click', () => { if (S.exporting) S.exporting.abort(); }));
   $('eMP4').addEventListener('click', () => runExport('mp4'));
   // かんたんモード

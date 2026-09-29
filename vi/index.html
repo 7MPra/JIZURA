@@ -458,6 +458,8 @@ button.small.primary { padding: 4px 12px; }
 .theme-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; margin-top: 8px; }
 .theme-row select { min-width: 9em; }
 #app.is-easy .ln .cut-pair { display: none; }
+.outbtns.out-png { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-top: 8px; }
+.outbtns.out-png button { padding: 8px 10px; font-size: 12px; }
 
 </style>
 </head>
@@ -635,6 +637,7 @@ button.small.primary { padding: 4px 12px; }
           <label class="row center-dir" hidden>Khi khung dọc<select class="centerDirSel" aria-label="Cách chia trên khung dọc"><option value="tb">Trên / dưới</option><option value="lr">Trái / phải</option></select></label>
           <div class="rng-row"><span class="rng-lab">Xuất phạm vi</span><select class="rngFrom" aria-label="Hàng đầu tiên của phạm vi xuất"></select><span class="muted">〜</span><select class="rngTo" aria-label="Hàng cuối cùng của phạm vi xuất"></select><span class="rngInfo muted mono"></span></div>
           <div class="outbtns"><button id="eMP4" class="primary">Xuất MP4</button><button id="eMP4File" class="ghost mp4file" hidden title="Chọn tệp đích trước; video được ghi trực tiếp vào tệp đó. Chức năng này được sử dụng khi các bài hát dài hoặc 1080p trở lên không thành công do không đủ bộ nhớ trình duyệt (Chrome / Edge)">Đối với video lớn (lưu trực tiếp vào tệp)</button><button id="eLRC" class="ghost" title="Lưu lời với thời điểm bắt đầu của từng dòng (.lrc). Khi đã chọn phạm vi xuất, chỉ các dòng đó, tính từ đầu video">Lưu LRC</button></div>
+          <div class="outbtns out-png"><button id="ePNG" class="ghost">PNG theo thứ tự(ZIP)</button><button id="ePNGA" class="ghost">PNG trong suốt (ZIP, không có nền)</button><button id="ePNGL" class="ghost" title="Xuất PNG trong suốt sang hai thư mục: back/ (đồ họa, nền và trang trí phía sau lời bài hát) và front/ (lời bài hát, trang trí và hiệu ứng). Hiệu ứng màn hình được áp dụng cho cả hai, vì vậy hãy xếp chồng mặt trước lên trên mặt sau để có giao diện bình thường.">Lớp PNG trong suốt (trước/sau, ZIP)</button></div>
           <button class="terms-open linkish">Về quyền đối với video đã xuất</button>
           <div class="exp-box" hidden>
             <button class="exp-share primary" hidden>Chia sẻ / lưu</button>
@@ -37444,7 +37447,7 @@ async function codecNote() {
   ['btnMP4File', 'eMP4File'].forEach(id => { $(id).hidden = !vc || !canPickFile(); });
   if (!vc) $('eMP4').title = 'Trình duyệt này không hỗ trợ xuất MP4 (khuyên dùng Chrome hoặc Edge)';
 }
-const EXP_BTNS = ['btnMP4', 'btnPNG', 'btnPNGA', 'btnPNGL', 'eMP4', 'btnMP4File', 'eMP4File'];
+const EXP_BTNS = ['btnMP4', 'btnPNG', 'btnPNGA', 'btnPNGL', 'eMP4', 'btnMP4File', 'eMP4File', 'ePNG', 'ePNGA', 'ePNGL'];
 function baseName() {
   const k = J.keyMode(S.project);
   return ((S.project.title || 'jizura').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 60) || 'jizura') + (k ? (k === 'green' ? '_greenback' : '_blackback') : '');
@@ -37789,6 +37792,9 @@ function bind() {
   $('btnPNG').addEventListener('click', () => runExport('png'));
   $('btnPNGA').addEventListener('click', () => runExport('pnga'));
   $('btnPNGL').addEventListener('click', () => runExport('pngl'));
+  $('ePNG').addEventListener('click', () => runExport('png'));
+  $('ePNGA').addEventListener('click', () => runExport('pnga'));
+  $('ePNGL').addEventListener('click', () => runExport('pngl'));
   document.querySelectorAll('.exp-cancel').forEach(b => b.addEventListener('click', () => { if (S.exporting) S.exporting.abort(); }));
   $('eMP4').addEventListener('click', () => runExport('mp4'));
   // かんたんモード

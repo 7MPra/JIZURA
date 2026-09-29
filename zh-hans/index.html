@@ -458,6 +458,8 @@ button.small.primary { padding: 4px 12px; }
 .theme-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; margin-top: 8px; }
 .theme-row select { min-width: 9em; }
 #app.is-easy .ln .cut-pair { display: none; }
+.outbtns.out-png { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-top: 8px; }
+.outbtns.out-png button { padding: 8px 10px; font-size: 12px; }
 
 </style>
 </head>
@@ -635,6 +637,7 @@ button.small.primary { padding: 4px 12px; }
           <label class="row center-dir" hidden>竖屏时<select class="centerDirSel" aria-label="竖屏画面的分法"><option value="tb">分成上下</option><option value="lr">分成左右</option></select></label>
           <div class="rng-row"><span class="rng-lab">导出范围</span><select class="rngFrom" aria-label="导出范围的第一行"></select><span class="muted">～</span><select class="rngTo" aria-label="导出范围的最后一行"></select><span class="rngInfo muted mono"></span></div>
           <div class="outbtns"><button id="eMP4" class="primary">导出 MP4</button><button id="eMP4File" class="ghost mp4file" hidden title="先选择要保存的文件，直接写入该文件。长歌曲或 1080p 以上因浏览器内存不足而失败时使用（Chrome / Edge）">大型视频用（直接保存为文件）</button><button id="eLRC" class="ghost" title="导出带有每行开始时间的歌词（.lrc）。选择了导出范围时，只导出那些行，时间从视频开头算起">导出 LRC</button></div>
+          <div class="outbtns out-png"><button id="ePNG" class="ghost">PNG 序列（ZIP）</button><button id="ePNGA" class="ghost">透明 PNG（ZIP，无背景）</button><button id="ePNGL" class="ghost" title="将后景（背景图形和歌词后方的装饰）与前景（歌词及其装饰、重影）分别导出为透明 PNG，放在两个文件夹（back / front）中。全屏效果会同时作用于两者，把前景叠在后景上即可还原正常画面">透明 PNG 前景／后景（ZIP）</button></div>
           <button class="terms-open linkish">关于导出视频的权利</button>
           <div class="exp-box" hidden>
             <button class="exp-share primary" hidden>分享并保存</button>
@@ -37632,7 +37635,7 @@ async function codecNote() {
   ['btnMP4File', 'eMP4File'].forEach(id => { $(id).hidden = !vc || !canPickFile(); });
   if (!vc) $('eMP4').title = '此浏览器不支持导出 MP4（推荐 Chrome / Edge）';
 }
-const EXP_BTNS = ['btnMP4', 'btnPNG', 'btnPNGA', 'btnPNGL', 'eMP4', 'btnMP4File', 'eMP4File'];
+const EXP_BTNS = ['btnMP4', 'btnPNG', 'btnPNGA', 'btnPNGL', 'eMP4', 'btnMP4File', 'eMP4File', 'ePNG', 'ePNGA', 'ePNGL'];
 function baseName() {
   const k = J.keyMode(S.project);
   return ((S.project.title || 'jizura').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 60) || 'jizura') + (k ? (k === 'green' ? '_greenback' : '_blackback') : '');
@@ -37977,6 +37980,9 @@ function bind() {
   $('btnPNG').addEventListener('click', () => runExport('png'));
   $('btnPNGA').addEventListener('click', () => runExport('pnga'));
   $('btnPNGL').addEventListener('click', () => runExport('pngl'));
+  $('ePNG').addEventListener('click', () => runExport('png'));
+  $('ePNGA').addEventListener('click', () => runExport('pnga'));
+  $('ePNGL').addEventListener('click', () => runExport('pngl'));
   document.querySelectorAll('.exp-cancel').forEach(b => b.addEventListener('click', () => { if (S.exporting) S.exporting.abort(); }));
   $('eMP4').addEventListener('click', () => runExport('mp4'));
   // かんたんモード
