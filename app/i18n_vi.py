@@ -288,6 +288,7 @@ BODY = {
 }
 
 UI = {
+    'Adobe Fonts の書体で表示しています': 'Đang dùng kiểu chữ Adobe Fonts',
     "'Adobe Fonts を読み込みました：'": "'Đã tải Adobe Fonts: '",
     "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'Hãy nhập tên phông Adobe Fonts vào “Tên phông dùng trong CSS” rồi thêm'",
     "'Adobe Fonts を読み込めませんでした（ID とドメインの設定を確認してください）'": "'Không tải được Adobe Fonts (kiểm tra ID và tên miền của dự án)'",

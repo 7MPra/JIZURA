@@ -230,6 +230,7 @@ BODY = {
 }
 
 UI = {
+    'Adobe Fonts の書体で表示しています': 'Kini memakai huruf Adobe Fonts',
     "'Adobe Fonts を読み込みました：'": "'Adobe Fonts dimuat: '",
     "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'Masukkan nama font Adobe Fonts di “Nama font di CSS” lalu tambahkan'",
     "'Adobe Fonts を読み込めませんでした（ID とドメインの設定を確認してください）'": "'Adobe Fonts tidak bisa dimuat (periksa ID dan domain proyek)'",

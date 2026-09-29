@@ -110,6 +110,8 @@ J.adobeGlyphs = (text) => {
   const html = fams.map(f => { const [fam, w] = f.split('|'); const s = document.createElement('span'); s.style.fontFamily = fam; s.style.fontWeight = w; s.textContent = chars; return s.outerHTML; }).join('');
   if (adobeBox.innerHTML === html) return false;
   adobeBox.innerHTML = html;
+  // dynamic subsetting: ask the kit to look at the page again, so the new characters are sent
+  try { if (window.Typekit && window.Typekit.load) window.Typekit.load({ async: true }); } catch (e) {}
   return true;
 };
 

@@ -155,6 +155,7 @@ J.STYLE_ORDER = ['noir', 'crimson', 'caution', 'magenta', 'paper', 'hud', 'mint'
 J.resolveStyle = (project) => {
   const base = J.STYLES[project.style] || J.STYLES.noir;
   const st = JSON.parse(JSON.stringify(base));
+  if (J.adobeReady && st.adobeFonts) st.fonts = Object.assign({}, st.fonts, st.adobeFonts);   // the built-in Adobe Fonts kit is active (src/11w_adobe.js)
   const ov = project.colors || {};
   // base colours (background / text) replace the main scheme only
   if (ov.enabled) st.schemes[0] = Object.assign({}, st.schemes[0], pickDefined(ov, ['bg', 'fg', 'sub']));

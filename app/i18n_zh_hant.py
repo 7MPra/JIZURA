@@ -187,6 +187,7 @@ BODY = {
 }
 
 UI = {
+    'Adobe Fonts の書体で表示しています': '正在使用 Adobe Fonts 的字體',
     "'Adobe Fonts を読み込みました：'": "'已載入 Adobe Fonts：'",
     "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'請在「CSS 使用的字型名稱」輸入 Adobe Fonts 的字型名稱後新增'",
     "'Adobe Fonts を読み込めませんでした（ID とドメインの設定を確認してください）'": "'無法載入 Adobe Fonts（請確認 ID 與網域設定）'",

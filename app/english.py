@@ -189,6 +189,7 @@ BODY = {
 }
 
 UI = {
+    'Adobe Fonts の書体で表示しています': 'Now using the Adobe Fonts typefaces',
     "'Adobe Fonts を読み込みました：'": "'Adobe Fonts loaded: '",
     "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'Enter an Adobe Fonts name in “Font name used in CSS” and add it'",
     "'Adobe Fonts を読み込めませんでした（ID とドメインの設定を確認してください）'": "'Could not load Adobe Fonts (check the ID and the project\\'s domains)'",

@@ -185,6 +185,7 @@ BODY = {
 }
 
 UI = {
+    'Adobe Fonts の書体で表示しています': 'Adobe Fonts 서체로 표시하고 있습니다',
     "'Adobe Fonts を読み込みました：'": "'Adobe Fonts를 불러왔습니다: '",
     "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'Adobe Fonts의 폰트 이름을 「CSS에서 쓰는 폰트 이름」에 넣고 추가하세요'",
     "'Adobe Fonts を読み込めませんでした（ID とドメインの設定を確認してください）'": "'Adobe Fonts를 불러오지 못했습니다(ID와 도메인 설정을 확인하세요)'",

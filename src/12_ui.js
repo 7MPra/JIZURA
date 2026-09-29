@@ -2094,6 +2094,8 @@ function boot() {
   S.project = loadLocal();
   bind(); initVolume(); syncUI(); syncLoopBtn(); replan();
   restoreFonts();
+  // the built-in Adobe Fonts kit serves only the domains of its web project (the Worker build)
+  if (J.useAdobeKit && /(^|\.)workers\.dev$|^localhost$|^127\./.test(location.hostname)) J.useAdobeKit().then(ok => { if (ok) { fontKey = ''; renderFontRoles(); replan(); toast('Adobe Fonts の書体で表示しています'); } });
   // first visit on a phone: スマホ mode
   let mode = window.matchMedia && window.matchMedia('(max-width: 760px)').matches ? 'mobile' : 'easy';
   try { mode = localStorage.getItem('jizura.mode') || mode; } catch (e) {}
