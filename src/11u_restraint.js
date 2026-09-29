@@ -20,7 +20,7 @@ J.TEXT_POOL = {
   layout: Object.assign(
     W(['tyCropGiant', 'huge', 'knRhythmCuts', 'bsBeatWord'], 1.6),
     W(['knTypeSlam', 'tyKeySplit', 'knZoomDive', 'columnsBig', 'tyScaleSteps', 'bsScaleLine', 'knQuarterTurn', 'center', 'vcols'], 1.1),
-    W(['hanging', 'poster', 'swissGrid', 'headlineDeck', 'tyMargin', 'knSwapCenter', 'knFlowSnap', 'knCollide', 'knReflow', 'mixed', 'kanjiFocus', 'dropCap',
+    W(['poster', 'swissGrid', 'headlineDeck', 'tyMargin', 'knSwapCenter', 'knFlowSnap', 'knCollide', 'knReflow', 'mixed', 'kanjiFocus', 'dropCap',
       'tyCross', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'type', 'corners', 'sideways', 'halfVertical'], 0.6)),
   enter: Object.assign(
     W(['cut', 'knWordSlam'], 1.5),

@@ -304,7 +304,7 @@ J.plan = (project, audio) => {
     lang: J.resolveLang ? J.resolveLang(project) : 'ja',   // 歌詞の言語 (auto → detected)
   };
   if (J.setLang) J.setLang(plan.lang);                     // chunking + measuring below use this language
-  if (J.setTypeset) J.setTypeset(plan.typeset);
+  if (J.setTypeset) J.setTypeset(plan.typeset || !!st.textOnly);   // テキストのみ: the glyph rules of 文字整列 (kana set tighter, particles smaller) always
   const beats = plan.beats;
   const snap = (t) => {
     if (!beats.length || !(project.timing && project.timing.snap)) return t;

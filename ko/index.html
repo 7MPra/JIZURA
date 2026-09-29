@@ -3916,7 +3916,7 @@ J.plan = (project, audio) => {
     lang: J.resolveLang ? J.resolveLang(project) : 'ja',   // 歌詞の言語 (auto → detected)
   };
   if (J.setLang) J.setLang(plan.lang);                     // chunking + measuring below use this language
-  if (J.setTypeset) J.setTypeset(plan.typeset);
+  if (J.setTypeset) J.setTypeset(plan.typeset || !!st.textOnly);   // テキストのみ: the glyph rules of 文字整列 (kana set tighter, particles smaller) always
   const beats = plan.beats;
   const snap = (t) => {
     if (!beats.length || !(project.timing && project.timing.snap)) return t;
@@ -4899,7 +4899,7 @@ class Renderer {
     const sc = st.schemes[mainCut ? mainCut.scheme % st.schemes.length : 0] || st.schemes[0];
     const allowFilter = this.filterOK && !opt.fast;
     if (J.setLang) J.setLang(plan.lang || 'ja');           // faces follow the plan's lyric language
-    if (J.setTypeset) J.setTypeset(plan.typeset);          // 文字整列
+    if (J.setTypeset) J.setTypeset(plan.typeset || !!(plan.style && plan.style.textOnly));          // 文字整列 (テキストのみ: always the glyph rules)
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.filter = 'none';
@@ -19958,7 +19958,8 @@ reg('knTypeSlam', {
     if (Pm.key === 'long') { let bv = -1; units.forEach((t, i) => { const v = gcount(t) + (/[一-鿿]/.test(t) ? 0.5 : 0); if (v > bv) { bv = v; ki = i; } }); }
     const key = units[ki];
     const tf = monoF(env);
-    const ts = Math.min(J.fitSize(t0, tf, W * 0.86, H * 0.08, { track: 0.06 }), u * 0.065);
+    const big = !!(env.st && env.st.textOnly);             // テキストのみ: the typed line carries the frame until the slam
+    const ts = Math.min(J.fitSize(t0, tf, W * 0.86, H * (big ? 0.11 : 0.08), { track: 0.06 }), u * (big ? 0.09 : 0.065));
     const tm = J.measure({ text: t0, font: tf, size: ts, track: 0.06 });
     const ks = Math.min(J.fitSize(key, Pm.font, W * 0.84, H * (port ? 0.3 : 0.44), { track: 0.01 }), H * 0.34, W * 0.5);
     const above = Pm.side === 'above';
@@ -36517,7 +36518,7 @@ const S = {
     ],
     fonts: { display: ['mincho_bold', 'shippori'], serif: ['mincho', 'mincho_light', 'shippori'], body: ['mincho'], mono: ['mono'] },
     pool: {
-      layout: { bsTypeBeat: 2.6, center: 1, hanging: 0.8, bsScaleLine: 0.4 },
+      layout: { bsTypeBeat: 2.6, center: 1, bsScaleLine: 0.4 },
       enter: { cut: 1.5, type: 1, fadeStagger: 1.2, blurStagger: 1, blur: 0.8 },
       exit: { blur: 1.2, blurOutStagger: 1, riseOut: 0.6 },
       hold: { still: 1.5, drift: 1, breathe: 0.8 },
@@ -36588,7 +36589,7 @@ J.TEXT_POOL = {
   layout: Object.assign(
     W(['tyCropGiant', 'huge', 'knRhythmCuts', 'bsBeatWord'], 1.6),
     W(['knTypeSlam', 'tyKeySplit', 'knZoomDive', 'columnsBig', 'tyScaleSteps', 'bsScaleLine', 'knQuarterTurn', 'center', 'vcols'], 1.1),
-    W(['hanging', 'poster', 'swissGrid', 'headlineDeck', 'tyMargin', 'knSwapCenter', 'knFlowSnap', 'knCollide', 'knReflow', 'mixed', 'kanjiFocus', 'dropCap',
+    W(['poster', 'swissGrid', 'headlineDeck', 'tyMargin', 'knSwapCenter', 'knFlowSnap', 'knCollide', 'knReflow', 'mixed', 'kanjiFocus', 'dropCap',
       'tyCross', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'type', 'corners', 'sideways', 'halfVertical'], 0.6)),
   enter: Object.assign(
     W(['cut', 'knWordSlam'], 1.5),
@@ -36765,7 +36766,7 @@ const S = {
     schemes: [scheme('#F2EEE6', '#16130F', '#B8321F'), scheme('#16130F', '#F2EEE6', '#E0553A'), scheme('#B8321F', '#F7F1E6', '#16130F')],
     fonts: { display: ['mincho_black'], serif: ['shippori'], body: ['mincho'], mono: ['mono'] }, chorusHit: false, oneCut: 0.45,
     pool: pool({
-      layout: { vcols: 1.4, tyCropGiant: 1.3, kanjiFocus: 1.2, hanging: 1, columnsBig: 1, tyStackJustify: 0.9, tyMargin: 0.8, headlineDeck: 0.7, tyCropSlide: 0.6, center: 0.6 },
+      layout: { vcols: 1.4, tyCropGiant: 1.3, kanjiFocus: 1.2, columnsBig: 1, tyStackJustify: 0.9, tyMargin: 0.8, headlineDeck: 0.7, tyCropSlide: 0.6, center: 0.6 },
       enter: { riseMask: 1.2, fadeStagger: 1.2, trackIn: 1, cut: 1, blurStagger: 0.8, tyKeyFirst: 0.8, wipe: 0.6 },
       exit: { riseOut: 1, blur: 1, cut: 1.2, trackOutWide: 0.8, sinkMask: 0.8 },
       hold: { still: 1.2, zoomSlow: 1, drift: 0.8, trackBreathe: 0.5 },
@@ -36795,7 +36796,7 @@ const S = {
     schemes: [scheme('#F4EFE4', '#2E2A26', '#C0563B'), scheme('#2E3A33', '#EFE9DC', '#E3B86B'), scheme('#E9DCC8', '#3A2E28', '#7A4B8C')],
     fonts: { display: ['klee'], serif: ['brush'], body: ['klee'], mono: ['mono'] }, chorusHit: false, oneCut: 0.55, glitchBoost: 0.01,
     pool: pool({
-      layout: { bsTypeBeat: 1.6, center: 1, vcols: 1, hanging: 0.9, kanjiFocus: 0.7, tyMargin: 0.7, corners: 0.5 },
+      layout: { bsTypeBeat: 1.6, center: 1, vcols: 1, kanjiFocus: 0.7, tyMargin: 0.7, corners: 0.5 },
       enter: { fadeStagger: 1.4, type: 1, blurStagger: 1, riseMask: 0.8, cut: 0.6 },
       exit: { blur: 1.2, blurOutStagger: 1, riseOut: 0.8, cut: 0.6 },
       hold: { drift: 1, still: 1, zoomSlow: 0.8 },

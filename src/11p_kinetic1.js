@@ -534,7 +534,8 @@ reg('knTypeSlam', {
     if (Pm.key === 'long') { let bv = -1; units.forEach((t, i) => { const v = gcount(t) + (/[一-鿿]/.test(t) ? 0.5 : 0); if (v > bv) { bv = v; ki = i; } }); }
     const key = units[ki];
     const tf = monoF(env);
-    const ts = Math.min(J.fitSize(t0, tf, W * 0.86, H * 0.08, { track: 0.06 }), u * 0.065);
+    const big = !!(env.st && env.st.textOnly);             // テキストのみ: the typed line carries the frame until the slam
+    const ts = Math.min(J.fitSize(t0, tf, W * 0.86, H * (big ? 0.11 : 0.08), { track: 0.06 }), u * (big ? 0.09 : 0.065));
     const tm = J.measure({ text: t0, font: tf, size: ts, track: 0.06 });
     const ks = Math.min(J.fitSize(key, Pm.font, W * 0.84, H * (port ? 0.3 : 0.44), { track: 0.01 }), H * 0.34, W * 0.5);
     const above = Pm.side === 'above';

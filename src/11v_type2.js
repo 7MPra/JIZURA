@@ -108,7 +108,7 @@ const S = {
     schemes: [scheme('#F2EEE6', '#16130F', '#B8321F'), scheme('#16130F', '#F2EEE6', '#E0553A'), scheme('#B8321F', '#F7F1E6', '#16130F')],
     fonts: { display: ['mincho_black'], serif: ['shippori'], body: ['mincho'], mono: ['mono'] }, chorusHit: false, oneCut: 0.45,
     pool: pool({
-      layout: { vcols: 1.4, tyCropGiant: 1.3, kanjiFocus: 1.2, hanging: 1, columnsBig: 1, tyStackJustify: 0.9, tyMargin: 0.8, headlineDeck: 0.7, tyCropSlide: 0.6, center: 0.6 },
+      layout: { vcols: 1.4, tyCropGiant: 1.3, kanjiFocus: 1.2, columnsBig: 1, tyStackJustify: 0.9, tyMargin: 0.8, headlineDeck: 0.7, tyCropSlide: 0.6, center: 0.6 },
       enter: { riseMask: 1.2, fadeStagger: 1.2, trackIn: 1, cut: 1, blurStagger: 0.8, tyKeyFirst: 0.8, wipe: 0.6 },
       exit: { riseOut: 1, blur: 1, cut: 1.2, trackOutWide: 0.8, sinkMask: 0.8 },
       hold: { still: 1.2, zoomSlow: 1, drift: 0.8, trackBreathe: 0.5 },
@@ -138,7 +138,7 @@ const S = {
     schemes: [scheme('#F4EFE4', '#2E2A26', '#C0563B'), scheme('#2E3A33', '#EFE9DC', '#E3B86B'), scheme('#E9DCC8', '#3A2E28', '#7A4B8C')],
     fonts: { display: ['klee'], serif: ['brush'], body: ['klee'], mono: ['mono'] }, chorusHit: false, oneCut: 0.55, glitchBoost: 0.01,
     pool: pool({
-      layout: { bsTypeBeat: 1.6, center: 1, vcols: 1, hanging: 0.9, kanjiFocus: 0.7, tyMargin: 0.7, corners: 0.5 },
+      layout: { bsTypeBeat: 1.6, center: 1, vcols: 1, kanjiFocus: 0.7, tyMargin: 0.7, corners: 0.5 },
       enter: { fadeStagger: 1.4, type: 1, blurStagger: 1, riseMask: 0.8, cut: 0.6 },
       exit: { blur: 1.2, blurOutStagger: 1, riseOut: 0.8, cut: 0.6 },
       hold: { drift: 1, still: 1, zoomSlow: 0.8 },

@@ -311,7 +311,7 @@ const S = {
     ],
     fonts: { display: ['mincho_bold', 'shippori'], serif: ['mincho', 'mincho_light', 'shippori'], body: ['mincho'], mono: ['mono'] },
     pool: {
-      layout: { bsTypeBeat: 2.6, center: 1, hanging: 0.8, bsScaleLine: 0.4 },
+      layout: { bsTypeBeat: 2.6, center: 1, bsScaleLine: 0.4 },
       enter: { cut: 1.5, type: 1, fadeStagger: 1.2, blurStagger: 1, blur: 0.8 },
       exit: { blur: 1.2, blurOutStagger: 1, riseOut: 0.6 },
       hold: { still: 1.5, drift: 1, breathe: 0.8 },
