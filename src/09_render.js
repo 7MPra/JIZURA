@@ -59,6 +59,7 @@ class Renderer {
     const W = plan.W, H = plan.H, scale = opt.scale || 1;
     const cw = ctx.canvas.width, ch = ctx.canvas.height;
     const fx = plan.fx, st = plan.style, fps = plan.fps;
+    const textOnly = !!st.textOnly;                       // テキストのみ: no background graphic, texture, HUD, decoration or shapes
     // motion is quantised to 'koma' drawings per second (24fps timebase); random flicker runs on a <=24Hz clock
     const stepDur = J.stepDur(fx, fps);
     const clock = J.komaOf(fx) > 0 ? stepDur : 1 / 24;
@@ -78,6 +79,7 @@ class Renderer {
     if (key && !opt.transparent) { ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, H); }
     else if (!opt.transparent) {
       ctx.fillStyle = sc.bg; ctx.fillRect(0, 0, W, H);
+      if (!textOnly) {
       const g = ctx.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H / 2, Math.hypot(W, H) * 0.6);
       const lift = J.lum(sc.bg) < 0.5 ? 'rgba(255,255,255,0.045)' : 'rgba(255,255,255,0.10)';
       g.addColorStop(0, lift); g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -89,6 +91,7 @@ class Renderer {
         if (J.lum(sc.bg) < 0.4) ctx.filter = 'invert(1)';
         ctx.drawImage(this.paper(W, H), 0, 0, W, H);
         ctx.filter = 'none'; ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+      }
       }
     }
     // ---------- camera & chroma amounts ----------
@@ -112,7 +115,7 @@ class Renderer {
     // ---------- background graphic (per line) ----------
     // 透過PNG 前景／後景 (opt.layer): 'back' = background graphic + the decorations behind the lyrics, 'front' = the rest
     const layer = opt.transparent ? opt.layer || null : null;
-    if ((!opt.transparent || layer === 'back') && !key && mainCut && mainCut.bg && mainCut.bg !== 'none' && J.BG[mainCut.bg]) {
+    if (!textOnly && (!opt.transparent || layer === 'back') && !key && mainCut && mainCut.bg && mainCut.bg !== 'none' && J.BG[mainCut.bg]) {
       const env = this.makeEnv(ctx, plan, mainCut, sc, { pass: 'main', t: tq, lt: tq - mainCut.start, ltb: tq - mainCut.start, step, scale, allowFilter, energy, beat: beatInfo, bgOnly: true });
       ctx.save();
       try { J.BG[mainCut.bg].draw(env, mainCut.bgP || {}); } catch (e) { console.warn('bg', mainCut.bg, e); }
@@ -209,7 +212,7 @@ class Renderer {
       }
     }
     // ---------- HUD ----------
-    if (plan.hud && !opt.noHud && layer !== 'back') {
+    if (plan.hud && !textOnly && !opt.noHud && layer !== 'back') {
       const env = this.makeEnv(ctx, plan, mainCut, sc, { pass: 'main', t: tq, lt: 0, ltb: 0, step, scale, allowFilter, energy, beat: beatInfo });
       J.drawHUD(env, plan);
     }
@@ -369,11 +372,14 @@ class Renderer {
 
   drawCut(env) {
     const cut = env.cut, L = J.LAYOUTS[cut.layout] || J.LAYOUTS.center;
-    const decor = cut.decor || [];
+    const textOnly = !!(env.st && env.st.textOnly);
+    const decor = textOnly ? [] : cut.decor || [];
     if (env.layer !== 'front') for (const d of decor) { const D = J.DECOR[d.id]; if (D && D.layer === 'back') try { D.draw(env, null, d); } catch (e) { console.warn(e); } }
     if (env.layer === 'back') return null;                // 後景だけ: the lyrics and the front decorations go to the other layer
     let bb = null;
+    if (textOnly) J.plainOn(env.ctx);
     try { bb = L.render(env); } catch (e) { console.warn('layout', cut.layout, e); }
+    finally { if (textOnly) J.plainOff(env.ctx); }
     for (const d of decor) { const D = J.DECOR[d.id]; if (D && D.layer === 'front') try { D.draw(env, bb, d); } catch (e) { console.warn(e); } }
     return bb;
   }
@@ -423,7 +429,7 @@ class Renderer {
 
   post(ctx, plan, t, tq, step, sc, scale, opt, allowFilter) {
     const cw = ctx.canvas.width, ch = ctx.canvas.height;
-    const fx = plan.fx, st = plan.style;
+    const fx = plan.fx, st = plan.style, textOnly = !!st.textOnly;
     const active = plan.events.filter(ev => t >= ev.t && t < ev.t + Math.max(ev.dur, 1 / plan.fps));
     const needScratch = active.some(ev => ['slice', 'block', 'zoom', 'mosaic'].includes(ev.type) || (J.FXE[ev.type] && J.FXE[ev.type].scratch)) || (!opt.fast && (st.glow || 0) > 0);
     const S = needScratch ? this.ensure(this.scratch, cw, ch) : null;
@@ -487,14 +493,14 @@ class Renderer {
       if (guard) guard.end();
     }
     // bloom
-    const glow = (st.glow || 0.6) * 0.5 * (fx.texture ?? 0.6);
+    const glow = textOnly ? 0 : (st.glow || 0.6) * 0.5 * (fx.texture ?? 0.6);
     if (!opt.fast && allowFilter && glow > 0.05 && !opt.transparent) {
       const sw = Math.round(cw / 4), sh = Math.round(ch / 4);
       const Sm = this.ensure(this.small, sw, sh), sx = Sm.getContext('2d');
       sx.filter = `blur(${Math.max(2, Math.round(sw / 160))}px)`; sx.globalCompositeOperation = 'copy'; sx.drawImage(ctx.canvas, 0, 0, sw, sh); sx.filter = 'none'; sx.globalCompositeOperation = 'source-over';
       ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = glow * 0.55; ctx.drawImage(Sm, 0, 0, cw, ch); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     }
-    if (!opt.transparent && !plan.keyBg) {
+    if (!opt.transparent && !plan.keyBg && !textOnly) {
       // scanlines
       const scan = (st.texture.scan || 0) * (fx.texture ?? 0.6);
       if (scan > 0.03) {

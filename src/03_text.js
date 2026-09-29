@@ -156,15 +156,27 @@ J.decoTextKind = (t) => {
   if ((t.match(/[A-Za-z]/g) || []).length <= 5 && /^[A-Za-z#№.\s\d\/\-–—+×x%:,'°]+$/.test(t)) return 'no';
   return null;
 };
+/* テキストのみ: the small captions layouts add around the lyric (LIVE, SCENE, LYRIC  03, ▸16A …): no CJK, upper-case or numbered,
+   and not part of the cut's own lyric */
+const flat = s => String(s || '').toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '');
+J.ornamentText = (env, text) => {
+  const t = String(text || '').trim().replace(/^[▸▶◀►▪•◆■□●○▲△▼▽←→↑↓]+\s*|\s*[▸▶◀►▪•◆■□●○▲△▼▽←→↑↓]+$/g, '');
+  if (!t || CJK.test(t)) return false;
+  if (!(J.decoTextKind(t) || (/^[A-Z][A-Z0-9 .:\/_#№\-–—+]*$/.test(t) && (t.match(/[A-Z]/g) || []).length >= 3))) return false;
+  const c = env.cut || {}, k = flat(t);
+  return !k || !(flat(c.lineText) + '|' + flat(c.text) + '|' + flat(c.note)).includes(k);
+};
 J.hideDecoText = (env, text) => {
-  const fx = env.fx || {};
-  if (!fx.hideNo && !fx.hideTime) return false;
+  const fx = env.fx || {}, textOnly = !!(env.st && env.st.textOnly);
+  if (textOnly && J.ornamentText(env, text)) return true;
+  const hideNo = textOnly || fx.hideNo, hideTime = textOnly || fx.hideTime;
+  if (!hideNo && !hideTime) return false;
   const k = J.decoTextKind(text);
-  if (!k || !(k === 'no' ? fx.hideNo : fx.hideTime)) return false;
+  if (!k || !(k === 'no' ? hideNo : hideTime)) return false;
   const lyr = env.cut ? String(env.cut.lineText || env.cut.text || '') : '';
   return !lyr.includes(String(text).trim());
 };
-J.drawItem = (env, it) => {
+const drawItemCore = (env, it) => {
   const ctx = env.ctx;
   const ghostPass = env.pass !== 'main';
   if (ghostPass && it.ghost === false) return null;
@@ -274,6 +286,28 @@ J.drawItem = (env, it) => {
   let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
   for (const b of boxes) { x0 = Math.min(x0, b.x - b.w / 2); x1 = Math.max(x1, b.x + b.w / 2); y0 = Math.min(y0, b.y - b.h / 2); y1 = Math.max(y1, b.y + b.h / 2); }
   return { x0: it.x + x0, y0: it.y + y0, x1: it.x + x1, y1: it.y + y1, boxes, cx: it.x, cy: it.y };
+};
+
+/* テキストのみ (style.textOnly): while a layout renders, every shape it paints on the frame (fill / stroke / fillRect / strokeRect —
+   plates, rules, rings, frames, sparks …) is switched off; only text goes through J.drawItem, which switches painting back on for
+   the duration of the call. Planning is untouched, so layouts, motion and timing stay exactly what they were.
+   A lyric that was set on a plate in the plate's counter colour would vanish with the plate, so it takes the foreground colour. */
+const PAINT = ['fill', 'stroke', 'fillRect', 'strokeRect'];
+const NOPAINT = function () {};
+J.plainOn = ctx => { if (ctx.jzPlain) return; ctx.jzPlain = true; for (const m of PAINT) ctx[m] = NOPAINT; };
+J.plainOff = ctx => { ctx.jzPlain = false; for (const m of PAINT) delete ctx[m]; };
+function readable(env, it) {
+  const bg = env.sc && env.sc.bg, fg = env.sc && env.sc.fg;
+  if (!bg || !fg) return it;
+  const bad = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) && J.contrast(c, bg) < 1.5;
+  if (!bad(it.color) && !bad(it.strokeColor)) return it;
+  return Object.assign({}, it, bad(it.color) ? { color: fg } : null, bad(it.strokeColor) ? { strokeColor: fg } : null);
+}
+J.drawItem = (env, it) => {
+  const ctx = env.ctx;
+  if (!ctx.jzPlain) return drawItemCore(env, it);
+  J.plainOff(ctx);
+  try { return drawItemCore(env, readable(env, it)); } finally { J.plainOn(ctx); }
 };
 
 /* 太さ: growth 0..1 of the current cut (never exactly 0, so it also means "on"); eased, over the first half of the cut */

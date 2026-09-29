@@ -1,0 +1,7 @@
+# Cloudflare Worker (static assets) that serves the built browser editions.
+# usage: python3 build.py && python3 tools/build_worker.py && npx wrangler deploy
+name = "jizura-text"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "./worker-assets"
