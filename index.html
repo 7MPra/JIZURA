@@ -36757,6 +36757,49 @@ reg('tyGridFill', {
   },
 });
 
+/* ---------------------------------------------------------------- motions: glyph by glyph, no bounce */
+const regM = (g, key, def) => J.register(g, key, Object.assign(def, { set: 'kinetic', poolOnly: true }), 'type2');
+const spread = (i, n, w) => (n > 1 ? i / (n - 1) * w : 0);
+regM('enter', 'tyGrowUp', { name: '下から伸びる', tags: ['graphic', 'editorial', 'pop'], w: 0.8, ae: 'pop',
+  apply(env, it, p) {
+    const size = it.size;
+    it.charFns.push((i, g, n) => {
+      const q = clamp((p - spread(i, n, 0.4)) / 0.6);
+      if (q <= 0) return { hide: true };
+      const sy = 0.04 + 0.96 * E.outExpo(q);
+      return { sy, dy: (1 - sy) * size * 0.42, a: Math.min(1, q * 3) };
+    });
+  } });
+regM('enter', 'tyDropHard', { name: 'すとんと着地', tags: ['pop', 'graphic'], w: 0.8, ae: 'drop',
+  apply(env, it, p) {
+    const size = it.size, seed = it.seed | 0;
+    it.charFns.push((i) => {
+      const q = clamp((p - J.r(seed, i, 61) * 0.35) / 0.65);
+      if (q <= 0) return { hide: true };
+      return { dy: -(1 - E.outExpo(q)) * size * 1.1, a: Math.min(1, q * 4) };
+    });
+  } });
+regM('exit', 'tySinkChars', { name: '字ごとに沈む', tags: ['graphic', 'editorial'], w: 0.8, ae: 'sinkMask',
+  apply(env, it, p) {
+    const size = it.size;
+    it.charFns.push((i, g, n) => {
+      const q = clamp((p - spread(i, n, 0.35)) / 0.65);
+      if (q >= 1) return { hide: true };
+      const e = E.inCubic(q), sy = 1 - 0.96 * e;
+      return { sy, dy: (1 - sy) * size * 0.42, a: 1 - e * e };
+    });
+  } });
+regM('exit', 'tyRiseFade', { name: '字ごとに昇る', tags: ['calm', 'emotional', 'editorial'], w: 0.8, ae: 'riseOut',
+  apply(env, it, p) {
+    const size = it.size;
+    it.charFns.push((i, g, n) => {
+      const q = clamp((p - spread(i, n, 0.4)) / 0.6);
+      if (q >= 1) return { hide: true };
+      const e = E.inOutSine(q);
+      return { dy: -e * size * 0.5, a: 1 - e };
+    });
+  } });
+
 /* ---------------------------------------------------------------- styles */
 const scheme = (bg, fg, accent) => ({ bg, fg, accent, sub: J.mix(fg, bg, 0.45), accent2: fg, ink: fg, dim: J.mix(bg, fg, 0.07), ghostA: accent, ghostB: fg });
 const pool = (o) => Object.assign({ decor: {}, bg: { bigChar: 1 } }, o);
@@ -36767,8 +36810,8 @@ const S = {
     fonts: { display: ['mincho_black'], serif: ['shippori'], body: ['mincho'], mono: ['mono'] }, chorusHit: false, oneCut: 0.45,
     pool: pool({
       layout: { vcols: 1.4, tyCropGiant: 1.3, kanjiFocus: 1.2, columnsBig: 1, tyStackJustify: 0.9, tyMargin: 0.8, headlineDeck: 0.7, tyCropSlide: 0.6, center: 0.6 },
-      enter: { riseMask: 1.2, fadeStagger: 1.2, trackIn: 1, cut: 1, blurStagger: 0.8, tyKeyFirst: 0.8, wipe: 0.6 },
-      exit: { riseOut: 1, blur: 1, cut: 1.2, trackOutWide: 0.8, sinkMask: 0.8 },
+      enter: { riseMask: 1.2, fadeStagger: 1.2, trackIn: 1, cut: 1, blurStagger: 0.8, tyKeyFirst: 0.8, wipe: 0.6, tyGrowUp: 0.8 },
+      exit: { riseOut: 1, blur: 1, cut: 1.2, trackOutWide: 0.8, sinkMask: 0.8, tyRiseFade: 0.8 },
       hold: { still: 1.2, zoomSlow: 1, drift: 0.8, trackBreathe: 0.5 },
       treat: { none: 3, tyHeadBig: 1 },
       cam: { push: 1.2, dollyIn: 1, pullOut: 0.8, stepZoom: 0.6 },
@@ -36782,7 +36825,7 @@ const S = {
     fonts: { display: ['dela'], serif: ['gothic_black'], body: ['gothic_bold'], mono: ['mono'] }, chorusHit: true, oneCut: 0.6,
     pool: pool({
       layout: { bsBeatWord: 1.5, tyCropSlide: 1.3, tyGridFill: 1.2, tyStackJustify: 1.2, tyCropGiant: 1, knRhythmCuts: 1, huge: 0.8, knZoomDive: 0.6 },
-      enter: { cut: 2, knWordSlam: 1.4, zoom: 0.8, stretch: 0.6, slice: 0.5 },
+      enter: { cut: 2, knWordSlam: 1.4, zoom: 0.8, stretch: 0.6, slice: 0.5, tyDropHard: 0.8 },
       exit: { cut: 2.5, knJumpCutOut: 1, zoomThrough: 0.8, knLaunch: 0.6 },
       hold: { knWordPulse: 1, knTickShift: 1, still: 0.8, stretchPulse: 0.5 },
       treat: { none: 2, knWordScale: 1, alternate: 0.5 },
@@ -36798,7 +36841,7 @@ const S = {
     pool: pool({
       layout: { bsTypeBeat: 1.6, center: 1, vcols: 1, kanjiFocus: 0.7, tyMargin: 0.7, corners: 0.5 },
       enter: { fadeStagger: 1.4, type: 1, blurStagger: 1, riseMask: 0.8, cut: 0.6 },
-      exit: { blur: 1.2, blurOutStagger: 1, riseOut: 0.8, cut: 0.6 },
+      exit: { blur: 1.2, blurOutStagger: 1, riseOut: 0.8, cut: 0.6, tyRiseFade: 1 },
       hold: { drift: 1, still: 1, zoomSlow: 0.8 },
       treat: { none: 3, fadeChars: 0.8 },
       cam: { push: 1.2, driftDiag: 1, pullOut: 0.6 },
@@ -36812,8 +36855,8 @@ const S = {
     fonts: { display: ['tokumin'], serif: ['mincho_black'], body: ['mincho_bold'], mono: ['mono'] }, chorusHit: true, oneCut: 0.5,
     pool: pool({
       layout: { halfVertical: 1.3, tyStackJustify: 1.2, columnsBig: 1.1, poster: 1, tyScaleSteps: 1, sideways: 0.8, tyGridFill: 0.8, kanjiFocus: 0.7, vcols: 0.7 },
-      enter: { cut: 1.4, wipe: 1, dropMask: 1, riseMask: 0.8, knWordSlam: 0.8, zoomOut: 0.6 },
-      exit: { cut: 1.6, wipe: 1, sinkMask: 0.8, riseOut: 0.6 },
+      enter: { cut: 1.4, wipe: 1, dropMask: 1, riseMask: 0.8, knWordSlam: 0.8, zoomOut: 0.6, tyGrowUp: 0.9 },
+      exit: { cut: 1.6, wipe: 1, sinkMask: 0.8, riseOut: 0.6, tySinkChars: 0.8 },
       hold: { still: 1.2, knWordPulse: 0.8, zoomSlow: 0.6 },
       treat: { none: 2, tyHeadBig: 1, knWordScale: 0.8 },
       cam: { stepZoom: 1, push: 1, beatPunch: 0.8 },
@@ -36844,6 +36887,7 @@ for (const [k, v] of Object.entries(S)) {
 }
 // the older text-only styles draw from these too
 if (J.TEXT_POOL) Object.assign(J.TEXT_POOL.layout, { tyStackJustify: 0.9, tyCropSlide: 0.6, tyGridFill: 0.6 });
+if (J.TEXT_POOL) { Object.assign(J.TEXT_POOL.enter, { tyGrowUp: 0.9, tyDropHard: 0.7 }); Object.assign(J.TEXT_POOL.exit, { tySinkChars: 0.8, tyRiseFade: 0.7 }); }
 })();
 
 /* ============================================================
