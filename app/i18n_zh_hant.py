@@ -1,6 +1,11 @@
 """Traditional Chinese (Taiwan) copy for the browser edition. Same glossary keys as app/english.py."""
 
 BODY = {
+    'placeholder="Web プロジェクト ID（例: abc1def）"': 'placeholder="Web 專案 ID（例：abc1def）"',
+    '<button id="btnAdobeKit">キットを読み込む</button>': '<button id="btnAdobeKit">載入套件</button>',
+    'placeholder="CSS で使うフォント名（例: a-otf-ryumin-pr6n）"': 'placeholder="CSS 使用的字型名稱（例：a-otf-ryumin-pr6n）"',
+    '<button id="btnAdobeFamily">書体を追加</button>': '<button id="btnAdobeFamily">新增字體</button>',
+    '<small class="muted adobe-note">Adobe Fonts の Web プロジェクトに、このページのドメインを登録してから ID を入れてください。キットの書体はフォントの役割で選べます</small>': '<small class="muted adobe-note">請先在 Adobe Fonts 的 Web 專案登錄此頁面的網域，再輸入 ID。套件中的字體可在字型用途中選擇</small>',
     'title="読み込んだ曲の BPM を 4 秒ごとに読み、変わるところに点を置きます（あとから直せます）">曲から自動で作る</button>': 'title="每4秒讀取歌曲的 BPM，在變化處放置點（之後可修改）">從歌曲自動建立</button>',
     'title="この点から先の約16秒の BPM を曲から検出します">曲から検出</button>': 'title="從歌曲偵測此點起約16秒的 BPM">從歌曲偵測</button>',
     'title="BPM の変化をグラフで描きます（DJ ミックスなど、途中でテンポが変わる曲に）">BPMグラフ</button>': 'title="以圖表繪製 BPM 的變化（DJ 混音等中途變速的曲子）">BPM 圖表</button>',
@@ -182,6 +187,9 @@ BODY = {
 }
 
 UI = {
+    "'Adobe Fonts を読み込みました：'": "'已載入 Adobe Fonts：'",
+    "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'請在「CSS 使用的字型名稱」輸入 Adobe Fonts 的字型名稱後新增'",
+    "'Adobe Fonts を読み込めませんでした（ID とドメインの設定を確認してください）'": "'無法載入 Adobe Fonts（請確認 ID 與網域設定）'",
     "'BPM グラフを作りました：'": "'已建立 BPM 圖表：'",
     "'検出：'": "'偵測結果：'",
     "'この区間の拍を検出できませんでした'": "'無法偵測這一段的節拍'",

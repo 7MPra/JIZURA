@@ -1,6 +1,11 @@
 """English copy for the browser edition. The Japanese source stays authoritative."""
 
 BODY = {
+    'placeholder="Web プロジェクト ID（例: abc1def）"': 'placeholder="Web project ID (e.g. abc1def)"',
+    '<button id="btnAdobeKit">キットを読み込む</button>': '<button id="btnAdobeKit">Load kit</button>',
+    'placeholder="CSS で使うフォント名（例: a-otf-ryumin-pr6n）"': 'placeholder="Font name used in CSS (e.g. a-otf-ryumin-pr6n)"',
+    '<button id="btnAdobeFamily">書体を追加</button>': '<button id="btnAdobeFamily">Add typeface</button>',
+    '<small class="muted adobe-note">Adobe Fonts の Web プロジェクトに、このページのドメインを登録してから ID を入れてください。キットの書体はフォントの役割で選べます</small>': '<small class="muted adobe-note">Add this page\'s domain to your Adobe Fonts web project, then enter its ID. The kit\'s typefaces appear under Font roles</small>',
     'title="読み込んだ曲の BPM を 4 秒ごとに読み、変わるところに点を置きます（あとから直せます）">曲から自動で作る</button>': 'title="Read the song\'s BPM every 4 seconds and place a point wherever it changes (you can fix it afterwards)">Build from song</button>',
     'title="この点から先の約16秒の BPM を曲から検出します">曲から検出</button>': 'title="Detect the BPM of about 16 s from this point in the song">Detect from song</button>',
     'title="BPM の変化をグラフで描きます（DJ ミックスなど、途中でテンポが変わる曲に）">BPMグラフ</button>': 'title="Draw tempo changes as a graph (for DJ mixes and songs whose tempo changes)">BPM graph</button>',
@@ -184,6 +189,9 @@ BODY = {
 }
 
 UI = {
+    "'Adobe Fonts を読み込みました：'": "'Adobe Fonts loaded: '",
+    "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'Enter an Adobe Fonts name in “Font name used in CSS” and add it'",
+    "'Adobe Fonts を読み込めませんでした（ID とドメインの設定を確認してください）'": "'Could not load Adobe Fonts (check the ID and the project\\'s domains)'",
     "'BPM グラフを作りました：'": "'Tempo graph built: '",
     "'検出：'": "'Detected: '",
     "'この区間の拍を検出できませんでした'": "'Could not find the beat here'",

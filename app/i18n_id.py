@@ -45,6 +45,11 @@ STYLES = {
 }
 
 BODY = {
+    'placeholder="Web プロジェクト ID（例: abc1def）"': 'placeholder="ID proyek web (mis. abc1def)"',
+    '<button id="btnAdobeKit">キットを読み込む</button>': '<button id="btnAdobeKit">Muat kit</button>',
+    'placeholder="CSS で使うフォント名（例: a-otf-ryumin-pr6n）"': 'placeholder="Nama font di CSS (mis. a-otf-ryumin-pr6n)"',
+    '<button id="btnAdobeFamily">書体を追加</button>': '<button id="btnAdobeFamily">Tambah huruf</button>',
+    '<small class="muted adobe-note">Adobe Fonts の Web プロジェクトに、このページのドメインを登録してから ID を入れてください。キットの書体はフォントの役割で選べます</small>': '<small class="muted adobe-note">Daftarkan domain halaman ini di proyek web Adobe Fonts, lalu masukkan ID-nya. Huruf dari kit bisa dipilih di Peran font</small>',
     'title="読み込んだ曲の BPM を 4 秒ごとに読み、変わるところに点を置きます（あとから直せます）">曲から自動で作る</button>': 'title="Baca BPM lagu setiap 4 detik dan taruh titik di tempat yang berubah (bisa diperbaiki nanti)">Buat dari lagu</button>',
     'title="この点から先の約16秒の BPM を曲から検出します">曲から検出</button>': 'title="Deteksi BPM sekitar 16 detik dari titik ini di lagu">Deteksi dari lagu</button>',
     'title="BPM の変化をグラフで描きます（DJ ミックスなど、途中でテンポが変わる曲に）">BPMグラフ</button>': 'title="Gambar perubahan BPM sebagai grafik (untuk DJ mix dan lagu yang temponya berubah)">Grafik BPM</button>',
@@ -220,6 +225,9 @@ BODY = {
 }
 
 UI = {
+    "'Adobe Fonts を読み込みました：'": "'Adobe Fonts dimuat: '",
+    "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'Masukkan nama font Adobe Fonts di “Nama font di CSS” lalu tambahkan'",
+    "'Adobe Fonts を読み込めませんでした（ID とドメインの設定を確認してください）'": "'Adobe Fonts tidak bisa dimuat (periksa ID dan domain proyek)'",
     "'BPM グラフを作りました：'": "'Grafik BPM dibuat: '",
     "'検出：'": "'Terdeteksi: '",
     "'この区間の拍を検出できませんでした'": "'Ketukan di bagian ini tidak terdeteksi'",

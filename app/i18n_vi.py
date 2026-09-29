@@ -46,6 +46,11 @@ STYLES = {
 }
 
 BODY = {
+    'placeholder="Web プロジェクト ID（例: abc1def）"': 'placeholder="ID dự án web (vd. abc1def)"',
+    '<button id="btnAdobeKit">キットを読み込む</button>': '<button id="btnAdobeKit">Tải bộ phông</button>',
+    'placeholder="CSS で使うフォント名（例: a-otf-ryumin-pr6n）"': 'placeholder="Tên phông dùng trong CSS (vd. a-otf-ryumin-pr6n)"',
+    '<button id="btnAdobeFamily">書体を追加</button>': '<button id="btnAdobeFamily">Thêm kiểu chữ</button>',
+    '<small class="muted adobe-note">Adobe Fonts の Web プロジェクトに、このページのドメインを登録してから ID を入れてください。キットの書体はフォントの役割で選べます</small>': '<small class="muted adobe-note">Hãy thêm tên miền của trang này vào dự án web Adobe Fonts rồi nhập ID. Kiểu chữ trong bộ có thể chọn ở Vai trò phông</small>',
     'title="読み込んだ曲の BPM を 4 秒ごとに読み、変わるところに点を置きます（あとから直せます）">曲から自動で作る</button>': 'title="Đọc BPM của bài mỗi 4 giây và đặt điểm ở chỗ thay đổi (có thể sửa sau)">Tự tạo từ bài hát</button>',
     'title="この点から先の約16秒の BPM を曲から検出します">曲から検出</button>': 'title="Dò BPM khoảng 16 giây từ điểm này trong bài">Dò từ bài hát</button>',
     'title="BPM の変化をグラフで描きます（DJ ミックスなど、途中でテンポが変わる曲に）">BPMグラフ</button>': 'title="Vẽ thay đổi BPM thành biểu đồ (cho DJ mix và bài đổi nhịp giữa chừng)">Biểu đồ BPM</button>',
@@ -278,6 +283,9 @@ BODY = {
 }
 
 UI = {
+    "'Adobe Fonts を読み込みました：'": "'Đã tải Adobe Fonts: '",
+    "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'Hãy nhập tên phông Adobe Fonts vào “Tên phông dùng trong CSS” rồi thêm'",
+    "'Adobe Fonts を読み込めませんでした（ID とドメインの設定を確認してください）'": "'Không tải được Adobe Fonts (kiểm tra ID và tên miền của dự án)'",
     "'BPM グラフを作りました：'": "'Đã tạo biểu đồ BPM: '",
     "'検出：'": "'Đã dò: '",
     "'この区間の拍を検出できませんでした'": "'Không dò được nhịp ở đoạn này'",

@@ -44,6 +44,11 @@ STYLES = {
 }
 
 BODY = {
+    'placeholder="Web プロジェクト ID（例: abc1def）"': 'placeholder="Web 项目 ID（例：abc1def）"',
+    '<button id="btnAdobeKit">キットを読み込む</button>': '<button id="btnAdobeKit">载入套件</button>',
+    'placeholder="CSS で使うフォント名（例: a-otf-ryumin-pr6n）"': 'placeholder="CSS 使用的字体名称（例：a-otf-ryumin-pr6n）"',
+    '<button id="btnAdobeFamily">書体を追加</button>': '<button id="btnAdobeFamily">添加字体</button>',
+    '<small class="muted adobe-note">Adobe Fonts の Web プロジェクトに、このページのドメインを登録してから ID を入れてください。キットの書体はフォントの役割で選べます</small>': '<small class="muted adobe-note">请先在 Adobe Fonts 的 Web 项目中登记此页面的域名，再输入 ID。套件中的字体可在字体用途中选择</small>',
     'title="読み込んだ曲の BPM を 4 秒ごとに読み、変わるところに点を置きます（あとから直せます）">曲から自動で作る</button>': 'title="每4秒读取歌曲的 BPM，在变化处放置点（之后可修改）">从歌曲自动创建</button>',
     'title="この点から先の約16秒の BPM を曲から検出します">曲から検出</button>': 'title="从歌曲检测此点起约16秒的 BPM">从歌曲检测</button>',
     'title="BPM の変化をグラフで描きます（DJ ミックスなど、途中でテンポが変わる曲に）">BPMグラフ</button>': 'title="以图表绘制 BPM 的变化（DJ 混音等中途变速的曲子）">BPM 图表</button>',
@@ -227,6 +232,9 @@ BODY = {
 }
 
 UI = {
+    "'Adobe Fonts を読み込みました：'": "'已载入 Adobe Fonts：'",
+    "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'请在「CSS 使用的字体名称」输入 Adobe Fonts 的字体名称后添加'",
+    "'Adobe Fonts を読み込めませんでした（ID とドメインの設定を確認してください）'": "'无法载入 Adobe Fonts（请确认 ID 与域名设置）'",
     "'BPM グラフを作りました：'": "'已创建 BPM 图表：'",
     "'検出：'": "'检测结果：'",
     "'この区間の拍を検出できませんでした'": "'无法检测这一段的节拍'",

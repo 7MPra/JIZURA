@@ -122,8 +122,9 @@ function mergeProject(p) {
     else if (typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v)) o.colors[k] = v;
   }
   o.userFonts = (Array.isArray(p && p.userFonts) ? p.userFonts : []).filter(uf => uf && J.SAFE_FONT_KEY.test(uf.key))
-    .map(uf => ({ key: uf.key, label: String(uf.label || uf.key).slice(0, 80), family: J.safeFamily(uf.family || uf.key.slice(5)), weight: J.clamp(parseInt(uf.weight, 10) || 400, 100, 900) }));
-  for (const uf of o.userFonts) if (!J.FONTS[uf.key]) J.addUserFont(uf.key, uf.label, uf.family, uf.weight);
+    .map(uf => Object.assign({ key: uf.key, label: String(uf.label || uf.key).slice(0, 80), family: J.safeFamily(uf.family || uf.key.slice(5)), weight: J.clamp(parseInt(uf.weight, 10) || 400, 100, 900) }, uf.adobe ? { adobe: true } : null));
+  for (const uf of o.userFonts) if (!J.FONTS[uf.key]) { J.addUserFont(uf.key, uf.label, uf.family, uf.weight, uf.adobe ? 'adobe' : 'custom'); if (uf.adobe) J.FONTS[uf.key].loaded = true; }
+  o.adobeKit = p && typeof p.adobeKit === 'string' && /^[a-z0-9]{5,16}$/.test(p.adobeKit) ? p.adobeKit : null;   // Adobe Fonts web project
   migrateOrder(o, p);
   o.themeId = p && typeof p.themeId === 'string' && J.THEMES && J.THEMES[p.themeId] ? p.themeId : null;
   o.fonts = {};
@@ -1856,6 +1857,29 @@ function bind() {
     S.project.fonts.display = key; $('localFont').value = '';
     fontKey = ''; renderFontRoles(); replan();
   });
+  // Adobe Fonts: a web project (kit) id, then its families (read from the kit, or typed by their CSS name)
+  const addAdobe = (fams) => {
+    const ufs = fams.map(f => J.addAdobeFont(f.family, f.weight)).filter(Boolean);
+    if (!ufs.length) return 0;
+    S.project.userFonts = (S.project.userFonts || []).filter(x => !ufs.some(u => u.key === x.key)).concat(ufs);
+    S.project.fonts.display = ufs[0].key; fontKey = ''; renderFontRoles(); replan(); flushSave();
+    return ufs.length;
+  };
+  $('btnAdobeKit').addEventListener('click', async () => {
+    const id = $('adobeKit').value.trim(); if (!id) return;
+    try {
+      const fams = await J.loadAdobeKit(id);
+      S.project.adobeKit = J.adobeKit.id; flushSave();
+      const n = addAdobe(fams);
+      toast(n ? 'Adobe Fonts を読み込みました：' + fams.map(f => f.family).join('・') : 'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください');
+    } catch (err) { toast('Adobe Fonts を読み込めませんでした（ID とドメインの設定を確認してください）'); }
+  });
+  $('btnAdobeFamily').addEventListener('click', async () => {
+    const v = $('adobeFamily').value.trim(); if (!v) return;
+    if (!J.adobeKit.id && S.project.adobeKit) { try { await J.loadAdobeKit(S.project.adobeKit); } catch (e) {} }
+    const weight = /bold|black|heavy|w[6-9]|[6-9]00|-b\b|-eb\b|-h\b/i.test(v) ? 700 : 400;
+    if (addAdobe([{ family: v.replace(/["']/g, '').split(',')[0].trim(), weight }])) { $('adobeFamily').value = ''; }
+  });
   $('fontFile').addEventListener('change', async e => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
     try {
@@ -2057,6 +2081,7 @@ function bindTour() {
 
 /* uploaded faces: bring them back from this browser; say so when a project uses one that is not here */
 async function restoreFonts() {
+  if (S.project.adobeKit) { $('adobeKit').value = S.project.adobeKit; try { await J.loadAdobeKit(S.project.adobeKit); } catch (e) {} }
   const list = S.project.userFonts || [];
   if (!list.length) return;
   const missing = await J.restoreUserFonts(list);

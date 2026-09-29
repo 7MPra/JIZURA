@@ -689,6 +689,16 @@ button.small.primary { padding: 4px 12px; }
           <button id="btnAddFont">Tambah</button>
         </div>
         <div class="row" style="margin-top:8px"><label class="file">File font (.ttf/.otf)<input id="fontFile" type="file" accept=".ttf,.otf,.woff,.woff2"></label></div>
+        <h3>Adobe Fonts</h3>
+        <div class="row">
+          <input id="adobeKit" type="text" placeholder="ID proyek web (mis. abc1def)" style="flex:1" autocomplete="off" spellcheck="false">
+          <button id="btnAdobeKit">Muat kit</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <input id="adobeFamily" type="text" placeholder="Nama font di CSS (mis. a-otf-ryumin-pr6n)" style="flex:1" autocomplete="off" spellcheck="false">
+          <button id="btnAdobeFamily">Tambah huruf</button>
+        </div>
+        <small class="muted adobe-note">Daftarkan domain halaman ini di proyek web Adobe Fonts, lalu masukkan ID-nya. Huruf dari kit bisa dipilih di Peran font</small>
         <h3>Warna aksen dan offset</h3>
         <label class="check"><input id="accentOn" type="checkbox"><span>Pakai warna kustom<small>Berlaku untuk semua adegan. Kecerahan menyesuaikan latar secara otomatis.</small></span></label>
         <div class="color-row" id="colorRowAccent"></div>
@@ -1048,11 +1058,71 @@ J.loadFontFile = async (file) => {
   if (J.saveFontData) J.saveFontData(key, buf);        // kept in this browser, so a reload keeps the face
   return { key, label, family: fam, weight: 400 };
 };
+/* ---------- Adobe Fonts (a web project / kit) ----------
+   The kit's families become user fonts (key user_adobe_…). Japanese kits send only the characters the page uses
+   (dynamic subsetting), and the lyrics are drawn on a canvas, so the characters to draw are also set — invisibly — in
+   each kit family (J.adobeGlyphs). The web project must list the page's domain. */
+J.adobeKit = { id: null, families: [] };
+J.adobeKey = fam => 'user_adobe_' + J.safeFamily(fam).replace(/ /g, '_');
+J.loadAdobeKit = async (id) => {
+  id = String(id || '').trim().toLowerCase();
+  if (!/^[a-z0-9]{5,16}$/.test(id)) throw new Error('kit id');
+  if (J.adobeKit.id !== id && typeof document !== 'undefined') {
+    J.adobeKit.id = id;
+    await new Promise(res => {
+      const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://use.typekit.net/' + id + '.css';
+      l.onload = res; l.onerror = res; setTimeout(res, 4000); document.head.appendChild(l);
+    });
+    // the JavaScript kit does the dynamic subsetting of Japanese faces (a CSS-only project simply has no .js)
+    await new Promise(res => {
+      const sc = document.createElement('script'); sc.src = 'https://use.typekit.net/' + id + '.js';
+      sc.onload = () => { try { window.Typekit && window.Typekit.load({ async: true, active: res, inactive: res }); } catch (e) { res(); } setTimeout(res, 4000); };
+      sc.onerror = res; document.head.appendChild(sc);
+    });
+  }
+  // the families of the kit, from its stylesheet when the browser lets us read it
+  const fams = [];
+  try {
+    const css = await (await fetch('https://use.typekit.net/' + id + '.css')).text();
+    for (const m of css.matchAll(/@font-face\s*{([^}]*)}/g)) {
+      const fam = (m[1].match(/font-family:\s*["']?([^;"']+)["']?/) || [])[1], w = +((m[1].match(/font-weight:\s*(\d+)/) || [])[1] || 400);
+      const it = /font-style:\s*italic/.test(m[1]);
+      if (fam && !it && !fams.some(f => f.family === fam && f.weight === w)) fams.push({ family: fam.trim(), weight: w });
+    }
+  } catch (e) {}
+  J.adobeKit.families = fams;
+  return fams;
+};
+J.addAdobeFont = (family, weight = 400) => {
+  const fam = J.safeFamily(family).trim(); if (!fam) return null;
+  const key = J.adobeKey(fam + (weight !== 400 ? '_' + weight : ''));
+  J.addUserFont(key, fam + (weight !== 400 ? ' ' + weight : '') + '（Adobe）', fam, weight, 'adobe');
+  J.FONTS[key].loaded = true;
+  return { key, label: J.FONTS[key].label, family: fam, weight, adobe: true };
+};
+let adobeBox = null;
+J.adobeGlyphs = (text) => {
+  if (!J.adobeKit.id || typeof document === 'undefined' || !document.body) return false;
+  const fams = [...new Set(Object.values(J.FONTS).filter(f => f.kind === 'adobe').map(f => f.family + '|' + f.weight))];
+  if (!fams.length) return false;
+  if (!adobeBox) {
+    adobeBox = document.createElement('div'); adobeBox.setAttribute('aria-hidden', 'true');
+    adobeBox.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;opacity:0.01;pointer-events:none;z-index:-1;font-size:16px;white-space:nowrap';
+    document.body.appendChild(adobeBox);
+  }
+  const chars = [...new Set([...String(text || '')])].join('');
+  const html = fams.map(f => { const [fam, w] = f.split('|'); const s = document.createElement('span'); s.style.fontFamily = fam; s.style.fontWeight = w; s.textContent = chars; return s.outerHTML; }).join('');
+  if (adobeBox.innerHTML === html) return false;
+  adobeBox.innerHTML = html;
+  return true;
+};
+
 /* uploaded faces of a project: register them from this browser's copy; returns the labels that are not available */
 J.restoreUserFonts = async (list) => {
   const missing = [];
   for (const uf of list || []) {
     const f = J.FONTS[uf.key];
+    if (uf.adobe) { if (f) { f.kind = 'adobe'; f.loaded = true; } continue; }      // Adobe Fonts: served by the kit
     if (f && f.loaded) continue;
     let ok = false;
     try {
@@ -1104,6 +1174,8 @@ J.fontsOfPlan = (plan) => {
 J.ensureFonts = async (text, keys) => {
   if (!document.fonts || !document.fonts.load) return;
   const uniq = [...new Set([...text])].join('') || 'あ';
+  // Adobe Fonts: put the characters on the page so the kit sends them, then give it a moment
+  if (J.adobeGlyphs && J.adobeGlyphs(uniq)) await new Promise(r => setTimeout(r, 400));
   if (keys && keys.includes('@var')) {
     await Promise.all(['Noto+Sans+JP:wght@100..900', 'Noto+Serif+JP:wght@200..900'].map(attachFamily));
     await Promise.all(['100 64px "Noto Sans JP"', '900 64px "Noto Sans JP"', '200 64px "Noto Serif JP"', '900 64px "Noto Serif JP"'].map(f => document.fonts.load(f, uniq).catch(() => null)));
@@ -36915,8 +36987,9 @@ function mergeProject(p) {
     else if (typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v)) o.colors[k] = v;
   }
   o.userFonts = (Array.isArray(p && p.userFonts) ? p.userFonts : []).filter(uf => uf && J.SAFE_FONT_KEY.test(uf.key))
-    .map(uf => ({ key: uf.key, label: String(uf.label || uf.key).slice(0, 80), family: J.safeFamily(uf.family || uf.key.slice(5)), weight: J.clamp(parseInt(uf.weight, 10) || 400, 100, 900) }));
-  for (const uf of o.userFonts) if (!J.FONTS[uf.key]) J.addUserFont(uf.key, uf.label, uf.family, uf.weight);
+    .map(uf => Object.assign({ key: uf.key, label: String(uf.label || uf.key).slice(0, 80), family: J.safeFamily(uf.family || uf.key.slice(5)), weight: J.clamp(parseInt(uf.weight, 10) || 400, 100, 900) }, uf.adobe ? { adobe: true } : null));
+  for (const uf of o.userFonts) if (!J.FONTS[uf.key]) { J.addUserFont(uf.key, uf.label, uf.family, uf.weight, uf.adobe ? 'adobe' : 'custom'); if (uf.adobe) J.FONTS[uf.key].loaded = true; }
+  o.adobeKit = p && typeof p.adobeKit === 'string' && /^[a-z0-9]{5,16}$/.test(p.adobeKit) ? p.adobeKit : null;   // Adobe Fonts web project
   migrateOrder(o, p);
   o.themeId = p && typeof p.themeId === 'string' && J.THEMES && J.THEMES[p.themeId] ? p.themeId : null;
   o.fonts = {};
@@ -38649,6 +38722,29 @@ function bind() {
     S.project.fonts.display = key; $('localFont').value = '';
     fontKey = ''; renderFontRoles(); replan();
   });
+  // Adobe Fonts: a web project (kit) id, then its families (read from the kit, or typed by their CSS name)
+  const addAdobe = (fams) => {
+    const ufs = fams.map(f => J.addAdobeFont(f.family, f.weight)).filter(Boolean);
+    if (!ufs.length) return 0;
+    S.project.userFonts = (S.project.userFonts || []).filter(x => !ufs.some(u => u.key === x.key)).concat(ufs);
+    S.project.fonts.display = ufs[0].key; fontKey = ''; renderFontRoles(); replan(); flushSave();
+    return ufs.length;
+  };
+  $('btnAdobeKit').addEventListener('click', async () => {
+    const id = $('adobeKit').value.trim(); if (!id) return;
+    try {
+      const fams = await J.loadAdobeKit(id);
+      S.project.adobeKit = J.adobeKit.id; flushSave();
+      const n = addAdobe(fams);
+      toast(n ? 'Adobe Fonts dimuat: ' + fams.map(f => f.family).join(' · ') : 'Masukkan nama font Adobe Fonts di “Nama font di CSS” lalu tambahkan');
+    } catch (err) { toast('Adobe Fonts tidak bisa dimuat (periksa ID dan domain proyek)'); }
+  });
+  $('btnAdobeFamily').addEventListener('click', async () => {
+    const v = $('adobeFamily').value.trim(); if (!v) return;
+    if (!J.adobeKit.id && S.project.adobeKit) { try { await J.loadAdobeKit(S.project.adobeKit); } catch (e) {} }
+    const weight = /bold|black|heavy|w[6-9]|[6-9]00|-b\b|-eb\b|-h\b/i.test(v) ? 700 : 400;
+    if (addAdobe([{ family: v.replace(/["']/g, '').split(',')[0].trim(), weight }])) { $('adobeFamily').value = ''; }
+  });
   $('fontFile').addEventListener('change', async e => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
     try {
@@ -38850,6 +38946,7 @@ function bindTour() {
 
 /* uploaded faces: bring them back from this browser; say so when a project uses one that is not here */
 async function restoreFonts() {
+  if (S.project.adobeKit) { $('adobeKit').value = S.project.adobeKit; try { await J.loadAdobeKit(S.project.adobeKit); } catch (e) {} }
   const list = S.project.userFonts || [];
   if (!list.length) return;
   const missing = await J.restoreUserFonts(list);

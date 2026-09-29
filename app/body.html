@@ -213,6 +213,16 @@
           <button id="btnAddFont">追加</button>
         </div>
         <div class="row" style="margin-top:8px"><label class="file">フォントファイル（.ttf/.otf）<input id="fontFile" type="file" accept=".ttf,.otf,.woff,.woff2"></label></div>
+        <h3>Adobe Fonts</h3>
+        <div class="row">
+          <input id="adobeKit" type="text" placeholder="Web プロジェクト ID（例: abc1def）" style="flex:1" autocomplete="off" spellcheck="false">
+          <button id="btnAdobeKit">キットを読み込む</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <input id="adobeFamily" type="text" placeholder="CSS で使うフォント名（例: a-otf-ryumin-pr6n）" style="flex:1" autocomplete="off" spellcheck="false">
+          <button id="btnAdobeFamily">書体を追加</button>
+        </div>
+        <small class="muted adobe-note">Adobe Fonts の Web プロジェクトに、このページのドメインを登録してから ID を入れてください。キットの書体はフォントの役割で選べます</small>
         <h3>アクセント・ズレ色</h3>
         <label class="check"><input id="accentOn" type="checkbox"><span>自分の色で上書き<small>全シーンに適用。背景に合わせて明るさを自動調整します</small></span></label>
         <div class="color-row" id="colorRowAccent"></div>

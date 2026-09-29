@@ -1,6 +1,11 @@
 """Korean copy for the browser edition (same glossary keys as app/english.py). The Japanese source stays authoritative."""
 
 BODY = {
+    'placeholder="Web プロジェクト ID（例: abc1def）"': 'placeholder="웹 프로젝트 ID(예: abc1def)"',
+    '<button id="btnAdobeKit">キットを読み込む</button>': '<button id="btnAdobeKit">키트 불러오기</button>',
+    'placeholder="CSS で使うフォント名（例: a-otf-ryumin-pr6n）"': 'placeholder="CSS에서 쓰는 폰트 이름(예: a-otf-ryumin-pr6n)"',
+    '<button id="btnAdobeFamily">書体を追加</button>': '<button id="btnAdobeFamily">서체 추가</button>',
+    '<small class="muted adobe-note">Adobe Fonts の Web プロジェクトに、このページのドメインを登録してから ID を入れてください。キットの書体はフォントの役割で選べます</small>': '<small class="muted adobe-note">Adobe Fonts 웹 프로젝트에 이 페이지의 도메인을 등록한 뒤 ID를 입력하세요. 키트의 서체는 폰트 역할에서 고를 수 있습니다</small>',
     'title="読み込んだ曲の BPM を 4 秒ごとに読み、変わるところに点を置きます（あとから直せます）">曲から自動で作る</button>': 'title="불러온 곡의 BPM을 4초마다 읽어 바뀌는 곳에 점을 둡니다(나중에 고칠 수 있습니다)">곡에서 자동 생성</button>',
     'title="この点から先の約16秒の BPM を曲から検出します">曲から検出</button>': 'title="이 점부터 약 16초 동안의 BPM을 곡에서 검출합니다">곡에서 검출</button>',
     'title="BPM の変化をグラフで描きます（DJ ミックスなど、途中でテンポが変わる曲に）">BPMグラフ</button>': 'title="BPM 변화를 그래프로 그립니다(DJ 믹스처럼 도중에 템포가 바뀌는 곡에)">BPM 그래프</button>',
@@ -180,6 +185,9 @@ BODY = {
 }
 
 UI = {
+    "'Adobe Fonts を読み込みました：'": "'Adobe Fonts를 불러왔습니다: '",
+    "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'Adobe Fonts의 폰트 이름을 「CSS에서 쓰는 폰트 이름」에 넣고 추가하세요'",
+    "'Adobe Fonts を読み込めませんでした（ID とドメインの設定を確認してください）'": "'Adobe Fonts를 불러오지 못했습니다(ID와 도메인 설정을 확인하세요)'",
     "'BPM グラフを作りました：'": "'BPM 그래프를 만들었습니다: '",
     "'検出：'": "'검출: '",
     "'この区間の拍を検出できませんでした'": "'이 구간의 박자를 검출하지 못했습니다'",
