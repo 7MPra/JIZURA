@@ -592,7 +592,7 @@ J.plan = (project, audio) => {
         if (fxOn('shake')) addEvent(cs + 0.04, 'shake', 1.1 * Math.max(0.5, fx.motion), 0.35);
       }
       if (fxOn('invert') && rng.chance(0.035 * g)) addEvent(cs, 'invert', 1, 2 * F);
-      if (k === 0 && chorusHead.has(li) && fxOn('invert')) addEvent(cs, 'invert', 1, beatLenAt(cs));
+      if (k === 0 && chorusHead.has(li) && fxOn('invert')) { addEvent(cs, 'invert', 1, beatLenAt(cs)); plan.events[plan.events.length - 1].chorus = true; }
       if (fxOn('zoom') && (emph && rng.chance(0.6) || rng.chance(0.06 * fx.motion))) addEvent(cs, 'zoom', 0.7 + 0.5 * fx.motion, 0.22);
       if (fxOn('mosaic') && rng.chance(0.04 * g)) addEvent(cs, 'mosaic', 1, 3 * F);
       if (fxOn('slice') && dur > 0.8 && rng.chance(g * 0.4)) addEvent(cs + rng.range(0.35, 0.8) * dur, 'slice', 0.4 + g * 0.4, 2 * F);
@@ -625,6 +625,8 @@ J.plan = (project, audio) => {
     if (c.layout === 'interlude') { c.params = Object.assign({}, c.params, { showTitle: false }); return; }   // no lyric: the whole frame
     c.zone = zoneOf(c.line);
   });
+  // テキストのみ: no colour-split / glitch hits and no random inverts (src/11u_restraint.js) — drawn and dropped, so the draw order stays
+  if (st.textOnly && J.TEXT_EVENT_DROP) plan.events = plan.events.filter(e => !J.TEXT_EVENT_DROP.includes(e.type) && !(e.type === 'invert' && !e.chorus));
   plan.events.sort((a, b) => a.t - b.t);
   plan.energy = audio && audio.energy ? audio.energy : null;
   plan.energyRate = audio && audio.energyRate ? audio.energyRate : 0;

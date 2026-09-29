@@ -173,6 +173,7 @@ J.resolveStyle = (project) => {
   const fo = project.fonts || {};
   for (const role of ['display', 'serif', 'body']) if (fo[role] && J.FONTS[fo[role]]) st.fonts[role] = [fo[role]];
   if (st.textOnly) { st.hud = false; st.glow = 0; st.texture = { grain: 0, paper: 0, scan: 0 }; }   // テキストのみ: the renderer also skips everything that is not lyric text
+  if (st.textOnly && J.restrainStyle) J.restrainStyle(st);                                          // …and picks with restraint (src/11u_restraint.js)
   if (J.keyMode(project)) keyStyle(st);
   return st;
 };

@@ -1789,6 +1789,13 @@ function readable(env, it) {
 }
 J.drawItem = (env, it) => {
   const ctx = env.ctx;
+  // テキストのみ: type under 3% of the frame is filler (sub-captions, repeated fine print), not the lyric being sung
+  if (env.st && env.st.textOnly && !env.inLayer) {
+    const m = Math.min(env.W || 1e9, env.H || 1e9);
+    if (it.size < 0.03 * m) return null;
+    // …and a small run of the line repeated over and over is a texture, not the lyric
+    if (it.size < 0.06 * m && env.cut && [...String(it.text).replace(/\s/g, '')].length > 1.8 * Math.max(4, [...String(env.cut.lineText || env.cut.text || '').replace(/\s/g, '')].length)) return null;
+  }
   if (!ctx.jzPlain) return drawItemCore(env, it);
   J.plainOff(ctx);
   try { return drawItemCore(env, readable(env, it)); } finally { J.plainOn(ctx); }
@@ -2078,6 +2085,7 @@ J.resolveStyle = (project) => {
   const fo = project.fonts || {};
   for (const role of ['display', 'serif', 'body']) if (fo[role] && J.FONTS[fo[role]]) st.fonts[role] = [fo[role]];
   if (st.textOnly) { st.hud = false; st.glow = 0; st.texture = { grain: 0, paper: 0, scan: 0 }; }   // テキストのみ: the renderer also skips everything that is not lyric text
+  if (st.textOnly && J.restrainStyle) J.restrainStyle(st);                                          // …and picks with restraint (src/11u_restraint.js)
   if (J.keyMode(project)) keyStyle(st);
   return st;
 };
@@ -2639,7 +2647,7 @@ J.drawFx = (env, it) => {
         J.drawItem(env, c);
       }
     }
-    if (it.echo && it.echo.n > 0) {            // stepped copies behind the item (outline or tinted)
+    if (it.echo && it.echo.n > 0 && !(env.st && env.st.textOnly)) {            // stepped copies behind the item (outline or tinted); not in テキストのみ
       const E0 = it.echo;
       for (let k = E0.n; k >= 1; k--) {
         const c = Object.assign({}, it, { x: it.x + (E0.dx || 0) * k, y: it.y + (E0.dy || 0) * k, size: it.size * Math.pow(E0.scale || 1, k), rot: (it.rot || 0) + (E0.rot || 0) * k,
@@ -4124,7 +4132,7 @@ J.plan = (project, audio) => {
         if (fxOn('shake')) addEvent(cs + 0.04, 'shake', 1.1 * Math.max(0.5, fx.motion), 0.35);
       }
       if (fxOn('invert') && rng.chance(0.035 * g)) addEvent(cs, 'invert', 1, 2 * F);
-      if (k === 0 && chorusHead.has(li) && fxOn('invert')) addEvent(cs, 'invert', 1, beatLenAt(cs));
+      if (k === 0 && chorusHead.has(li) && fxOn('invert')) { addEvent(cs, 'invert', 1, beatLenAt(cs)); plan.events[plan.events.length - 1].chorus = true; }
       if (fxOn('zoom') && (emph && rng.chance(0.6) || rng.chance(0.06 * fx.motion))) addEvent(cs, 'zoom', 0.7 + 0.5 * fx.motion, 0.22);
       if (fxOn('mosaic') && rng.chance(0.04 * g)) addEvent(cs, 'mosaic', 1, 3 * F);
       if (fxOn('slice') && dur > 0.8 && rng.chance(g * 0.4)) addEvent(cs + rng.range(0.35, 0.8) * dur, 'slice', 0.4 + g * 0.4, 2 * F);
@@ -4157,6 +4165,8 @@ J.plan = (project, audio) => {
     if (c.layout === 'interlude') { c.params = Object.assign({}, c.params, { showTitle: false }); return; }   // no lyric: the whole frame
     c.zone = zoneOf(c.line);
   });
+  // テキストのみ: no colour-split / glitch hits and no random inverts (src/11u_restraint.js) — drawn and dropped, so the draw order stays
+  if (st.textOnly && J.TEXT_EVENT_DROP) plan.events = plan.events.filter(e => !J.TEXT_EVENT_DROP.includes(e.type) && !(e.type === 'invert' && !e.chorus));
   plan.events.sort((a, b) => a.t - b.t);
   plan.energy = audio && audio.energy ? audio.energy : null;
   plan.energyRate = audio && audio.energyRate ? audio.energyRate : 0;
@@ -36367,14 +36377,14 @@ const S = {
     ],
     fonts: { display: ['gothic_black', 'dela', 'zenkaku'], serif: ['mincho_black'], body: ['gothic_bold'], mono: ['mono'] },
     pool: {
-      layout: { bsBeatWord: 3.2, bsScaleLine: 1.2, knRhythmCuts: 1, knSlamStack: 0.8, knTypeSlam: 0.6, huge: 0.5, bsRefrain: 0.4 },
-      enter: { cut: 3, knWordSlam: 1.4, zoom: 0.6, stretch: 0.5, slice: 0.3 },
+      layout: { bsBeatWord: 3.2, bsScaleLine: 1.2, knRhythmCuts: 1, knTypeSlam: 0.8, huge: 0.6, bsRefrain: 0.4 },
+      enter: { cut: 3, knWordSlam: 1.4, zoom: 0.4, slice: 0.3 },
       exit: { cut: 4, knJumpCutOut: 1, zoomThrough: 0.5, shrink: 0.3 },
-      hold: { still: 1.2, knWordPulse: 1, knTickShift: 0.5, pulse: 0.5 },
+      hold: { still: 1.6, knWordPulse: 1, knTickShift: 0.5 },
       treat: { none: 1 },
       cam: { beatPunch: 2, push: 1, knJumpCut: 1, stepZoom: 0.8 },
-      trans: { knStutterCut: 1, knStripSlam: 0.4 },
-      fx: { zoomPunch: 1.2, zoomStutter: 1, whipBlur: 0.6, squash: 0.5, rotateSnap: 0.5, blackFrame: 0.4 },
+      trans: { knStutterCut: 1 },
+      fx: { zoomPunch: 1.2, zoomStutter: 0.6, whipBlur: 0.5, blackFrame: 0.4 },
     },
   },
   bsRefrain: {
@@ -36386,14 +36396,14 @@ const S = {
     ],
     fonts: { display: ['round', 'pop', 'dela'], serif: ['round'], body: ['round'], mono: ['mono'] },
     pool: {
-      layout: { bsRefrain: 2.6, bsBeatWord: 1.4, tile: 0.8, knSwapCenter: 0.8, knSlamStack: 0.6, mixed: 0.5 },
-      enter: { cut: 2.5, pop: 1.2, knWordSlam: 0.8, zoom: 0.5 },
-      exit: { cut: 3.5, popOut: 1, knWordKick: 0.6 },
-      hold: { still: 1, knWordPulse: 1, pulse: 0.8, knBeatLean: 0.6 },
+      layout: { bsRefrain: 2.6, bsBeatWord: 1.4, knSwapCenter: 0.8, huge: 0.6 },
+      enter: { cut: 2.5, knWordSlam: 1, riseMask: 0.6, zoom: 0.4 },
+      exit: { cut: 3.5, knWordKick: 0.8, riseOut: 0.5 },
+      hold: { still: 1.5, knWordPulse: 1, knBeatLean: 0.4 },
       treat: { none: 1 },
-      cam: { beatPunch: 1.6, bounce: 1, push: 1 },
-      trans: { knStutterCut: 0.6, knCornerSwing: 0.6 },
-      fx: { zoomPunch: 1, squash: 1, rotateSnap: 0.6, mirrorFlash: 0.4 },
+      cam: { beatPunch: 1.4, push: 1.2, stepZoom: 0.6 },
+      trans: { knStutterCut: 0.6 },
+      fx: { zoomPunch: 1, whipBlur: 0.4 },
     },
   },
   bsScale: {
@@ -36404,10 +36414,10 @@ const S = {
     ],
     fonts: { display: ['gothic_black', 'mincho_black'], serif: ['mincho', 'shippori'], body: ['gothic_med', 'mincho'], mono: ['mono'] },
     pool: {
-      layout: { bsScaleLine: 2.6, mixed: 1.4, huge: 1, bsBeatWord: 1, center: 0.6 },
+      layout: { bsScaleLine: 2.6, huge: 1.2, tyScaleSteps: 1, bsBeatWord: 1, center: 0.6 },
       enter: { cut: 2.5, fadeStagger: 1, trackIn: 0.8, riseMask: 0.8, blur: 0.5 },
       exit: { cut: 3, blur: 0.8, riseOut: 0.6, trackOutWide: 0.5 },
-      hold: { still: 1.5, drift: 0.8, breathe: 0.5 },
+      hold: { still: 2, drift: 0.8 },
       treat: { none: 2, knWordScale: 1 },
       cam: { push: 1.5, beatPunch: 0.8, driftDiag: 0.6 },
       trans: {},
@@ -36424,7 +36434,7 @@ const S = {
     pool: {
       layout: { bsTypeBeat: 2.6, center: 1, hanging: 0.8, bsScaleLine: 0.4 },
       enter: { cut: 1.5, type: 1, fadeStagger: 1.2, blurStagger: 1, blur: 0.8 },
-      exit: { blur: 1.2, dissolve: 1, blurOutStagger: 1, riseOut: 0.6 },
+      exit: { blur: 1.2, blurOutStagger: 1, riseOut: 0.6 },
       hold: { still: 1.5, drift: 1, breathe: 0.8 },
       treat: { none: 1 },
       cam: { push: 1.5, driftDiag: 1, pullOut: 0.6 },
@@ -36469,6 +36479,61 @@ for (const [g, R] of [['enter', J.ENTER], ['exit', J.EXIT]])
 J.EASE_WARP = WARP;
 J.warpIn = (def, p) => (def && def.warp > 1 && p > 0 && p < 1 ? Math.pow(p, def.warp) : p);
 J.warpOut = (def, p) => (def && def.warp > 1 && p > 0 && p < 1 ? 1 - Math.pow(1 - p, def.warp) : p);
+})();
+
+/* JIZURA — テキストのみの節度 (text-only restraint)
+   What made the text-only output look machine-made: a red / blue colour split on every word, a different gimmick in
+   every cut (text on arcs, circles, stickers, balloons…), glitch hits at every cut, tiny filler copies of the lyric,
+   stepped echo copies, and a new face in nearly every cut. For styles with `textOnly`:
+     • random picks draw from a typographic set only — J.TEXT_POOL, per group; a style's own bias still weights it
+       (a style that lists its own `pool` keeps it). A per-line / per-cut choice can still use anything.
+     • no chromatic ghost passes; the colour-split / slice / block / mosaic accents and random inverts are dropped
+       (flash on impact lines, zoom and shake on emphasis, and the one-beat chorus invert stay)
+     • one face per font role (the first of each list), so a song reads in one or two faces
+     • text smaller than 3% of the frame and stepped echo copies are not drawn (src/03_text.js, src/06_layouts.js)
+   ============================================================ */
+(() => {
+'use strict';
+const W = (keys, w = 1) => Object.fromEntries(keys.map(k => [k, w]));
+J.TEXT_POOL = {
+  layout: Object.assign(
+    W(['center', 'huge', 'vcols', 'hanging', 'columnsBig', 'poster', 'swissGrid', 'headlineDeck', 'tyCropGiant', 'tyKeySplit', 'tyScaleSteps', 'tyMargin', 'knRhythmCuts', 'knTypeSlam'], 1.2),
+    W(['kanjiFocus', 'dropCap', 'type', 'corners', 'sideways', 'halfVertical', 'splitHalves', 'typeSpecimen', 'credits',
+      'tyCross', 'tyBaseline', 'tyJustify', 'tySplitType', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'knQuarterTurn', 'knSwapCenter', 'knZoomDive', 'knFlowSnap', 'knReflow'], 0.7)),
+  enter: Object.assign(
+    W(['cut', 'wipe', 'riseMask', 'dropMask', 'fadeStagger', 'blurStagger', 'trackIn', 'type', 'knWordSlam', 'tyKeyFirst', 'tyLineWipe'], 1.2),
+    W(['blur', 'slideL', 'slideR', 'slideWhole', 'zoomOut', 'splitJoin', 'vSlice', 'outlineFill', 'whip', 'skewIn', 'slice', 'zoom',
+      'knTypeToSlam', 'knReplaceIn', 'knPushIn', 'knInertia', 'knDiveIn', 'knStretchOut', 'tyUnderLift', 'tyRetype'], 0.6)),
+  exit: Object.assign(
+    W(['cut', 'wipe', 'riseOut', 'sinkMask', 'blur', 'blurOutStagger', 'trackOutWide', 'knJumpCutOut', 'tyLineFeed'], 1.2),
+    W(['slideOutL', 'slideOutR', 'zoomFar', 'zoomThrough', 'splitApart', 'backspace', 'whipOut', 'shrink',
+      'knWordKick', 'knPushOut', 'knCloseGap', 'knWordBlink', 'knLaunch', 'tyStrike', 'tyUnderSink', 'tyKeyLast'], 0.6)),
+  hold: Object.assign(W(['still'], 3), W(['drift', 'zoomSlow', 'trackBreathe', 'breathe', 'knWordPulse', 'knTickShift', 'knGapBreath', 'tyTrackStep'], 0.5)),
+  treat: Object.assign(W(['none'], 6), W(['tall', 'wide', 'tyHeadBig', 'knWordScale', 'fadeChars'], 0.5)),
+  cam: Object.assign(W(['push'], 3), W(['pullOut', 'dollyIn', 'driftDiag', 'panL', 'panR', 'stepZoom', 'knReadPan'], 0.6), W(['beatPunch', 'knJumpCut'], 0.4)),
+  trans: W(['wipe', 'pushSlide', 'cover', 'uncover', 'whipPan', 'knStutterCut'], 1),
+  fx: Object.assign(W(['zoomPunch'], 1), W(['whipBlur', 'blackFrame', 'whiteFrame', 'defocus'], 0.5)),
+  decor: {}, bg: {},
+};
+// the horror styles keep their own few text-only tricks
+const HORROR = {
+  layout: W(['hrWrongOne', 'hrRisingDark'], 0.8), enter: W(['hrUneasy', 'hrManifest', 'hrBlinkCreep'], 0.8),
+  exit: W(['hrLookBack', 'hrTurnAway', 'hrShiver', 'hrFlickerDie'], 0.8), hold: W(['hrLagOne', 'hrStare'], 0.6),
+};
+J.textPool = (st) => {
+  const P = JSON.parse(JSON.stringify(J.TEXT_POOL));
+  if (st.set === 'horror') for (const g of Object.keys(HORROR)) Object.assign(P[g], HORROR[g]);
+  return P;
+};
+/* screen accents a text-only plan keeps (the rest were the machine-made glitch look) */
+J.TEXT_EVENT_DROP = ['chroma', 'slice', 'block', 'mosaic'];
+J.restrainStyle = (st) => {
+  if (!st || !st.textOnly) return st;
+  if (!st.pool) st.pool = J.textPool(st);
+  st.ghost = 0;
+  for (const role of Object.keys(st.fonts || {})) if (Array.isArray(st.fonts[role]) && st.fonts[role].length > 1) st.fonts[role] = st.fonts[role].slice(0, 1);
+  return st;
+};
 })();
 
 /* English labels are applied after all expression packs register, before the editor starts.

@@ -341,6 +341,13 @@ function readable(env, it) {
 }
 J.drawItem = (env, it) => {
   const ctx = env.ctx;
+  // テキストのみ: type under 3% of the frame is filler (sub-captions, repeated fine print), not the lyric being sung
+  if (env.st && env.st.textOnly && !env.inLayer) {
+    const m = Math.min(env.W || 1e9, env.H || 1e9);
+    if (it.size < 0.03 * m) return null;
+    // …and a small run of the line repeated over and over is a texture, not the lyric
+    if (it.size < 0.06 * m && env.cut && [...String(it.text).replace(/\s/g, '')].length > 1.8 * Math.max(4, [...String(env.cut.lineText || env.cut.text || '').replace(/\s/g, '')].length)) return null;
+  }
   if (!ctx.jzPlain) return drawItemCore(env, it);
   J.plainOff(ctx);
   try { return drawItemCore(env, readable(env, it)); } finally { J.plainOn(ctx); }

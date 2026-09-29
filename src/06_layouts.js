@@ -49,7 +49,7 @@ J.drawFx = (env, it) => {
         J.drawItem(env, c);
       }
     }
-    if (it.echo && it.echo.n > 0) {            // stepped copies behind the item (outline or tinted)
+    if (it.echo && it.echo.n > 0 && !(env.st && env.st.textOnly)) {            // stepped copies behind the item (outline or tinted); not in テキストのみ
       const E0 = it.echo;
       for (let k = E0.n; k >= 1; k--) {
         const c = Object.assign({}, it, { x: it.x + (E0.dx || 0) * k, y: it.y + (E0.dy || 0) * k, size: it.size * Math.pow(E0.scale || 1, k), rot: (it.rot || 0) + (E0.rot || 0) * k,
