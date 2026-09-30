@@ -135,9 +135,14 @@ J.restoreUserFonts = async (list) => {
 /* uploaded faces the plan draws with but this page does not have */
 J.missingUserFonts = (keys) => (keys || []).filter(k => J.FONTS[k] && J.FONTS[k].user && !J.FONTS[k].loaded).map(k => J.FONTS[k].label);
 
+/* a Latin face in front of the Japanese one (Adobe kit styles): the browser takes Latin letters, digits and ASCII
+   punctuation from it and everything else from the Japanese face — for measuring and drawing alike */
+J.LATIN = null;
+J.setLatin = fam => { J.LATIN = fam || null; };
 J.fontCSS = (key, px) => {
   const f = J.faceOf ? J.faceOf(key) : (J.FONTS[key] || J.FONTS.gothic_bold);   // per-language face (02b_lang.js)
-  return `${f.weight} ${px.toFixed(2)}px ${f.family},${f.fb}`;
+  const lat = J.LATIN && f.kind === 'adobe' ? `"${J.LATIN}",` : '';
+  return `${f.weight} ${px.toFixed(2)}px ${lat}${f.family},${f.fb}`;
 };
 
 /* Google Fonts stylesheets are attached lazily, one family at a time, only for the faces a plan actually uses —
@@ -201,7 +206,7 @@ J.metrics = {
   m: new Map(),
   clear() { this.m.clear(); },
   adv(fontKey, ch) {               // advance in em
-    const k = fontKey + '\u0000' + ch;
+    const k = (J.LATIN || '') + '\u0001' + fontKey + '\u0000' + ch;
     let v = this.m.get(k);
     if (v === undefined) {
       _mc.font = J.fontCSS(fontKey, 100);
@@ -224,7 +229,7 @@ class GlyphCache {
   bucket(px) { let r = 64; while (r < px && r < this.maxRes) r *= 2; return r; }
   get(fontKey, ch, px) {
     const res = this.bucket(px);
-    const key = fontKey + '|' + ch + '|' + res;
+    const key = (J.LATIN || '') + '|' + fontKey + '|' + ch + '|' + res;
     let g = this.map.get(key);
     if (!g) { g = decompose(fontKey, ch, res); this.map.set(key, g); if (this.map.size > 1800) this.evict(); }
     return g;

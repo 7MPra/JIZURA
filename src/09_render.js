@@ -69,6 +69,7 @@ class Renderer {
     const allowFilter = this.filterOK && !opt.fast;
     if (J.setLang) J.setLang(plan.lang || 'ja');           // faces follow the plan's lyric language
     if (J.setTypeset) J.setTypeset(plan.typeset || !!(plan.style && plan.style.textOnly));          // 文字整列 (テキストのみ: always the glyph rules)
+    if (J.setLatin) J.setLatin(plan.style && plan.style.latin);                                      // Adobe kit: Latin face for English words
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.filter = 'none';

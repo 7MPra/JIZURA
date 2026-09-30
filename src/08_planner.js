@@ -305,6 +305,7 @@ J.plan = (project, audio) => {
   };
   if (J.setLang) J.setLang(plan.lang);                     // chunking + measuring below use this language
   if (J.setTypeset) J.setTypeset(plan.typeset || !!st.textOnly);   // テキストのみ: the glyph rules of 文字整列 (kana set tighter, particles smaller) always
+  if (J.setLatin) J.setLatin(st.latin);                   // Adobe kit: the style's Latin face for English words
   const beats = plan.beats;
   const snap = (t) => {
     if (!beats.length || !(project.timing && project.timing.snap)) return t;

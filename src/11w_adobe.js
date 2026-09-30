@@ -10,9 +10,11 @@ const A = (key, label, family, weight, serif) => {
   J.FONTS[key] = { label: label + '（Adobe）', family: `"${family}"`, weight, kind: 'adobe', adobe: true, loaded: true, fb: serif ? JP_SERIF : JP_SANS };
 };
 // weights as the kit serves them (wf-… classes of the kit): Source Han Sans 100–900, Ten Mincho Antique 200–900,
-// Kinuta Shin Enpitsu 300–700, Ryo Display 500 / 700, Ryo Gothic 400 / 700 / 800 / 900, MB101 and Tsukushi A Old 300, the rest 400
+// Kinuta Shin Enpitsu 300–700, Ryo Display 500 / 700 / 800 / 900, Ryo Gothic 400 / 700 / 800 / 900, MB101 and Tsukushi A Old 300, the rest 400
 A('ad_ryodisp_b', 'りょうディスプレイ B', 'ryo-display-plusn', 700, true);
 A('ad_ryodisp_m', 'りょうディスプレイ M', 'ryo-display-plusn', 500, true);
+A('ad_ryodisp_eb', 'りょうディスプレイ EB', 'ryo-display-plusn', 800, true);
+A('ad_ryodisp_h', 'りょうディスプレイ H', 'ryo-display-plusn', 900, true);
 A('ad_ryogo', 'りょうゴシック R', 'ryo-gothic-plusn', 400);
 A('ad_ryogo_b', 'りょうゴシック B', 'ryo-gothic-plusn', 700);
 A('ad_ryogo_h', 'りょうゴシック H', 'ryo-gothic-plusn', 800);
@@ -35,21 +37,22 @@ A('ad_komu_d', 'コム D', 'komu-new-d', 400);
 A('ad_komu_e', 'コム E', 'komu-new-e', 400);
 A('ad_komu_f', 'コム F', 'komu-new-f', 400);
 
-/* each style's faces with the kit: display (the big words), serif (the second voice), body (small lines) */
-const G = { display: ['ad_ryogo_ub'], serif: ['ad_ryodisp_b'], body: ['ad_ryogo'] };          // graphic Gothic (Ryo Gothic)
-const POP = { display: ['ad_logojr'], serif: ['ad_ryogo_ub'], body: ['ad_ryogo'] };           // pop, heavy
-const CUTE = { display: ['ad_logomaru'], serif: ['ad_komu_d'], body: ['ad_shs'] };           // round, cute
-const MIN = { display: ['ad_ryodisp_b'], serif: ['ad_ten'], body: ['ad_tsukua'] };           // Mincho, editorial
+/* each style's faces with the kit: display (the big words), serif (the second voice), body (small lines), and latin —
+   the Latin face set in front of them for English words (Mincho and handwriting styles keep their own Latin) */
+const G = { display: ['ad_ryogo_ub'], serif: ['ad_ryodisp_eb'], body: ['ad_ryogo'], latin: 'neue-haas-grotesk-display' };          // graphic Gothic (Ryo Gothic)
+const POP = { display: ['ad_logojr'], serif: ['ad_ryogo_ub'], body: ['ad_ryogo'], latin: 'futura-pt' };           // pop, heavy
+const CUTE = { display: ['ad_logomaru'], serif: ['ad_komu_d'], body: ['ad_shs'], latin: 'futura-pt' };           // round, cute
+const MIN = { display: ['ad_ryodisp_h'], serif: ['ad_ten'], body: ['ad_tsukua'] };           // Mincho, editorial
 const LIT = { display: ['ad_tsukua'], serif: ['ad_ryodisp_m'], body: ['ad_tsukua'] };        // literary, quiet
 const HAND = { display: ['ad_enpitsu_b'], serif: ['ad_tenant'], body: ['ad_enpitsu'] };      // handwriting
-const ANTQ = { display: ['ad_tenant_h'], serif: ['ad_ryodisp_b'], body: ['ad_shs'] };        // manga antique
-const KOMU = { display: ['ad_komu_e'], serif: ['ad_tenant_h'], body: ['ad_shs'] };           // retro pop
+const ANTQ = { display: ['ad_tenant_h'], serif: ['ad_ryodisp_eb'], body: ['ad_shs'] };        // manga antique
+const KOMU = { display: ['ad_komu_e'], serif: ['ad_tenant_h'], body: ['ad_shs'], latin: 'futura-pt-condensed' };           // retro pop
 const MAP = {
   noir: G, crimson: POP, caution: POP, magenta: POP, paper: MIN, hud: G, mint: G, specimen: MIN, transit: G, blueprint: G,
   rouge: ANTQ, mono: G, hrRuin: HAND, hrNightRec: G, hrCurse: ANTQ, sakura: CUTE, ocean: LIT, sunset: MIN, forest: LIT,
   vapor: KOMU, newsprint: MIN, synth80: KOMU, kraft: HAND, candy: CUTE, acid: POP, sumi: MIN, gold: MIN,
-  bsSlam: POP, bsRefrain: CUTE, bsScale: G, bsBallad: LIT,
-  edMincho: MIN, street: POP, tegaki: HAND, showa: KOMU, minimal: { display: ['ad_ryogo_h'], serif: ['ad_shs_l'], body: ['ad_ryogo'] },
+  bsSlam: Object.assign({}, POP, { latin: 'bebas-neue-pro' }), bsRefrain: CUTE, bsScale: G, bsBallad: LIT,
+  edMincho: MIN, street: Object.assign({}, POP, { latin: 'bebas-neue-pro' }), tegaki: HAND, showa: KOMU, minimal: { display: ['ad_ryogo_h'], serif: ['ad_shs_l'], body: ['ad_ryogo'], latin: 'neue-haas-grotesk-display' },
 };
 for (const [k, f] of Object.entries(MAP)) if (J.STYLES[k]) J.STYLES[k].adobeFonts = f;
 
