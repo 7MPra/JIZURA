@@ -370,7 +370,7 @@ J.plan = (project, audio) => {
     const n = [...ln.text.replace(/\s+/g, '')].length;
     const visEnd = Math.min(e, s + Math.max(3.6, n * 0.5 + 1.2));
     const D = visEnd - s;
-    plan.lines.push({ index: li, src: ln.src, lrc: ln.lrc, text: ln.text, start: s, end: e, visEnd, note: ln.note, impact: ln.impact, emph: ln.emph, chunks: null, seed: lineSeed });
+    plan.lines.push({ index: li, src: ln.src, lrc: ln.lrc, text: ln.text, start: s, end: e, visEnd, note: ln.note, impact: ln.impact, emph: ln.emph, chunks: null, seed: lineSeed, gapBefore: !!ln.gapBefore });
     const chunks = ln.manual || (plan.lang === 'en' ? J.phraseChunks(J.chunkText(ln.text)) : J.chunkText(ln.text));
     plan.lines[li].chunks = chunks;
     const L = J.lerp(1.3, 0.5, fx.density);
@@ -572,6 +572,7 @@ J.plan = (project, audio) => {
       if (weightGrow) cut.weightGrow = true;
       if (morph) cut.morph = morph;
       if (UU) UU.remember(li, k, txt, cut);
+      if (ovAny || lockSpecs || Object.keys(tech).length) cut.manual = true;          // set by hand: the director (src/11x_system.js) leaves it alone
       if (zones) splitCut(cut, halves, zones, st, dur, LS);
       // 文字整列: effects don't pile up — one decoration, no text treatment on top of it
       if (plan.typeset) { cut.decor = cut.decor.slice(0, 1); if (cut.decor.length && cut.treat !== 'none') { cut.treat = 'none'; cut.treatP = {}; } }
@@ -634,6 +635,8 @@ J.plan = (project, audio) => {
   plan.events.sort((a, b) => a.t - b.t);
   plan.energy = audio && audio.energy ? audio.energy : null;
   plan.energyRate = audio && audio.energyRate ? audio.energyRate : 0;
+  // テキストのみ: the song is staged section by section (src/11x_system.js)
+  if (J.systemDirect) J.systemDirect(plan, st);
   return plan;
 };
 
