@@ -4193,7 +4193,7 @@ J.plan = (project, audio) => {
       const Z = zoneOf(li), LW = Z ? Z.w : W, LH = Z ? Z.h : H;       // the frame this cut is laid out in
       const UU = U && !ovAny ? U : null;                              // per-line settings always win over 統一感
       const tech = cutTechOf(ov, k);                                  // このカットだけの指定
-      let layout = ov.layout && J.LAYOUTS[ov.layout] ? ov.layout : pickLayout(rng, st, en, nn, dur, history, emph, u.recap, LH > LW);
+      let layout = ov.layout && J.LAYOUTS[ov.layout] ? ov.layout : pickLayout(rng, st, en, nn, dur, history, emph, u.recap, LH > LW, txt);
       if (UU) layout = UU.layout(li, layout, { nn, dur, emph, kime, rng, portrait: LH > LW, recap: u.recap });
       let enter = ov.enter && J.ENTER[ov.enter] ? ov.enter : pickEnter(rng, st, en, layout, dur, history, emph, nn);
       let exit = ov.exit && J.EXIT[ov.exit] ? ov.exit : pickExit(rng, st, en, layout, dur, k === units.length - 1, history);
@@ -4626,11 +4626,12 @@ function novelty(history, key, val) {
   return w;
 }
 const PORTRAIT_W = { vcols: 1.9, condensed: 1.3, huge: 1.3, center: 1.2, stack: 1.1, mixed: 0.7, marquee: 0.6, wave: 0.6, diag: 0.8, type: 0.8, gloss: 0.5 };
-function pickLayout(rng, st, en, n, dur, history, emph, recap, portrait) {
-  const cands = [];
+function pickLayout(rng, st, en, n, dur, history, emph, recap, portrait, text) {
+  const cands = [], latinCut = !!(text && J.isLatinText && J.isLatinText(text));
   for (const k of J.LAYOUT_ORDER) {
     const L = J.LAYOUTS[k];
     if (!en.layout[k] || !L.fits(n)) continue;
+    if (L.noLatin && latinCut) continue;
     if (L.poolOnly && !(st.pool && st.pool.layout && st.pool.layout[k] != null)) continue;   // only for the styles that name it
     let w = wkey(st.bias.layout, k, L.w ?? 1) * novelty(history, 'layout', k);
     if (portrait) w *= L.portrait != null ? L.portrait : wkey(PORTRAIT_W, k, 1);
@@ -4977,7 +4978,7 @@ J.omakase = (project, rnd = Math.random, themeId = null) => {
   const faces = Object.entries(J.FONTS).filter(([k, f]) => !f.user && !['mono', 'pixel'].includes(f.kind) && !(f.kind === 'adobe' && !J.adobeReady) && (!J.randomOk || J.randomOk(project, 'font', k)));
   if (rnd() < 0.4) fonts.display = pick(faces.filter(([k, f]) => f.weight >= 700 || f.kind === 'display' || f.kind === 'round'))[0];
   if (rnd() < 0.3) fonts.serif = pick(faces.filter(([k, f]) => f.kind === 'mincho' || f.kind === 'brush'))[0];
-  if (mood === 'chaos' && rnd() < 0.2) fonts.display = 'dot';
+  if (mood === 'chaos' && rnd() < 0.2 && !J.STYLES[style].textOnly) fonts.display = 'dot';   // (a pixel face next to the Mincho looked cheap in text-only)
   // colours: style palette most of the time, a fresh accent / ghost pair otherwise
   const colors = Object.assign({}, project.colors, { enabled: false, accentOn: false });
   // (text-only styles keep their own palette: their colours are designed as a set, and a random accent on them —
@@ -35294,7 +35295,7 @@ reg('tyRotBlock', {
 
 /* ================================================================== 17 tySquare — 方形組 */
 reg('tySquare', {
-  name: '方形組', tags: ['graphic', 'editorial', 'pop'], ae: 'gridCells', w: 1, fits: n => n >= 3 && n <= 16,
+  name: '方形組', tags: ['graphic', 'editorial', 'pop'], ae: 'gridCells', w: 1, fits: n => n >= 3 && n <= 16, noLatin: true,   // English cut into a letter grid does not read
   plan(rng, cut, st) {
     return { font: rng.pick(fontsOf(st, ['display', 'serif'])), order: rng.pick(['yoko', 'yoko', 'tate']), frame: rng.chance(0.75), acc: rng.chance(0.7) };
   },
@@ -36565,7 +36566,7 @@ reg('layout', 'bsScaleLine', {
     const { W, H, sc } = env, c = env.cut, Pm = c.params, port = isPort(env);
     const units = unitsOf(c, 8), n = units.length, ts = onsets(env, n), k = curIdx(ts, env.lt);
     if (k < 0) return null;
-    const lat = hasLatin(c.text), gap = lat ? 0.3 : 0.12;
+    const lat = hasLatin(c.text), gap = lat ? 0.55 : 0.12;
     // the small line: one item per word so the current one can be lit
     let ss = clamp(Math.min(H * 0.045, W * 0.04), 14, 60);
     const ws = units.map(u => J.measure({ text: u, font: Pm.small, size: ss, track: 0.08 }).w);

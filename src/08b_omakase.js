@@ -111,7 +111,7 @@ J.omakase = (project, rnd = Math.random, themeId = null) => {
   const faces = Object.entries(J.FONTS).filter(([k, f]) => !f.user && !['mono', 'pixel'].includes(f.kind) && !(f.kind === 'adobe' && !J.adobeReady) && (!J.randomOk || J.randomOk(project, 'font', k)));
   if (rnd() < 0.4) fonts.display = pick(faces.filter(([k, f]) => f.weight >= 700 || f.kind === 'display' || f.kind === 'round'))[0];
   if (rnd() < 0.3) fonts.serif = pick(faces.filter(([k, f]) => f.kind === 'mincho' || f.kind === 'brush'))[0];
-  if (mood === 'chaos' && rnd() < 0.2) fonts.display = 'dot';
+  if (mood === 'chaos' && rnd() < 0.2 && !J.STYLES[style].textOnly) fonts.display = 'dot';   // (a pixel face next to the Mincho looked cheap in text-only)
   // colours: style palette most of the time, a fresh accent / ghost pair otherwise
   const colors = Object.assign({}, project.colors, { enabled: false, accentOn: false });
   // (text-only styles keep their own palette: their colours are designed as a set, and a random accent on them —
