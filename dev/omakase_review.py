@@ -41,6 +41,7 @@ async (o) => {
   let p = Object.assign(J.defaultProject(), { lyrics: o.lyrics, aspect: o.aspect, extra: true });
   p.timing = Object.assign(p.timing, { bpm: o.bpm, snap: true, offset: 0.4 });
   Object.assign(p, J.omakase(p, rnd));
+  if (o.style && J.STYLES[o.style]) p.style = o.style;          // STYLE=…: the same style on every build (a fair comparison)
   // the song: a beat grid, louder in the hook lines
   const bl = 60 / o.bpm, beats = Array.from({ length: 900 }, (_, i) => 0.4 + i * bl);
   const plan0 = J.plan(p, { beats, duration: 400 });
@@ -127,13 +128,13 @@ async def main():
         px = os.environ.get('HTTPS_PROXY') or os.environ.get('https_proxy')
         b = await pw.chromium.launch(executable_path=CHROME, proxy={'server': px, 'bypass': 'localhost,127.0.0.1'} if px else None)
         pg = await (await b.new_context(ignore_https_errors=True)).new_page()
-        await pg.goto('http://localhost:8765/test.html', wait_until='domcontentloaded')
+        await pg.goto('http://localhost:8765/%s.html' % os.environ.get('PAGE', 'test'), wait_until='domcontentloaded')
         await pg.wait_for_function('window.J')
         for run in RUN_IDS:
             lyrics, bpm = song(run)
             nf = await load_fonts(pg, lyrics)
             if run == RUN_IDS[0]: print('web font faces loaded:', nf)
-            res = await pg.evaluate(JS, {'seed': run, 'lyrics': lyrics, 'bpm': bpm, 'aspect': os.environ.get('ASPECT', '16:9'), 'scale': 0.2})
+            res = await pg.evaluate(JS, {'seed': run, 'lyrics': lyrics, 'bpm': bpm, 'aspect': os.environ.get('ASPECT', '16:9'), 'scale': 0.2, 'style': os.environ.get('STYLE', '')})
             # contact sheet: one frame per cut, captioned
             import base64, io
             ims = [Image.open(io.BytesIO(base64.b64decode(c['img'].split(',')[1]))).convert('RGB') for c in res['cuts']]
