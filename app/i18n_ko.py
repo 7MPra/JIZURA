@@ -1,6 +1,8 @@
 """Korean copy for the browser edition (same glossary keys as app/english.py). The Japanese source stays authoritative."""
 
 BODY = {
+    '<code>漢字《かんじ》</code> <code>｜夜明け《よあけ》</code>': '<code>｜base《reading》</code>',
+    '… ルビ（振り仮名）。「明朝とルビ」などで漢字の横・上に出ます': '… 루비(읽는 법). 「명조와 루비」 등에서 한자 옆이나 위에 나옵니다',
     'title="画面効果・つなぎ・カメラの動き・装飾・文字の加工をまとめて切り、全部の行を同じ動きにします"><input id="calmOn" type="checkbox"><span>落ち着いた演出</span></label>': 'title="화면 효과·전환·카메라 움직임·장식·문자 가공을 한꺼번에 끄고, 모든 줄을 같은 움직임으로 합니다"><input id="calmOn" type="checkbox"><span>차분한 연출</span></label>',
     '>動き<select id="calmMotion" aria-label="落ち着いた演出の動き"><option value="fade">フェード</option><option value="chars">一字ずつフェード</option><option value="wipe">ワイプ</option><option value="cut">動きなし</option></select>': '>움직임<select id="calmMotion" aria-label="차분한 연출의 움직임"><option value="fade">페이드</option><option value="chars">한 글자씩 페이드</option><option value="wipe">와이프</option><option value="cut">움직임 없음</option></select>',
     'title="文字を自分で動かすレイアウトを、中央・縦組・大きく・積み重ねのどれかに置き換えます"><input id="calmLayouts" type="checkbox" checked><span>レイアウトも控えめに</span></label>': 'title="글자를 스스로 움직이는 레이아웃을 가운데·세로쓰기·크게·쌓기 중 하나로 바꿉니다"><input id="calmLayouts" type="checkbox" checked><span>레이아웃도 담백하게</span></label>',
@@ -430,6 +432,9 @@ STYLES = {
     'tegaki': ('손글씨 노래', '종이와 먹의 손글씨; 한 글자씩 써 내려가며 천천히 흐름'),
     'showa': ('쇼와 포스터', '크림·남색·주홍의 굵은 명조; 세로와 가로를 바꿔 짜는 쇼와 시대 포스터'),
     'minimal': ('하얀 여백', '흰 바탕의 가는 고딕과 큰 한 단어; 여백과 크기 대비만으로'),
+    'mpSpin': ('회전 문자', '단색 바탕의 굵은 둥근 고딕: 단어가 각자의 각도로 날아와 쌓이고 화면 전체가 계속 돈다; 화면보다 큰 한 단어'),
+    'mpRuby': ('명조와 루비', '종이색과 두 색의 명조: 큰 한자 하나에 읽는 법을 곁들여 모션 블러로 떨어진다; 줄과 그 반사 (읽기는 漢字《かんじ》로 씀)'),
+    'mpEllipse': ('타원과 자막', '흰 바탕의 가는 고딕: 글자가 원 안에서 열리고 보이지 않는 타원을 따라 흐른다; 아래에는 늘 줄 전체의 작은 자막'),
 }
 
 MOODS = {'glitch': '글리치', 'calm': '잔잔함', 'pop': '팝', 'graphic': '그래픽',

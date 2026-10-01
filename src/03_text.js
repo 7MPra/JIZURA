@@ -175,7 +175,8 @@ J.isLyricText = (env, text) => {
   let ix = lyricIndex.get(plan);
   if (!ix) {
     const ls = plan.lines.filter(l => l && l.text);
-    const units = [...new Set(ls.flatMap(l => [flat(l.text), flat(l.note)]).filter(Boolean))];
+    // a line's own words, its note and its ルビ (the readings set beside the kanji)
+    const units = [...new Set(ls.flatMap(l => [flat(l.text), flat(l.note)].concat((l.ruby || []).map(r => flat(r.ruby)))).filter(Boolean))];
     ix = { units, flat: units.join('\u0001'), raw: ls.map(l => l.text + '\u0001' + (l.note || '')).join('\u0001'), memo: new Map() };
     lyricIndex.set(plan, ix);
   }

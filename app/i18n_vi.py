@@ -48,9 +48,14 @@ STYLES = {
     'tegaki': ('Bài ca viết tay', 'Chữ viết tay trên giấy; viết từng chữ, trôi chậm'),
     'showa': ('Poster Showa', 'Mincho đậm kem, xanh navy, đỏ son; poster thời Showa đổi chiều dọc ngang'),
     'minimal': ('Khoảng trắng', 'Gothic mảnh và một từ lớn trên nền trắng; chỉ khoảng trống và tỉ lệ'),
+    'mpSpin': ('Chữ xoay', 'Gothic tròn đậm trên một màu: chữ bay vào theo góc riêng và chồng lên nhau trong khi cả khung hình xoay; một từ to hơn khung hình'),
+    'mpRuby': ('Mincho & Ruby', 'Hai màu mực trên giấy, Mincho: một chữ Hán lớn kèm cách đọc, rơi xuống với nhòe chuyển động; câu cùng bóng phản chiếu (viết cách đọc là 漢字《かんじ》)'),
+    'mpEllipse': ('Elip & Phụ đề', 'Gothic mảnh trên nền trắng: chữ mở ra trong vòng tròn và trượt theo một elip vô hình; cả câu luôn nhỏ ở dưới'),
 }
 
 BODY = {
+    '<code>漢字《かんじ》</code> <code>｜夜明け《よあけ》</code>': '<code>｜base《reading》</code>',
+    '… ルビ（振り仮名）。「明朝とルビ」などで漢字の横・上に出ます': '… ruby (cách đọc). Hiện bên cạnh hoặc phía trên chữ Hán trong các kiểu như Mincho & Ruby',
     'title="画面効果・つなぎ・カメラの動き・装飾・文字の加工をまとめて切り、全部の行を同じ動きにします"><input id="calmOn" type="checkbox"><span>落ち着いた演出</span></label>': 'title="Tắt cùng lúc hiệu ứng màn hình, chuyển cảnh, chuyển động máy quay, trang trí và xử lý chữ, cho mọi câu cùng một chuyển động"><input id="calmOn" type="checkbox"><span>Nhẹ nhàng</span></label>',
     '>動き<select id="calmMotion" aria-label="落ち着いた演出の動き"><option value="fade">フェード</option><option value="chars">一字ずつフェード</option><option value="wipe">ワイプ</option><option value="cut">動きなし</option></select>': '>Chuyển động<select id="calmMotion" aria-label="Chuyển động của chế độ nhẹ nhàng"><option value="fade">Mờ dần</option><option value="chars">Mờ dần từng chữ</option><option value="wipe">Quét</option><option value="cut">Không chuyển động</option></select>',
     'title="文字を自分で動かすレイアウトを、中央・縦組・大きく・積み重ねのどれかに置き換えます"><input id="calmLayouts" type="checkbox" checked><span>レイアウトも控えめに</span></label>': 'title="Thay các bố cục tự di chuyển chữ bằng giữa, dọc, lớn hoặc xếp chồng"><input id="calmLayouts" type="checkbox" checked><span>Bố cục cũng đơn giản</span></label>',

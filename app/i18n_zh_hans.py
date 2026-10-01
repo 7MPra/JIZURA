@@ -46,9 +46,14 @@ STYLES = {
     'tegaki': ('手写之歌', '纸与墨的手写字；一字一字写出，缓缓漂动'),
     'showa': ('昭和海报', '奶油、深蓝与朱红的粗明体；竖横交错的昭和宣传海报'),
     'minimal': ('白色留白', '白底细黑体与一个大字；只靠留白与大小对比'),
+    'mpSpin': ('旋转文字', '单色底与粗圆黑体：字以各自的角度飞入堆叠，整个画面持续旋转；一个大到出框的字'),
+    'mpRuby': ('明朝与注音', '米色纸与两色明朝：大大的一个汉字配上读音，带动态模糊落下；行与倒影（读音写成 漢字《かんじ》）'),
+    'mpEllipse': ('椭圆与字幕', '白底细黑体：字从圆形窗中打开，沿着看不见的椭圆流动；下方总有整行的小字幕'),
 }
 
 BODY = {
+    '<code>漢字《かんじ》</code> <code>｜夜明け《よあけ》</code>': '<code>漢字《reading》</code> <code>｜base《reading》</code>',
+    '… ルビ（振り仮名）。「明朝とルビ」などで漢字の横・上に出ます': '… 注音（读音）。在「明朝与注音」等样式中显示在汉字旁边或上方',
     'title="画面効果・つなぎ・カメラの動き・装飾・文字の加工をまとめて切り、全部の行を同じ動きにします"><input id="calmOn" type="checkbox"><span>落ち着いた演出</span></label>': 'title="一次关闭画面效果、转场、镜头移动、装饰与文字加工，让每一行都用同样的动作"><input id="calmOn" type="checkbox"><span>沉稳演出</span></label>',
     '>動き<select id="calmMotion" aria-label="落ち着いた演出の動き"><option value="fade">フェード</option><option value="chars">一字ずつフェード</option><option value="wipe">ワイプ</option><option value="cut">動きなし</option></select>': '>动作<select id="calmMotion" aria-label="沉稳演出的动作"><option value="fade">淡入</option><option value="chars">逐字淡入</option><option value="wipe">擦入</option><option value="cut">不动</option></select>',
     'title="文字を自分で動かすレイアウトを、中央・縦組・大きく・積み重ねのどれかに置き換えます"><input id="calmLayouts" type="checkbox" checked><span>レイアウトも控えめに</span></label>': 'title="把会自己移动文字的布局，换成居中、竖排、放大或堆叠"><input id="calmLayouts" type="checkbox" checked><span>布局也收敛</span></label>',

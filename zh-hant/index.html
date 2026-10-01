@@ -538,6 +538,7 @@ button.small.primary { padding: 4px 12px; }
             <li><code>*微光*</code> … 強調（放大、更有衝擊力的效果）</li>
             <li>行尾的 <code>!</code> … 加入閃光與震動</li>
             <li><code>歌詞|讀音或註解</code> … 註解版面中的小字</li>
+            <li><code>漢字《reading》</code> <code>｜base《reading》</code> … 注音（讀音）。在「明朝與注音」等樣式中顯示在漢字旁邊或上方</li>
             <li><code>[01:23.45]歌詞</code> … 直接使用 LRC 時間戳記</li>
             <li><code>[間奏 8]</code> … 8 秒的間奏（不顯示歌詞，只有背景與裝飾）。省略秒數時為 4 秒，也可用點擊同步或標記調整長度</li>
             <li><code>#</code> 開頭的行 … 註解（會被忽略）</li>
@@ -1756,7 +1757,8 @@ J.isLyricText = (env, text) => {
   let ix = lyricIndex.get(plan);
   if (!ix) {
     const ls = plan.lines.filter(l => l && l.text);
-    const units = [...new Set(ls.flatMap(l => [flat(l.text), flat(l.note)]).filter(Boolean))];
+    // a line's own words, its note and its ルビ (the readings set beside the kanji)
+    const units = [...new Set(ls.flatMap(l => [flat(l.text), flat(l.note)].concat((l.ruby || []).map(r => flat(r.ruby)))).filter(Boolean))];
     ix = { units, flat: units.join('\u0001'), raw: ls.map(l => l.text + '\u0001' + (l.note || '')).join('\u0001'), memo: new Map() };
     lyricIndex.set(plan, ix);
   }
@@ -3751,6 +3753,15 @@ J.parseLyrics = (raw) => {
     let note = null;
     const bar = s.indexOf('|');
     if (bar >= 0) { note = s.slice(bar + 1).trim() || null; s = s.slice(0, bar).trim(); }
+    // ルビ (振り仮名): 漢字《かんじ》 or ｜base《reading》 (青空文庫 notation) — the reading is kept aside, the line keeps the base.
+    // Only a line with 《…》 is touched, so lyrics written without it read exactly as before.
+    let ruby = null;
+    if (s.includes('《')) {
+      ruby = [];
+      s = s.replace(/｜([^｜《》]+)《([^《》]+)》/g, (_, b, r) => { ruby.push({ base: b, ruby: r.trim() }); return b; })
+        .replace(/([\u3400-\u9fff\uf900-\ufaff々〆ヵヶ]+)《([^《》]+)》/g, (_, b, r) => { ruby.push({ base: b, ruby: r.trim() }); return b; });
+      if (!ruby.length) ruby = null;
+    }
     let impact = false;
     if (/[!！]$/.test(s) && s.length > 1 && /!$/.test(s)) { impact = true; s = s.slice(0, -1).trim(); }
     const emph = [];
@@ -3763,6 +3774,7 @@ J.parseLyrics = (raw) => {
     }
     if (!s) continue;
     const base = { text: s, note, impact, emph, manual, gapBefore: pendingGap, src: ri };
+    if (ruby) base.ruby = ruby;
     pendingGap = false;
     if (times.length) times.forEach(t => lines.push(Object.assign({}, base, { lrc: t })));
     else lines.push(Object.assign({}, base, { lrc: null }));
@@ -4094,7 +4106,7 @@ J.plan = (project, audio) => {
     const n = [...ln.text.replace(/\s+/g, '')].length;
     const visEnd = Math.min(e, s + Math.max(3.6, n * 0.5 + 1.2));
     const D = visEnd - s;
-    plan.lines.push({ index: li, src: ln.src, lrc: ln.lrc, text: ln.text, start: s, end: e, visEnd, note: ln.note, impact: ln.impact, emph: ln.emph, chunks: null, seed: lineSeed, gapBefore: !!ln.gapBefore });
+    plan.lines.push({ index: li, src: ln.src, lrc: ln.lrc, text: ln.text, start: s, end: e, visEnd, note: ln.note, impact: ln.impact, emph: ln.emph, chunks: null, seed: lineSeed, gapBefore: !!ln.gapBefore, ruby: ln.ruby || null });
     const chunks = ln.manual || (plan.lang === 'en' ? J.phraseChunks(J.chunkText(ln.text)) : J.chunkText(ln.text));
     plan.lines[li].chunks = chunks;
     const L = J.lerp(1.3, 0.5, fx.density);
@@ -37146,6 +37158,311 @@ J.calmPass = (plan, project, st) => {
 };
 })();
 
+/* JIZURA pack: mojipv — three text-only styles after lyric videos people picked as references (2026-10-01):
+   text only; shapes appear only as masks (a circle that opens on a glyph, stripes that reveal one), never drawn.
+     回転文字   (mpSpin)    one colour field, a heavy round Gothic: words fly in at their own angles and pile up while the
+                            whole picture keeps turning; one word so big the frame crops it
+     明朝とルビ (mpRuby)    two inks on a paper colour, Mincho: one kanji huge with its reading (ルビ) beside it, dropped in
+                            with a motion blur; the line set small around it; a line with its reflection
+     楕円と字幕 (mpEllipse) a light Gothic on white: glyphs opening in circles, words gliding along an unseen tilted
+                            ellipse, a big glyph revealed by stripes — and the whole line always small at the bottom
+   ルビ: written in the lyrics as 漢字《かんじ》 / ｜base《reading》 (src/08_planner.js); without it there is no reading.
+   All layouts here are poolOnly: only these styles use them, so every other style plans as before. */
+(() => {
+'use strict';
+const clamp = J.clamp, K = J.beatKit, TAU = Math.PI * 2;
+const bez = (x1, y1, x2, y2) => {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx, cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const sx = t => ((ax * t + bx) * t + cx) * t, sy = t => ((ay * t + by) * t + cy) * t, dx = t => (3 * ax * t + 2 * bx) * t + cx;
+  return x => { if (x <= 0) return 0; if (x >= 1) return 1; let t = x; for (let i = 0; i < 8; i++) { const d = sx(t) - x, s = dx(t); if (Math.abs(d) < 1e-6 || !s) break; t = clamp(t - d / s); } return sy(t); };
+};
+const OUT = bez(0.16, 1, 0.3, 1), BACK = bez(0.3, 1.45, 0.5, 1), INOUT = bez(0.65, 0, 0.35, 1);
+const own = it => Object.assign(it, { enter: 'cut', exit: 'cut', hold: 'still', mi: 0, noHold: true, plain: true });
+const draw = (env, it) => J.mainDraw(env, own(it));
+const lat = t => K.hasLatin(t);
+const strip = t => (lat(t) ? String(t).trim() : K.strip(t));
+const KAN = /[㐀-鿿豈-﫿々〆ヵヶ]/;
+const reg = (key, def) => J.register('layout', key, Object.assign(def, { set: 'kinetic', poolOnly: true }), 'mojipv');
+const font = (st, role) => J.fontsOf(st, [role])[0];
+const lineOf = env => (env.plan && env.plan.lines || []).find(l => l.index === env.cut.line) || null;
+// a fast move leaves a short trail behind it (a motion blur made of copies, in the text colour)
+const trail = (vx, vy, k) => (k > 0.02 ? { n: 4, dx: -vx / 5, dy: -vy / 5, a: 0.45 * k } : null);
+
+/* ================================================================== 回転文字 */
+const ANGLES = [0, -24, 18, 90, -90, 32, -12, 0];
+reg('mpPile', {
+  name: '回転の山', tags: ['pop', 'graphic'], w: 1, ae: 'scatter', fits: n => n >= 1 && n <= 40,
+  plan(rng, cut, st) { return { font: font(st, 'display'), spin: rng.pick([1, -1]) * rng.range(5, 10), rot0: rng.range(-14, 14), a0: rng.int(0, 7), push: rng.range(0.03, 0.07) }; },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, P = c.params, port = K.isPort(env);
+    const words = K.unitsOf(c, 8).map(strip).filter(Boolean), n = words.length, ts = K.onsets(env, n);
+    const U = Math.min(W, H);
+    // sizes: the first word with kanji (or the longest) leads, the rest smaller
+    let lead = words.findIndex(w => KAN.test(w)); if (lead < 0) lead = words.reduce((b, w, i) => (K.gcount(w) > K.gcount(words[b]) ? i : b), 0);
+    const sizes = words.map((w, i) => Math.min(J.fitSize(w, P.font, (port ? W : W * 0.62) * (i === lead ? 1 : 0.6), U * (i === lead ? 0.42 : 0.24), { track: -0.02 }), U * (i === lead ? 0.42 : 0.22)));
+    // angles: sideways (±90°) only for short words, which still read that way
+    const angOf = i => { let a = ANGLES[(i + P.a0) % ANGLES.length]; if (Math.abs(a) === 90 && K.gcount(words[i]) > 4) a = a > 0 ? 24 : -24; return a; };
+    // positions: the lead word at the centre, the others placed around it where they do not cover each other
+    // (each word as a circle the size of its longer side; tried in rings around the centre)
+    const rad = words.map((w, i) => { const m = J.measure({ text: w, font: P.font, size: sizes[i], track: -0.02 }); return Math.max(m.w, m.h) * 0.46; });
+    const pos = [], key = J.h(P.a0 | 0, n, 77);
+    words.forEach((w, i) => {
+      if (i === lead) { pos[i] = [0, 0]; return; }
+      let best = null, bestHit = Infinity;
+      for (let ring = 1; ring <= 6 && !best; ring++) for (let k = 0; k < 16; k++) {
+        const a = (k / 16 + J.r(key, i, ring) ) * TAU, r = rad[lead] * 0.55 + ring * U * 0.08;
+        const x = Math.cos(a) * r * (port ? 0.85 : 1.5), y = Math.sin(a) * r;
+        let hit = 0; pos.forEach((p2, j) => { if (!p2) return; const d = Math.hypot(x - p2[0], y - p2[1]); hit += Math.max(0, rad[i] + rad[j] - d); });
+        // and inside the frame (with room for the turn): a word past the edge counts as covered
+        hit += Math.max(0, Math.abs(x) + rad[i] * 0.8 - W * 0.47) + Math.max(0, Math.abs(y) + rad[i] * 0.6 - H * 0.47);
+        if (hit < 1e-6) { best = [x, y]; break; }
+        if (hit < bestHit) { bestHit = hit; best = ring === 6 && k === 15 ? [x, y] : null; }
+      }
+      pos[i] = best || [0, (i % 2 ? 1 : -1) * U * 0.32];
+    });
+    const g = (P.rot0 + P.spin * env.lt) * J.DEG, zoom = 1 + P.push * env.lt, cg = Math.cos(g), sg = Math.sin(g);
+    let bb = null;
+    words.forEach((w, i) => {
+      const dt = env.lt - ts[i]; if (dt < 0) return;
+      const q = clamp(dt / 0.2), e = BACK(q), ang = angOf(i);
+      const [px, py] = pos[i], x = W / 2 + (px * cg - py * sg) * zoom, y = H / 2 + (px * sg + py * cg) * zoom;
+      const rot = ang + P.rot0 + P.spin * env.lt + (1 - e) * 55, s = sizes[i] * zoom * (1 + 0.5 * (1 - e));
+      const k = 1 - OUT(q);
+      bb = J.unionBB(bb, draw(env, { text: w, font: P.font, size: s, x, y, rot, color: sc.fg, track: -0.02, streak: trail(0, -s * 0.6 * k, k) }));
+    });
+    return bb;
+  },
+});
+reg('mpGiant', {
+  name: '見切れの巨大文字', tags: ['pop', 'graphic'], w: 1, ae: 'huge', fits: n => n >= 1 && n <= 9,
+  plan(rng, cut, st) { return { font: font(st, 'display'), rot: rng.pick([0, -14, 12, 0, 90]), drift: rng.pick([1, -1]) * rng.range(0.03, 0.07), small: rng.pick(['corner', 'under']) }; },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, P = c.params;
+    const words = K.unitsOf(c, 4).map(strip).filter(Boolean), ts = K.onsets(env, words.length), k = Math.max(0, K.curIdx(ts, env.lt));
+    const w = words[k], dt = env.lt - ts[k], q = clamp(dt / 0.16), e = OUT(q);
+    // one word at a time, bigger than the frame: it zooms in from far bigger and keeps drifting
+    // about a quarter of the word goes past the frame: big, but it still reads (sideways only for 3 glyphs or fewer)
+    const ng = Math.max(1, K.gcount(w)), vertical = Math.abs(P.rot) === 90 && ng <= 3;
+    const base = Math.min(H * 1.15, (vertical ? H : W) * 1.25 / (ng * 0.95));
+    const s = base * (1 + 1.6 * (1 - e)), dx = P.drift * W * env.lt;
+    const r0 = vertical ? P.rot : Math.abs(P.rot) === 90 ? 0 : P.rot;
+    let bb = draw(env, { text: w, font: P.font, size: s, x: W / 2 + dx, y: H / 2, rot: (vertical ? r0 : r0 * (0.6 + 0.4 * e)) + P.drift * 40 * env.lt, color: sc.fg, track: -0.04 });
+    // the whole cut small, so the line still reads
+    const line = strip(c.text), ss = Math.max(Math.min(W, H) * 0.045, Math.min(J.fitSize(line, P.font, W * 0.4, H * 0.06), H * 0.06));
+    if (words.length > 1) bb = J.unionBB(bb, draw(env, { text: line, font: P.font, size: ss, x: P.small === 'corner' ? W * 0.08 : W / 2, y: P.small === 'corner' ? H * 0.9 : H * 0.88, align: P.small === 'corner' ? 'left' : 'center', color: sc.fg }));
+    return bb;
+  },
+});
+
+/* ================================================================== 明朝とルビ */
+// the kanji the cut is about: the first one with a reading, else the first kanji
+function keyKanji(env) {
+  const c = env.cut, t = strip(c.text), ln = lineOf(env);
+  for (const r of (ln && ln.ruby) || []) { const i = t.indexOf(r.base); if (i >= 0) return { ch: r.base, at: i, ruby: r.ruby }; }
+  const m = [...t].findIndex(ch => KAN.test(ch));
+  return m >= 0 ? { ch: [...t][m], at: m, ruby: null } : null;
+}
+reg('mpKanji', {
+  name: '大きな一字とルビ', tags: ['editorial', 'emotional', 'calm'], w: 1, ae: 'center', fits: n => n >= 1 && n <= 30,
+  plan(rng, cut, st) { return { font: font(st, 'display'), body: font(st, 'body'), side: rng.pick([1, -1, 0]), copies: rng.chance(0.4), from: rng.pick([-1, -1, 1]) }; },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, P = c.params, port = K.isPort(env);
+    const key = keyKanji(env);
+    if (!key) return J.LAYOUTS.mpLine.render(env);
+    const t = strip(c.text), big = Math.min(H * (port ? 0.4 : 0.6) / Math.max(1, [...key.ch].length * (port ? 1 : 0.85)), W * (port ? 0.8 : 0.5));
+    const cx = W / 2 + P.side * W * (port ? 0 : 0.16), cy = H * 0.44;
+    const dt = env.lt, q = clamp(dt / 0.14), e = OUT(q), k = 1 - e;
+    // the kanji drops in from above (or below) with a motion blur, and settles
+    const dy = P.from * -1 * (1 - e) * H * 0.55;
+    let bb = draw(env, { text: key.ch, font: P.font, size: big, x: cx, y: cy + dy, color: sc.fg, streak: trail(0, P.from * -H * 0.35 * k, k) });
+    // its reading, a glyph at a time beside it (vertical on the right of the kanji)
+    if (key.ruby) {
+      const rs = Math.max(Math.min(W, H) * 0.04, big * 0.16), rr = [...key.ruby], step = Math.min(0.09, Math.max(0.05, c.dur * 0.25 / rr.length));
+      const shown = rr.filter((_, i) => env.lt >= 0.12 + i * step).join('');
+      if (shown) bb = J.unionBB(bb, draw(env, { text: shown, font: P.body, size: rs, x: cx + big * 0.5 * [...key.ch].length * 0.98 + rs * 0.8, y: cy - big * 0.42, vertical: true, align: 'left', color: sc.accent || sc.fg, track: 0.2 }));
+    }
+    // the rest of the line, small, under (or beside) the kanji
+    const rest = t.length > key.ch.length ? t : '';
+    if (rest) {
+      const ss = Math.max(Math.min(W, H) * 0.045, Math.min(J.fitSize(rest, P.body, W * 0.5, H * 0.07, { track: 0.1 }), H * 0.06));
+      const a = clamp((env.lt - 0.18) / 0.25);
+      if (a > 0) bb = J.unionBB(bb, draw(env, { text: rest, font: P.body, size: ss, x: J.clamp(cx, W * 0.06 + J.measure({ text: rest, font: P.body, size: ss, track: 0.1 }).w / 2, W * 0.94 - J.measure({ text: rest, font: P.body, size: ss, track: 0.1 }).w / 2), y: Math.min(H * 0.92, cy + big * 0.55 + ss * 1.3), color: sc.fg, alpha: INOUT(a), track: 0.1 }));
+    }
+    // two smaller copies of the kanji slide in from the corners on the next beats, cropped by the frame
+    if (P.copies) {
+      const ts = K.onsets(env, 3);
+      [1, 2].forEach(j => {
+        const d2 = env.lt - ts[j]; if (d2 < 0 || ts[j] <= 0) return;
+        const q2 = clamp(d2 / 0.16), e2 = OUT(q2), side = j === 1 ? -1 : 1;
+        const sz = big * 0.62, x = W / 2 + side * (W * 0.46 + (1 - e2) * W * 0.3), y = j === 1 ? H * 0.2 : H * 0.86;
+        bb = J.unionBB(bb, draw(env, { text: key.ch, font: P.font, size: sz, x, y, color: sc.fg, alpha: 0.9, streak: trail(side * W * 0.3 * (1 - e2), 0, 1 - e2) }));
+      });
+    }
+    return bb;
+  },
+});
+// a line set with its kanji bigger and its readings over them; the glyphs come in quickly one after another
+reg('mpLine', {
+  name: 'ルビの行', tags: ['editorial', 'calm', 'emotional'], w: 1, ae: 'center', fits: n => n >= 1 && n <= 30,
+  plan(rng, cut, st) { return { font: font(st, 'display'), body: font(st, 'body'), mirror: rng.chance(0.35), y: rng.pick([0.5, 0.42, 0.58]) }; },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, P = c.params;
+    const t = strip(c.text), chars = [...t], ln = lineOf(env);
+    const size = Math.min(J.fitSize(t, P.font, W * 0.8, H * 0.24, { track: 0.04 }), H * 0.2);
+    const yc = H * (P.mirror ? 0.42 : P.y);
+    const step = Math.min(0.06, c.dur * 0.35 / Math.max(1, chars.length));
+    const n = chars.filter((_, i) => env.lt >= i * step).length;
+    if (!n) return null;
+    // the glyphs that are in, each rising a little as it arrives
+    const it = { text: t, font: P.font, size, x: W / 2, y: yc, track: 0.04, color: sc.fg };
+    it.pre = (e2, x) => {
+      const base = x.charFn;
+      x.charFn = (i, g, nn) => {
+        const d = env.lt - i * step; if (d < 0) return { hide: true };
+        const q = clamp(d / 0.16), r = base ? base(i, g, nn) : null;
+        const mine = { dy: (1 - OUT(q)) * size * 0.25, a: Math.min(1, q * 2.5) };
+        return r ? Object.assign({}, r, { dy: (r.dy || 0) + mine.dy, a: (r.a ?? 1) * mine.a }) : mine;
+      };
+    };
+    let bb = draw(env, it);
+    // readings over their kanji
+    if (ln && ln.ruby && bb) {
+      const lay = J.measure({ text: t, font: P.font, size, track: 0.04 }), x0 = W / 2 - lay.w / 2;
+      for (const r of ln.ruby) {
+        const at = t.indexOf(r.base); if (at < 0 || at >= n) continue;
+        const pre = J.measure({ text: t.slice(0, at), font: P.font, size, track: 0.04 }).w, bw = J.measure({ text: r.base, font: P.font, size, track: 0.04 }).w;
+        const rs = Math.max(Math.min(W, H) * 0.035, size * 0.32);
+        bb = J.unionBB(bb, draw(env, { text: r.ruby, font: P.body, size: rs, x: x0 + pre + bw / 2, y: yc - size * 0.72, color: sc.accent || sc.fg, track: 0.15, alpha: clamp((env.lt - at * step - 0.1) / 0.2) }));
+      }
+    }
+    // the reflection: the line upside down under it, turning into place
+    if (P.mirror) {
+      const q = clamp((env.lt - 0.2) / 0.5), e = INOUT(q);
+      if (q > 0) bb = J.unionBB(bb, draw(env, { text: t, font: P.font, size, x: W / 2, y: yc + size * 1.15, track: 0.04, sy: -1, rot: (1 - e) * 25, color: sc.accent || sc.fg, alpha: 0.55 * e }));
+    }
+    return bb;
+  },
+});
+
+/* ================================================================== 楕円と字幕 */
+// the whole line, small, at the bottom of every cut of this style
+function caption(env, P) {
+  const { W, H, sc } = env, t = strip(env.cut.lineText || env.cut.text), U = Math.min(W, H);
+  // small, but never under the size テキストのみ still draws (3% of the frame)
+  const size = Math.max(U * 0.031, Math.min(U * 0.036, J.fitSize(t, P.body, W * 0.84, U * 0.05, { track: 0.12 })));
+  return draw(env, { text: t, font: P.body, size, x: W / 2, y: H * 0.93, color: sc.fg, alpha: 0.8 * clamp(env.lt / 0.2), track: 0.12 });
+}
+reg('mpDisc', {
+  name: '円の窓', tags: ['editorial', 'calm', 'emotional'], w: 1, ae: 'center', fits: n => n >= 1 && n <= 24,
+  plan(rng, cut, st) { return { font: font(st, 'display'), body: font(st, 'body'), seed: rng.int(0, 999), tilt: rng.range(-0.25, 0.25) }; },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, P = c.params;
+    const chars = [...strip(c.text)].filter(ch => !/\s/.test(ch)), n = chars.length;
+    if (!n) return caption(env, P);
+    const span = Math.min(W * 0.78, n * H * 0.2), x0 = W / 2 - span / 2, ts = chars.map((_, i) => i * Math.min(0.12, c.dur * 0.5 / n));
+    let bb = null;
+    chars.forEach((ch, i) => {
+      const dt = env.lt - ts[i]; if (dt < 0) return;
+      const big = KAN.test(ch) ? 1 : 0.62, sz = Math.min(H * 0.26, span / n * 1.15) * big;
+      const x = n > 1 ? x0 + span * i / (n - 1) : W / 2, y = H * 0.46 + (i - (n - 1) / 2) * H * P.tilt * 0.12 + Math.sin(i * 2.1 + P.seed) * H * 0.05;
+      const fx = x + Math.sin(env.lt * 0.6 + i) * W * 0.004, fy = y + Math.cos(env.lt * 0.5 + i * 1.7) * H * 0.006;
+      // a circle opens on the glyph (it is the mask, never drawn); some stay a little smaller than the glyph
+      const q = clamp(dt / 0.32), r = sz * (J.r(P.seed, i, 3) < 0.25 ? 0.5 : 0.78) * OUT(q);
+      const off = (J.r(P.seed, i, 4) - 0.5) * sz * 0.3;
+      bb = J.unionBB(bb, draw(env, { text: ch, font: P.font, size: sz, x: fx, y: fy, color: sc.fg,
+        clipFn: (ctx) => { ctx.arc(fx + off, fy, Math.max(0.5, r), 0, TAU); } }));
+    });
+    return J.unionBB(bb, caption(env, P));
+  },
+});
+reg('mpArc', {
+  name: '楕円の道', tags: ['editorial', 'calm', 'emotional'], w: 1, ae: 'circle', fits: n => n >= 2 && n <= 30,
+  plan(rng, cut, st) { return { font: font(st, 'display'), body: font(st, 'body'), tilt: rng.range(-18, 18), spin: rng.pick([1, -1]) * rng.range(4, 9), ph: rng.range(0, 360) }; },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, P = c.params;
+    const chars = [...strip(c.text)], n = chars.length;
+    const rx = W * 0.4, ry = H * 0.26, tilt = P.tilt * 0.5 * J.DEG, size = Math.min(H * 0.2, (2 * rx * Math.sin(Math.min(144, 26 + n * 12) / 2 * J.DEG) * 1.1) / Math.max(2, n));
+    const step = Math.min(0.07, c.dur * 0.4 / Math.max(1, n));
+    let bb = null;
+    // glyphs along the near half of an unseen tilted ellipse (a smile, read left to right): the ends — further away —
+    // smaller and fainter; each glides along the curve into place, and the curve keeps sliding a little
+    const items = chars.map((ch, i) => {
+      const dt = env.lt - i * step; if (dt < 0) return null;
+      const q = OUT(clamp(dt / 0.45)), u = n > 1 ? i / (n - 1) : 0.5;
+      const span = Math.min(144, 26 + n * 12);                                        // a short cut uses the middle of the curve
+      const a = (90 + (0.5 - u) * span + P.spin * 0.6 * Math.sin(env.lt * 0.7) + (1 - q) * 30) * J.DEG;
+      const ex = Math.cos(a) * rx, ey = Math.sin(a) * ry, depth = Math.sin(a);         // 1 = nearest
+      const x = W / 2 + ex * Math.cos(tilt) - ey * Math.sin(tilt), y = H * 0.36 + ex * Math.sin(tilt) + ey * Math.cos(tilt);
+      const tx = -Math.sin(a) * rx, ty = Math.cos(a) * ry;                              // tangent (a decreases left → right)
+      const rot = clamp(Math.atan2(-(tx * Math.sin(tilt) + ty * Math.cos(tilt)), -(tx * Math.cos(tilt) - ty * Math.sin(tilt))) / J.DEG, -32, 32);
+      return { i, x, y, depth, rot, a: (0.45 + 0.55 * depth) * Math.min(1, q * 2) };
+    }).filter(Boolean);
+    for (const g of items) bb = J.unionBB(bb, draw(env, { text: chars[g.i], font: P.font, size: size * (0.6 + 0.55 * g.depth), x: g.x, y: g.y, rot: g.rot, color: sc.fg, alpha: g.a }));
+    return J.unionBB(bb, caption(env, P));
+  },
+});
+reg('mpStripe', {
+  name: '縞の大文字', tags: ['editorial', 'graphic', 'calm'], w: 1, ae: 'huge', fits: n => n >= 1 && n <= 12,
+  plan(rng, cut, st) { return { font: font(st, 'display'), body: font(st, 'body'), bands: rng.pick([5, 6, 8]), dir: rng.pick([1, -1]) }; },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, P = c.params;
+    const t = strip(c.text), chars = [...t];
+    // a short cut is shown whole; a longer one by its first kanji (two at most), else its first two glyphs
+    let word = t;
+    if (chars.length > 3) { const ki = chars.findIndex(ch => KAN.test(ch)); word = ki >= 0 ? chars[ki] + (KAN.test(chars[ki + 1] || '') ? chars[ki + 1] : '') : chars.slice(0, 2).join(''); }
+    const size = Math.min(J.fitSize(word, P.font, W * 0.86, H * 0.66, { track: -0.02 }), H * 0.66);
+    const m = J.measure({ text: word, font: P.font, size, track: -0.02 }), x0 = W / 2 - m.w / 2 - size * 0.1, x1 = W / 2 + m.w / 2 + size * 0.1;
+    const top = H * 0.46 - m.h * 0.62, bh = m.h * 1.24 / P.bands;
+    // horizontal stripes (masks) reveal the glyph band by band, each sweeping across
+    const bands = [];
+    for (let b = 0; b < P.bands; b++) {
+      const q = OUT(clamp((env.lt - b * 0.035) / 0.38)); if (q <= 0) continue;
+      const w = (x1 - x0) * q; bands.push(P.dir > 0 ? [x0, top + b * bh, w, bh * 0.82] : [x1 - w, top + b * bh, w, bh * 0.82]);
+    }
+    let bb = null;
+    if (bands.length) bb = draw(env, { text: word, font: P.font, size, x: W / 2, y: H * 0.46, track: -0.02, color: sc.fg, clipFn: (ctx) => { for (const r of bands) ctx.rect(r[0], r[1], r[2], r[3]); } });
+    // the rest of the line, small, next to it
+    if (t !== word) {
+      const ss = Math.max(Math.min(W, H) * 0.045, Math.min(J.fitSize(t, P.body, W * 0.4, H * 0.06), H * 0.06)), a = clamp((env.lt - 0.35) / 0.3);
+      if (a > 0) bb = J.unionBB(bb, draw(env, { text: t, font: P.body, size: ss, x: x1 + ss * 0.5, y: H * 0.46 + m.h * 0.42, align: 'left', color: sc.fg, alpha: INOUT(a), track: 0.1 }));
+    }
+    return J.unionBB(bb, caption(env, P));
+  },
+});
+
+/* ---------------------------------------------------------------- styles */
+const scheme = (bg, fg, accent) => ({ bg, fg, accent, sub: J.mix(fg, bg, 0.45), accent2: fg, ink: fg, dim: J.mix(bg, fg, 0.07), ghostA: accent, ghostB: fg });
+const pool = (layout, o) => Object.assign({ layout, enter: { cut: 1 }, exit: { cut: 1 }, hold: { still: 1 }, treat: { none: 1 }, cam: { push: 1 }, trans: {}, fx: {}, decor: {}, bg: {} }, o || {});
+const S = {
+  mpSpin: {
+    name: '回転文字', desc: '一色の地に太い丸ゴシック。語が角度をつけて飛び込み、絵ごと回り続ける。画面に入りきらない一語', moods: ['pop', 'graphic'],
+    schemes: [scheme('#FF3E7F', '#FFFFFF', '#FFFFFF'), scheme('#1C2BF2', '#FFFFFF', '#FFFFFF'), scheme('#111111', '#F4F1EA', '#F4F1EA')],
+    fonts: { display: ['round'], serif: ['round'], body: ['round'], mono: ['mono'] }, chorusHit: false, oneCut: 0.95,
+    pool: pool({ mpPile: 1.6, mpGiant: 0.7 }),
+    adobeFonts: { display: ['ad_logomaru'], serif: ['ad_logomaru'], body: ['ad_shs_b'], latin: 'futura-pt' },
+  },
+  mpRuby: {
+    name: '明朝とルビ', desc: '生成りと二色の明朝。大きな一字にルビ、ぶれを残して落ちて止まる。行の映り込み（ルビは 漢字《かんじ》 と書く）', moods: ['editorial', 'emotional', 'calm'],
+    schemes: [scheme('#F1EBDD', '#1E1A16', '#9C2F3F'), scheme('#25241C', '#EFE6CF', '#C9A86A'), scheme('#22364A', '#EDE6D3', '#E2B6A0')],
+    fonts: { display: ['mincho_black'], serif: ['shippori'], body: ['mincho'], mono: ['mono'] }, chorusHit: false, oneCut: 0.6,
+    pool: pool({ mpKanji: 1.3, mpLine: 1 }, { trans: { cover: 1, uncover: 1 } }),
+    adobeFonts: { display: ['ad_ryodisp_h'], serif: ['ad_ten'], body: ['ad_tsukua'] },
+  },
+  mpEllipse: {
+    name: '楕円と字幕', desc: '白地に細いゴシック。円の窓から字が開き、見えない楕円に沿って流れる。下にはいつも行の字幕', moods: ['editorial', 'calm', 'emotional'],
+    schemes: [scheme('#FAFAFC', '#2B3A67', '#2B3A67'), scheme('#ECEDEF', '#1F2533', '#1F2533'), scheme('#11152A', '#E9ECF5', '#E9ECF5')],
+    fonts: { display: ['gothic_light'], serif: ['mincho_light'], body: ['gothic_light'], mono: ['mono'] }, chorusHit: false, oneCut: 0.7,
+    pool: pool({ mpDisc: 1.2, mpArc: 1.1, mpStripe: 0.8 }),
+    adobeFonts: { display: ['ad_shs_l'], serif: ['ad_tsukua'], body: ['ad_shs_l'] },
+  },
+};
+for (const [k, v] of Object.entries(S)) {
+  if (J.STYLES[k]) continue;
+  J.STYLES[k] = Object.assign({ bias: {}, texture: { grain: 0, paper: 0, scan: 0 }, hud: false, glow: 0, decor: {}, ghost: 0, textOnly: true }, v);
+  if (!J.STYLE_ORDER.includes(k)) J.STYLE_ORDER.push(k);
+}
+})();
+
 /* English labels are applied after all expression packs register, before the editor starts.
    Internal IDs and project JSON remain language independent. */
 (() => {
@@ -37379,7 +37696,10 @@ J.calmPass = (plan, project, st) => {
     street: ['Street', 'Yellow, black and red heavy Gothic; words slammed, cropped and packed into a grid'],
     tegaki: ['Handwritten Song', 'Paper and ink handwriting; letters written one by one, drifting slowly'],
     showa: ['Showa Poster', 'Cream, navy and vermilion heavy Mincho; a Showa-era poster that turns lines vertical and horizontal'],
-    minimal: ['White Space', 'Thin Gothic and one big word on white; only space and scale']
+    minimal: ['White Space', 'Thin Gothic and one big word on white; only space and scale'],
+    mpSpin: ["Spinning Type", "A heavy round Gothic on one colour: words fly in at their own angles and pile up while the picture keeps turning; one word bigger than the frame"],
+    mpRuby: ["Mincho & Ruby", "Two inks on paper, Mincho: one big kanji with its reading beside it, dropped in with a motion blur; a line with its reflection (write readings as 漢字《かんじ》)"],
+    mpEllipse: ["Ellipse & Caption", "A thin Gothic on white: glyphs open in circles and glide along an unseen ellipse; the whole line always small at the bottom"]
   };
   for (const [key, [name, desc]] of Object.entries(styles)) {
     J.STYLES[key].name = name; J.STYLES[key].desc = desc;
@@ -37399,7 +37719,7 @@ J.calmPass = (plan, project, st) => {
 })();
 
 (() => {
-  const S = {"noir": ["黑白色差", "黑白畫面，帶有青色與琥珀色的色差偏移"], "crimson": ["緋紅訊號", "深紅、單色字體與損毀的資料"], "caution": ["警示", "黃、紅、藍配上儀表圖形"], "magenta": ["流行洋紅", "亮粉紅、圓潤粗體與標註線"], "paper": ["紙與墨", "紙張質感、靛藍、洋紅與襯線殘影"], "hud": ["暗色 HUD", "炭灰、細框、橘色點綴與日蝕"], "mint": ["薄荷終端機", "黑、青綠與萊姆綠，加上掃描效果"], "specimen": ["字體樣本", "墨色背景搭配襯線註解"], "transit": ["交通號誌", "橄欖綠與黃，搭配標誌與網點"], "blueprint": ["藍圖", "藍、白、黑的圖像拼貼"], "rouge": ["胭脂漸層", "淺灰與紅色漸層，搭配膠囊形狀"], "mono": ["單色 RGB", "灰色空間、白色襯線與強烈的 RGB 分離"], "sakura": ["櫻花", "柔和櫻粉與梅紫，搭配圓體與襯線字"], "ocean": ["深海", "海軍藍、發光青色、氣泡與細黑體"], "sunset": ["夕陽漸層", "橘到紫的漸層、粗襯線與逆光"], "forest": ["森林筆記", "苔綠、原色紙與鉛筆字"], "vapor": ["蒸氣波", "粉彩粉紅與藍，加上 VHS 光暈"], "newsprint": ["新聞紙", "灰色紙張、黑與紅，帶網點套印"], "synth80": ["80 年代合成", "黑底配霓虹洋紅、青色與掃描線"], "kraft": ["牛皮紙", "暖色紙張、紅與靛藍印章及紙膠帶"], "candy": ["糖果", "薄荷與水果粉彩，搭配彈跳文字"], "acid": ["酸性", "黑、螢光綠與洋紅，搭配破損字體"], "sumi": ["墨與朱", "和紙、毛筆字與朱紅印章"], "gold": ["金色夜晚", "深黑、燙金、象牙色襯線與閃光"], "bsSlam": ["節拍重擊", "每拍一詞重擊、黑底白色特粗字、副歌開頭黑白反轉"], "bsRefrain": ["疊句", "同一句隨拍逐行堆疊、舊行轉為空心字、流行雙色"], "bsScale": ["大與小", "一個大詞對一行小字、米白底墨字、以留白取勝"], "bsBallad": ["抒情", "隨拍逐字打出、夜空深藍配明體、安靜的動態"], "edMincho": ["明體與留白", "米白、墨黑與朱紅的明體；直排、巨大單字與留白"], "street": ["街頭", "黃、黑、紅的特粗黑體；字詞重擊、出血裁切、塞進格子"], "tegaki": ["手寫之歌", "紙與墨的手寫字；一字一字寫出，緩緩漂動"], "showa": ["昭和海報", "奶油、深藍與朱紅的粗明體；直橫交錯的昭和宣傳海報"], "minimal": ["白色留白", "白底細黑體與一個大字；只靠留白與大小對比"]};
+  const S = {"noir": ["黑白色差", "黑白畫面，帶有青色與琥珀色的色差偏移"], "crimson": ["緋紅訊號", "深紅、單色字體與損毀的資料"], "caution": ["警示", "黃、紅、藍配上儀表圖形"], "magenta": ["流行洋紅", "亮粉紅、圓潤粗體與標註線"], "paper": ["紙與墨", "紙張質感、靛藍、洋紅與襯線殘影"], "hud": ["暗色 HUD", "炭灰、細框、橘色點綴與日蝕"], "mint": ["薄荷終端機", "黑、青綠與萊姆綠，加上掃描效果"], "specimen": ["字體樣本", "墨色背景搭配襯線註解"], "transit": ["交通號誌", "橄欖綠與黃，搭配標誌與網點"], "blueprint": ["藍圖", "藍、白、黑的圖像拼貼"], "rouge": ["胭脂漸層", "淺灰與紅色漸層，搭配膠囊形狀"], "mono": ["單色 RGB", "灰色空間、白色襯線與強烈的 RGB 分離"], "sakura": ["櫻花", "柔和櫻粉與梅紫，搭配圓體與襯線字"], "ocean": ["深海", "海軍藍、發光青色、氣泡與細黑體"], "sunset": ["夕陽漸層", "橘到紫的漸層、粗襯線與逆光"], "forest": ["森林筆記", "苔綠、原色紙與鉛筆字"], "vapor": ["蒸氣波", "粉彩粉紅與藍，加上 VHS 光暈"], "newsprint": ["新聞紙", "灰色紙張、黑與紅，帶網點套印"], "synth80": ["80 年代合成", "黑底配霓虹洋紅、青色與掃描線"], "kraft": ["牛皮紙", "暖色紙張、紅與靛藍印章及紙膠帶"], "candy": ["糖果", "薄荷與水果粉彩，搭配彈跳文字"], "acid": ["酸性", "黑、螢光綠與洋紅，搭配破損字體"], "sumi": ["墨與朱", "和紙、毛筆字與朱紅印章"], "gold": ["金色夜晚", "深黑、燙金、象牙色襯線與閃光"], "bsSlam": ["節拍重擊", "每拍一詞重擊、黑底白色特粗字、副歌開頭黑白反轉"], "bsRefrain": ["疊句", "同一句隨拍逐行堆疊、舊行轉為空心字、流行雙色"], "bsScale": ["大與小", "一個大詞對一行小字、米白底墨字、以留白取勝"], "bsBallad": ["抒情", "隨拍逐字打出、夜空深藍配明體、安靜的動態"], "edMincho": ["明體與留白", "米白、墨黑與朱紅的明體；直排、巨大單字與留白"], "street": ["街頭", "黃、黑、紅的特粗黑體；字詞重擊、出血裁切、塞進格子"], "tegaki": ["手寫之歌", "紙與墨的手寫字；一字一字寫出，緩緩漂動"], "showa": ["昭和海報", "奶油、深藍與朱紅的粗明體；直橫交錯的昭和宣傳海報"], "minimal": ["白色留白", "白底細黑體與一個大字；只靠留白與大小對比"], "mpSpin": ["旋轉文字", "單色底與粗圓黑體：字以各自的角度飛入堆疊，整個畫面持續旋轉；一個大到出框的字"], "mpRuby": ["明朝與注音", "米色紙與兩色明朝：大大的一個漢字配上讀音，帶動態模糊落下；行與倒影（讀音寫成 漢字《かんじ》）"], "mpEllipse": ["橢圓與字幕", "白底細黑體：字從圓形窗中打開，沿著看不見的橢圓流動；下方總有整行的小字幕"]};
   for (const [k, [n, d]] of Object.entries(S)) if (J.STYLES[k]) { J.STYLES[k].name = n; J.STYLES[k].desc = d; }
   const M = {"glitch": "故障", "calm": "溫和", "pop": "流行", "graphic": "圖像", "editorial": "編輯排版", "emotional": "感性", "chaos": "隨心所欲"};
   for (const [k, n] of Object.entries(M)) if (J.MOODS[k]) J.MOODS[k].name = n;
@@ -37615,7 +37935,10 @@ J.calmPass = (plan, project, st) => {
     street: ['街頭', '黃、黑、紅的特粗黑體；字詞重擊、出血裁切、塞進格子'],
     tegaki: ['手寫之歌', '紙與墨的手寫字；一字一字寫出，緩緩漂動'],
     showa: ['昭和海報', '奶油、深藍與朱紅的粗明體；直橫交錯的昭和宣傳海報'],
-    minimal: ['白色留白', '白底細黑體與一個大字；只靠留白與大小對比']
+    minimal: ['白色留白', '白底細黑體與一個大字；只靠留白與大小對比'],
+    mpSpin: ["旋轉文字", "單色底與粗圓黑體：字以各自的角度飛入堆疊，整個畫面持續旋轉；一個大到出框的字"],
+    mpRuby: ["明朝與注音", "米色紙與兩色明朝：大大的一個漢字配上讀音，帶動態模糊落下；行與倒影（讀音寫成 漢字《かんじ》）"],
+    mpEllipse: ["橢圓與字幕", "白底細黑體：字從圓形窗中打開，沿著看不見的橢圓流動；下方總有整行的小字幕"]
   };
   for (const [key, [name, desc]] of Object.entries(styles)) {
     if (J.STYLES[key]) { J.STYLES[key].name = name; J.STYLES[key].desc = desc; }

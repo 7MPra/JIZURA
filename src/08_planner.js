@@ -72,6 +72,15 @@ J.parseLyrics = (raw) => {
     let note = null;
     const bar = s.indexOf('|');
     if (bar >= 0) { note = s.slice(bar + 1).trim() || null; s = s.slice(0, bar).trim(); }
+    // ルビ (振り仮名): 漢字《かんじ》 or ｜base《reading》 (青空文庫 notation) — the reading is kept aside, the line keeps the base.
+    // Only a line with 《…》 is touched, so lyrics written without it read exactly as before.
+    let ruby = null;
+    if (s.includes('《')) {
+      ruby = [];
+      s = s.replace(/｜([^｜《》]+)《([^《》]+)》/g, (_, b, r) => { ruby.push({ base: b, ruby: r.trim() }); return b; })
+        .replace(/([\u3400-\u9fff\uf900-\ufaff々〆ヵヶ]+)《([^《》]+)》/g, (_, b, r) => { ruby.push({ base: b, ruby: r.trim() }); return b; });
+      if (!ruby.length) ruby = null;
+    }
     let impact = false;
     if (/[!！]$/.test(s) && s.length > 1 && /!$/.test(s)) { impact = true; s = s.slice(0, -1).trim(); }
     const emph = [];
@@ -84,6 +93,7 @@ J.parseLyrics = (raw) => {
     }
     if (!s) continue;
     const base = { text: s, note, impact, emph, manual, gapBefore: pendingGap, src: ri };
+    if (ruby) base.ruby = ruby;
     pendingGap = false;
     if (times.length) times.forEach(t => lines.push(Object.assign({}, base, { lrc: t })));
     else lines.push(Object.assign({}, base, { lrc: null }));
@@ -415,7 +425,7 @@ J.plan = (project, audio) => {
     const n = [...ln.text.replace(/\s+/g, '')].length;
     const visEnd = Math.min(e, s + Math.max(3.6, n * 0.5 + 1.2));
     const D = visEnd - s;
-    plan.lines.push({ index: li, src: ln.src, lrc: ln.lrc, text: ln.text, start: s, end: e, visEnd, note: ln.note, impact: ln.impact, emph: ln.emph, chunks: null, seed: lineSeed, gapBefore: !!ln.gapBefore });
+    plan.lines.push({ index: li, src: ln.src, lrc: ln.lrc, text: ln.text, start: s, end: e, visEnd, note: ln.note, impact: ln.impact, emph: ln.emph, chunks: null, seed: lineSeed, gapBefore: !!ln.gapBefore, ruby: ln.ruby || null });
     const chunks = ln.manual || (plan.lang === 'en' ? J.phraseChunks(J.chunkText(ln.text)) : J.chunkText(ln.text));
     plan.lines[li].chunks = chunks;
     const L = J.lerp(1.3, 0.5, fx.density);

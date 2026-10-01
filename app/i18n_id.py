@@ -47,9 +47,14 @@ STYLES = {
     'tegaki': ('Lagu Tulisan Tangan', 'Tulisan tangan di atas kertas; huruf ditulis satu per satu, melayang pelan'),
     'showa': ('Poster Showa', 'Mincho tebal krem, biru tua, merah; poster era Showa yang membolak-balik vertikal dan horizontal'),
     'minimal': ('Ruang Putih', 'Gothic tipis dan satu kata besar di atas putih; hanya ruang dan skala'),
+    'mpSpin': ('Huruf Berputar', 'Gothic bulat tebal di atas satu warna: kata masuk dengan sudutnya sendiri dan menumpuk sementara gambar terus berputar; satu kata lebih besar dari layar'),
+    'mpRuby': ('Mincho & Ruby', 'Dua tinta di atas kertas, Mincho: satu kanji besar dengan cara bacanya, jatuh dengan motion blur; baris dengan pantulannya (tulis bacaan sebagai 漢字《かんじ》)'),
+    'mpEllipse': ('Elips & Takarir', 'Gothic tipis di atas putih: huruf terbuka dalam lingkaran dan meluncur di sepanjang elips tak terlihat; seluruh baris selalu kecil di bawah'),
 }
 
 BODY = {
+    '<code>漢字《かんじ》</code> <code>｜夜明け《よあけ》</code>': '<code>｜base《reading》</code>',
+    '… ルビ（振り仮名）。「明朝とルビ」などで漢字の横・上に出ます': '… ruby (cara baca). Tampil di samping atau di atas kanji pada gaya seperti Mincho & Ruby',
     'title="画面効果・つなぎ・カメラの動き・装飾・文字の加工をまとめて切り、全部の行を同じ動きにします"><input id="calmOn" type="checkbox"><span>落ち着いた演出</span></label>': 'title="Matikan efek layar, transisi, gerak kamera, dekorasi, dan olahan teks sekaligus, lalu beri setiap baris gerak yang sama"><input id="calmOn" type="checkbox"><span>Tenang</span></label>',
     '>動き<select id="calmMotion" aria-label="落ち着いた演出の動き"><option value="fade">フェード</option><option value="chars">一字ずつフェード</option><option value="wipe">ワイプ</option><option value="cut">動きなし</option></select>': '>Gerak<select id="calmMotion" aria-label="Gerak mode tenang"><option value="fade">Fade</option><option value="chars">Fade per huruf</option><option value="wipe">Wipe</option><option value="cut">Tanpa gerak</option></select>',
     'title="文字を自分で動かすレイアウトを、中央・縦組・大きく・積み重ねのどれかに置き換えます"><input id="calmLayouts" type="checkbox" checked><span>レイアウトも控えめに</span></label>': 'title="Ganti layout yang menggerakkan kata sendiri dengan tengah, vertikal, besar, atau bertumpuk"><input id="calmLayouts" type="checkbox" checked><span>Layout juga sederhana</span></label>',

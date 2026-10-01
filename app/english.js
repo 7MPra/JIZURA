@@ -231,7 +231,10 @@
     street: ['Street', 'Yellow, black and red heavy Gothic; words slammed, cropped and packed into a grid'],
     tegaki: ['Handwritten Song', 'Paper and ink handwriting; letters written one by one, drifting slowly'],
     showa: ['Showa Poster', 'Cream, navy and vermilion heavy Mincho; a Showa-era poster that turns lines vertical and horizontal'],
-    minimal: ['White Space', 'Thin Gothic and one big word on white; only space and scale']
+    minimal: ['White Space', 'Thin Gothic and one big word on white; only space and scale'],
+    mpSpin: ["Spinning Type", "A heavy round Gothic on one colour: words fly in at their own angles and pile up while the picture keeps turning; one word bigger than the frame"],
+    mpRuby: ["Mincho & Ruby", "Two inks on paper, Mincho: one big kanji with its reading beside it, dropped in with a motion blur; a line with its reflection (write readings as 漢字《かんじ》)"],
+    mpEllipse: ["Ellipse & Caption", "A thin Gothic on white: glyphs open in circles and glide along an unseen ellipse; the whole line always small at the bottom"]
   };
   for (const [key, [name, desc]] of Object.entries(styles)) {
     J.STYLES[key].name = name; J.STYLES[key].desc = desc;

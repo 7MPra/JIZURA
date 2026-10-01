@@ -1,6 +1,8 @@
 """English copy for the browser edition. The Japanese source stays authoritative."""
 
 BODY = {
+    '<code>漢字《かんじ》</code> <code>｜夜明け《よあけ》</code>': '<code>｜base《reading》</code>',
+    '… ルビ（振り仮名）。「明朝とルビ」などで漢字の横・上に出ます': '… ruby (reading). Shown beside or above the kanji in styles such as Mincho & Ruby',
     'title="画面効果・つなぎ・カメラの動き・装飾・文字の加工をまとめて切り、全部の行を同じ動きにします"><input id="calmOn" type="checkbox"><span>落ち着いた演出</span></label>': 'title="Turn off screen effects, transitions, camera moves, decorations and text treatments at once, and give every line the same motion"><input id="calmOn" type="checkbox"><span>Calm</span></label>',
     '>動き<select id="calmMotion" aria-label="落ち着いた演出の動き"><option value="fade">フェード</option><option value="chars">一字ずつフェード</option><option value="wipe">ワイプ</option><option value="cut">動きなし</option></select>': '>Motion<select id="calmMotion" aria-label="Calm motion"><option value="fade">Fade</option><option value="chars">Fade letter by letter</option><option value="wipe">Wipe</option><option value="cut">No motion</option></select>',
     'title="文字を自分で動かすレイアウトを、中央・縦組・大きく・積み重ねのどれかに置き換えます"><input id="calmLayouts" type="checkbox" checked><span>レイアウトも控えめに</span></label>': 'title="Replace layouts that move the words by themselves with centred, vertical, big or stacked"><input id="calmLayouts" type="checkbox" checked><span>Plain layouts too</span></label>',

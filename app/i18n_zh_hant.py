@@ -1,6 +1,8 @@
 """Traditional Chinese (Taiwan) copy for the browser edition. Same glossary keys as app/english.py."""
 
 BODY = {
+    '<code>漢字《かんじ》</code> <code>｜夜明け《よあけ》</code>': '<code>漢字《reading》</code> <code>｜base《reading》</code>',
+    '… ルビ（振り仮名）。「明朝とルビ」などで漢字の横・上に出ます': '… 注音（讀音）。在「明朝與注音」等樣式中顯示在漢字旁邊或上方',
     'title="画面効果・つなぎ・カメラの動き・装飾・文字の加工をまとめて切り、全部の行を同じ動きにします"><input id="calmOn" type="checkbox"><span>落ち着いた演出</span></label>': 'title="一次關閉畫面效果、轉場、鏡頭移動、裝飾與文字加工，讓每一行都用同樣的動作"><input id="calmOn" type="checkbox"><span>沉穩演出</span></label>',
     '>動き<select id="calmMotion" aria-label="落ち着いた演出の動き"><option value="fade">フェード</option><option value="chars">一字ずつフェード</option><option value="wipe">ワイプ</option><option value="cut">動きなし</option></select>': '>動作<select id="calmMotion" aria-label="沉穩演出的動作"><option value="fade">淡入</option><option value="chars">逐字淡入</option><option value="wipe">擦入</option><option value="cut">不動</option></select>',
     'title="文字を自分で動かすレイアウトを、中央・縦組・大きく・積み重ねのどれかに置き換えます"><input id="calmLayouts" type="checkbox" checked><span>レイアウトも控えめに</span></label>': 'title="把會自己移動文字的版面，換成置中、直排、放大或堆疊"><input id="calmLayouts" type="checkbox" checked><span>版面也收斂</span></label>',
@@ -439,6 +441,9 @@ STYLES = {
     'tegaki': ('手寫之歌', '紙與墨的手寫字；一字一字寫出，緩緩漂動'),
     'showa': ('昭和海報', '奶油、深藍與朱紅的粗明體；直橫交錯的昭和宣傳海報'),
     'minimal': ('白色留白', '白底細黑體與一個大字；只靠留白與大小對比'),
+    'mpSpin': ('旋轉文字', '單色底與粗圓黑體：字以各自的角度飛入堆疊，整個畫面持續旋轉；一個大到出框的字'),
+    'mpRuby': ('明朝與注音', '米色紙與兩色明朝：大大的一個漢字配上讀音，帶動態模糊落下；行與倒影（讀音寫成 漢字《かんじ》）'),
+    'mpEllipse': ('橢圓與字幕', '白底細黑體：字從圓形窗中打開，沿著看不見的橢圓流動；下方總有整行的小字幕'),
 }
 
 MOODS = {
