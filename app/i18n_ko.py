@@ -1,6 +1,20 @@
 """Korean copy for the browser edition (same glossary keys as app/english.py). The Japanese source stays authoritative."""
 
 BODY = {
+    'title="画面効果・つなぎ・カメラの動き・装飾・文字の加工をまとめて切り、全部の行を同じ動きにします"><input id="calmOn" type="checkbox"><span>落ち着いた演出</span></label>': 'title="화면 효과·전환·카메라 움직임·장식·문자 가공을 한꺼번에 끄고, 모든 줄을 같은 움직임으로 합니다"><input id="calmOn" type="checkbox"><span>차분한 연출</span></label>',
+    '>動き<select id="calmMotion" aria-label="落ち着いた演出の動き"><option value="fade">フェード</option><option value="chars">一字ずつフェード</option><option value="wipe">ワイプ</option><option value="cut">動きなし</option></select>': '>움직임<select id="calmMotion" aria-label="차분한 연출의 움직임"><option value="fade">페이드</option><option value="chars">한 글자씩 페이드</option><option value="wipe">와이프</option><option value="cut">움직임 없음</option></select>',
+    'title="文字を自分で動かすレイアウトを、中央・縦組・大きく・積み重ねのどれかに置き換えます"><input id="calmLayouts" type="checkbox" checked><span>レイアウトも控えめに</span></label>': 'title="글자를 스스로 움직이는 레이아웃을 가운데·세로쓰기·크게·쌓기 중 하나로 바꿉니다"><input id="calmLayouts" type="checkbox" checked><span>레이아웃도 담백하게</span></label>',
+    '<small class="muted calm-note">行ごと・カットごとに指定した設定とロックした行はそのまま使います。オフにすれば元の演出に戻ります。</small>': '<small class="muted calm-note">줄별·컷별로 지정한 설정과 잠근 줄은 그대로 둡니다. 끄면 원래 연출로 돌아갑니다.</small>',
+    'title="再生をこの範囲だけにします（書き出しの範囲は変わりません）。キー I / O で現在位置を開始 / 終了に">プレビュー範囲</span>': 'title="이 범위만 재생합니다(내보내기 범위는 바뀌지 않습니다). I / O 키로 현재 위치를 시작 / 끝으로">미리보기 범위</span>',
+    'aria-label="プレビュー範囲"': 'aria-label="미리보기 범위"',
+    '>開始<input id="pvIn"': '>시작<input id="pvIn"',
+    'aria-label="プレビューの開始時刻"': 'aria-label="미리보기 시작 시간"',
+    'title="現在位置を開始にする（キー I）">現在位置</button>': 'title="현재 위치를 시작으로(I 키)">현재 위치</button>',
+    '>終了<input id="pvOut"': '>끝<input id="pvOut"',
+    'placeholder="曲の終わり"': 'placeholder="곡의 끝"',
+    'aria-label="プレビューの終了時刻"': 'aria-label="미리보기 끝 시간"',
+    'title="現在位置を終了にする（キー O）">現在位置</button>': 'title="현재 위치를 끝으로(O 키)">현재 위치</button>',
+    'title="範囲を解除して曲全体を再生">解除</button>': 'title="범위를 해제하고 곡 전체를 재생">해제</button>',
     'placeholder="Web プロジェクト ID（例: abc1def）"': 'placeholder="웹 프로젝트 ID(예: abc1def)"',
     '<button id="btnAdobeKit">キットを読み込む</button>': '<button id="btnAdobeKit">키트 불러오기</button>',
     'placeholder="CSS で使うフォント名（例: a-otf-ryumin-pr6n）"': 'placeholder="CSS에서 쓰는 폰트 이름(예: a-otf-ryumin-pr6n)"',
@@ -185,6 +199,17 @@ BODY = {
 }
 
 UI = {
+    "'落ち着いた演出：オン（効果を切り、全部の行を同じ動きにします）'": "'차분한 연출: 켬 (효과를 끄고 모든 줄을 같은 움직임으로)'",
+    "'落ち着いた演出：オフ（元の演出に戻しました）'": "'차분한 연출: 끔 (원래 연출로 되돌렸습니다)'",
+    '`開始は 00:00.00〜${J.fmtTime(D)} の間で指定してください`': '`시작은 00:00.00~${J.fmtTime(D)} 사이로 지정해 주세요`',
+    '`終了は曲の長さ（${J.fmtTime(D)}）までで指定してください`': '`끝은 곡 길이(${J.fmtTime(D)})까지로 지정해 주세요`',
+    "'終了は開始より後にしてください'": "'끝은 시작보다 뒤여야 합니다'",
+    "'時刻を読み取れませんでした（例：3:22.44 / 3.22.44 / 202.44）'": "'시간을 읽을 수 없습니다(예: 3:22.44 / 3.22.44 / 202.44)'",
+    "'プレビュー範囲：曲全体'": "'미리보기 범위: 곡 전체'",
+    '開始時刻（分:秒.1/100）': '시작 시간(분:초.1/100)',
+    '\u30003:22.44 / 3.22.44 / 202.44（秒）で入力できます。空にすると自動に戻ります': ' · 3:22.44 / 3.22.44 / 202.44(초)로 입력할 수 있습니다. 비우면 자동으로 돌아갑니다',
+    '${i + 1}行目の開始時刻': '${i + 1}행 시작 시간',
+    '`順番を保つため、前後の${pushed}行の開始時刻も動かしました`': '`순서를 지키기 위해 앞뒤 ${pushed}행의 시작 시간도 옮겼습니다`',
     'Adobe Fonts の書体で表示しています': 'Adobe Fonts 서체로 표시하고 있습니다',
     "'Adobe Fonts を読み込みました：'": "'Adobe Fonts를 불러왔습니다: '",
     "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'Adobe Fonts의 폰트 이름을 「CSS에서 쓰는 폰트 이름」에 넣고 추가하세요'",

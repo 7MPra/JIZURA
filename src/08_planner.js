@@ -202,6 +202,51 @@ J.phraseChunks = (words) => {
   return out.length ? out : words;
 };
 
+/* ---------------- line numbers across a lyric edit ----------------
+   Hand-set times (timing.lineTimes), per-line settings (overrides) and the export range are kept by line number.
+   When the lyrics are edited so lines come or go, every number after the edit pointed at another line, and that line's
+   lyric played at the old line's time. J.lineIndexMap(oldText, newText) → map[oldIndex] = newIndex (or -1: removed):
+   lines are matched by their text in order (longest common subsequence); between two matched lines, lines that were
+   changed in place (a typo fixed) are paired in order, so they keep their settings. null when nothing moved. */
+J.lineIndexMap = (oldText, newText) => {
+  const key = l => (l.interlude ? '\u0000inter:' + (l.secs || '') : String(l.text).replace(/\s+/g, ' ').trim());
+  const A = J.parseLyrics(oldText || '').lines.map(key), B = J.parseLyrics(newText || '').lines.map(key);
+  const n = A.length, m = B.length;
+  if (n === m && A.every((k, i) => k === B[i])) return null;
+  if (n * m > 4e6) return null;                                  // a huge paste: leave it
+  const L = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const map = new Array(n).fill(-1), pairs = [];
+  for (let i = 0, j = 0; i < n && j < m;) {
+    if (A[i] === B[j]) { pairs.push([i, j]); i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) i++; else j++;
+  }
+  pairs.forEach(([i, j]) => { map[i] = j; });
+  // the unmatched runs between anchors: lines changed in place keep their number, one for one, in order
+  const anchors = [[-1, -1]].concat(pairs, [[n, m]]);
+  for (let k = 0; k + 1 < anchors.length; k++) {
+    const [i0, j0] = anchors[k], [i1, j1] = anchors[k + 1];
+    const olds = [], news = [];
+    for (let i = i0 + 1; i < i1; i++) olds.push(i);
+    for (let j = j0 + 1; j < j1; j++) news.push(j);
+    const kk = Math.min(olds.length, news.length);
+    // the same count: changed in place; otherwise lines were added or removed too — pair only what lines up from the start
+    for (let q = 0; q < kk; q++) if (olds.length === news.length || A[olds[q]].length && B[news[q]].length && (A[olds[q]][0] === B[news[q]][0] || olds.length === 1 && news.length === 1)) map[olds[q]] = news[q];
+  }
+  return map;
+};
+/* move an object keyed by line number along a lineIndexMap (entries of removed lines are dropped) */
+J.remapByLine = (obj, map) => {
+  if (!obj || !map) return obj;
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    const i = +k;
+    if (!Number.isInteger(i) || i < 0) { out[k] = v; continue; }
+    if (i >= map.length) continue;                               // a line that is not in the lyrics any more
+    if (map[i] >= 0) out[map[i]] = v;
+  }
+  return out;
+};
+
 /* ---------------- timing ---------------- */
 J.computeTiming = (project, parsed, audio) => {
   const T = project.timing || {};
@@ -637,6 +682,8 @@ J.plan = (project, audio) => {
   plan.energyRate = audio && audio.energyRate ? audio.energyRate : 0;
   // テキストのみ: the song is staged section by section (src/11x_system.js)
   if (J.systemDirect) J.systemDirect(plan, st);
+  // 落ち着いた演出: one gentle motion for every line, no effects (src/11y_calm.js) — only when the project turns it on
+  if (J.calmPass) J.calmPass(plan, project, st);
   return plan;
 };
 

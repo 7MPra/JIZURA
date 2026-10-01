@@ -42,7 +42,10 @@ const EZ = J.EZ;
 /* ---------------------------------------------------------------- shared */
 const POP = 0.1;                                            // seconds: the appearance of a word (about 2 frames at 24 fps)
 // scale of a word dt seconds after it appears (null = not yet): it lands slightly large and settles
-const pop = (dt, amt = 0.12) => (dt < 0 ? null : 1 + amt * (1 - EZ.out(clamp(dt / POP))));
+const pop = (dt, amt = 0.12, env) => (dt < 0 ? null : calm(env) ? 1 : 1 + amt * (1 - EZ.out(clamp(dt / POP))));
+// 落ち着いた演出 (src/11y_calm.js): no pop — the word fades in over 0.4 s instead
+const calm = env => !!(env && env.plan && env.plan.calm);
+const fa = (dt, env) => (calm(env) ? 0.5 - 0.5 * Math.cos(Math.PI * clamp(dt / 0.4)) : 1);
 // items drawn with their own motion only (the cut's enter / exit / hold are not used)
 const own = it => Object.assign(it, { enter: 'cut', exit: 'cut', hold: 'still', mi: 0, noHold: true, plain: true });
 const draw = (env, it) => J.mainDraw(env, own(it));
@@ -88,7 +91,9 @@ function setWord(word, font, u) {
 // P.block = { id, texts: [the cut texts of the block, in order], slot: this cut's place in it }
 const buildCache = new Map();
 function buildLayout(env, P) {
-  const { W, H } = env, B = P.block, key = [B.id, B.texts.length, W, H, P.font, P.arr, P.side, J.LATIN || ''].join('|');
+  // keyed by the words themselves: a block id is a seed, and the same seed comes back after the lyrics are edited
+  // (a changed word, a line inserted above) — a key by id alone drew the old words for the whole block
+  const { W, H } = env, B = P.block, key = [B.texts.join('\u0001'), (B.lines || []).join(','), W, H, P.font, P.arr, P.side, J.LATIN || ''].join('|');
   if (buildCache.has(key)) return buildCache.get(key);
   const port = K.isPort(env), M = Math.min(W, H) * 0.08, stairs = P.arr === 'stairs';
   const rw = W * (port ? 0.86 : stairs ? 0.8 : 0.7), rh = H * (port ? 0.72 : 0.84);
@@ -145,13 +150,13 @@ J.register('layout', 'sysBuild', {
     let bb = null;
     for (const p of L.pieces) {
       if (p.li > B.slot) continue;
-      let s = 1;
-      if (p.li === B.slot && !B.full) { s = pop(env.lt - ts[mine.indexOf(p)]); if (s == null) continue; }
+      let s = 1, a = 1;
+      if (p.li === B.slot && !B.full) { const dt = env.lt - ts[mine.indexOf(p)]; s = pop(dt, 0.12, env); if (s == null) continue; a = fa(dt, env); }
       const cx = p.ax + p.set.w / 2;
       for (const r of p.set) {
         // every run sits on the row's baseline; the pop scales the word about its centre
         const x = cx + (p.ax + r.x + r.w / 2 - cx) * s, y = p.ay - r.s * s * 0.5;
-        bb = J.unionBB(bb, draw(env, { text: r.t, font: P.font, size: r.s * s, x, y, color: sc.fg }));
+        bb = J.unionBB(bb, draw(env, { text: r.t, font: P.font, size: r.s * s, x, y, color: sc.fg, alpha: a }));
       }
     }
     return bb;
@@ -224,9 +229,9 @@ J.register('layout', 'sysGiant', {
       const tot = sizes.reduce((a, b) => a + b * 0.86, 0);
       let y = H / 2 - tot / 2;
       up.forEach((w, i) => {
-        const s = pop(env.lt - ts[i], 0.06), sz = sizes[i];
+        const s = pop(env.lt - ts[i], 0.06, env), sz = sizes[i];
         y += sz * 0.43;
-        if (s != null) bb = J.unionBB(bb, draw(env, { text: w, font, size: sz * s, x: W / 2, y, track: -0.02, color: sc.fg }));
+        if (s != null) bb = J.unionBB(bb, draw(env, { text: w, font, size: sz * s, x: W / 2, y, track: -0.02, color: sc.fg, alpha: fa(env.lt - ts[i], env) }));
         y += sz * 0.43;
       });
       return bb;
@@ -240,8 +245,8 @@ J.register('layout', 'sysGiant', {
     words.forEach((w, i) => {
       const sz = sizes[i], cx = x - ord * sz * 0.52;
       x -= ord * (sz * 1.04 + pad);
-      const s = pop(env.lt - ts[i], 0.06);
-      if (s != null) bb = J.unionBB(bb, draw(env, { text: w, font, size: sz * s, x: cx, y: H / 2, vertical: true, track: -0.02, color: sc.fg }));
+      const s = pop(env.lt - ts[i], 0.06, env);
+      if (s != null) bb = J.unionBB(bb, draw(env, { text: w, font, size: sz * s, x: cx, y: H / 2, vertical: true, track: -0.02, color: sc.fg, alpha: fa(env.lt - ts[i], env) }));
     });
     return bb;
   },
@@ -258,11 +263,11 @@ J.register('layout', 'sysSplit', {
     const port = K.isPort(env), ts = K.onsets(env, 3), [a, b] = [...key];
     const big = Math.min(H * (port ? 0.34 : 0.7), W * (port ? 0.42 : 0.3));
     const line = K.strip(c.text), ss = Math.min(J.fitSize(line, P.small, W - big * 2.3, H * 0.12, { track: 0.04 }), H * 0.07);
-    const s0 = pop(env.lt - ts[0], 0.1), s1 = pop(env.lt - ts[1], 0.1), s2 = pop(env.lt - ts[2], 0.05), ex = W * 0.03 + big / 2;
+    const s0 = pop(env.lt - ts[0], 0.1, env), s1 = pop(env.lt - ts[1], 0.1, env), s2 = pop(env.lt - ts[2], 0.05, env), ex = W * 0.03 + big / 2;
     let bb = null;
-    if (s0 != null) bb = J.unionBB(bb, draw(env, { text: a, font: P.font, size: big * s0, x: ex, y: H / 2, color: sc.fg }));
-    if (s1 != null) bb = J.unionBB(bb, draw(env, { text: b, font: P.font, size: big * s1, x: W - ex, y: H / 2, color: sc.fg }));
-    if (s2 != null) bb = J.unionBB(bb, draw(env, { text: line, font: P.small, size: ss * s2, x: W / 2, y: H / 2, track: 0.04, color: sc.fg }));
+    if (s0 != null) bb = J.unionBB(bb, draw(env, { text: a, font: P.font, size: big * s0, x: ex, y: H / 2, color: sc.fg, alpha: fa(env.lt - ts[0], env) }));
+    if (s1 != null) bb = J.unionBB(bb, draw(env, { text: b, font: P.font, size: big * s1, x: W - ex, y: H / 2, color: sc.fg, alpha: fa(env.lt - ts[1], env) }));
+    if (s2 != null) bb = J.unionBB(bb, draw(env, { text: line, font: P.small, size: ss * s2, x: W / 2, y: H / 2, track: 0.04, color: sc.fg, alpha: fa(env.lt - ts[2], env) }));
     return bb;
   },
 });
@@ -289,14 +294,14 @@ J.register('layout', 'sysScatter', {
     const { W, H, sc } = env, c = env.cut, P = c.params, port = K.isPort(env);
     const words = scatterPieces(c), ts = K.onsets(env, words.length);
     const k = Math.max(0, K.curIdx(ts, env.lt)), w = words[k] || K.strip(c.text);
-    const sp = SPOTS[(k + (P.o | 0)) % 4], op = SPOTS[(k + (P.o | 0) + 1) % 4], s = pop(env.lt - ts[k], 0.14) || 1;
+    const sp = SPOTS[(k + (P.o | 0)) % 4], op = SPOTS[(k + (P.o | 0) + 1) % 4], s = pop(env.lt - ts[k], 0.14, env) || 1, a = fa(env.lt - ts[k], env);
     // the faint giant copy on the other side, cropped by the frame
-    draw(env, { text: w, font: P.font, size: J.fitSize(w, P.font, W * 0.95, H * 0.95, { track: -0.02 }), x: W * op[0], y: H * op[1], track: -0.02, color: tone(sc) });
+    draw(env, { text: w, font: P.font, size: J.fitSize(w, P.font, W * 0.95, H * 0.95, { track: -0.02 }), x: W * op[0], y: H * op[1], track: -0.02, color: tone(sc), alpha: a });
     const size = Math.min(J.fitSize(w, P.font, W * (port ? 0.9 : 0.58), H * (port ? 0.3 : 0.42), { track: -0.01 }), H * 0.38);
     // kept inside the frame's margin
     const m = J.measure({ text: w, font: P.font, size, track: -0.01 }), M = Math.min(W, H) * 0.06;
     const x = clamp(W * (port ? 0.5 : sp[0]), M + m.w / 2, W - M - m.w / 2), y = clamp(H * sp[1], M + m.h / 2, H - M - m.h / 2);
-    return draw(env, { text: w, font: P.font, size: size * s, x, y, track: -0.01, color: sc.fg });
+    return draw(env, { text: w, font: P.font, size: size * s, x, y, track: -0.01, color: sc.fg, alpha: a });
   },
 });
 

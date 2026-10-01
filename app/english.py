@@ -1,6 +1,20 @@
 """English copy for the browser edition. The Japanese source stays authoritative."""
 
 BODY = {
+    'title="画面効果・つなぎ・カメラの動き・装飾・文字の加工をまとめて切り、全部の行を同じ動きにします"><input id="calmOn" type="checkbox"><span>落ち着いた演出</span></label>': 'title="Turn off screen effects, transitions, camera moves, decorations and text treatments at once, and give every line the same motion"><input id="calmOn" type="checkbox"><span>Calm</span></label>',
+    '>動き<select id="calmMotion" aria-label="落ち着いた演出の動き"><option value="fade">フェード</option><option value="chars">一字ずつフェード</option><option value="wipe">ワイプ</option><option value="cut">動きなし</option></select>': '>Motion<select id="calmMotion" aria-label="Calm motion"><option value="fade">Fade</option><option value="chars">Fade letter by letter</option><option value="wipe">Wipe</option><option value="cut">No motion</option></select>',
+    'title="文字を自分で動かすレイアウトを、中央・縦組・大きく・積み重ねのどれかに置き換えます"><input id="calmLayouts" type="checkbox" checked><span>レイアウトも控えめに</span></label>': 'title="Replace layouts that move the words by themselves with centred, vertical, big or stacked"><input id="calmLayouts" type="checkbox" checked><span>Plain layouts too</span></label>',
+    '<small class="muted calm-note">行ごと・カットごとに指定した設定とロックした行はそのまま使います。オフにすれば元の演出に戻ります。</small>': '<small class="muted calm-note">Settings made for a line or a cut, and locked lines, are kept. Turn it off to get the original look back.</small>',
+    'title="再生をこの範囲だけにします（書き出しの範囲は変わりません）。キー I / O で現在位置を開始 / 終了に">プレビュー範囲</span>': 'title="Play only this range (the export range does not change). Keys I / O set the start / end at the playhead">Preview range</span>',
+    'aria-label="プレビュー範囲"': 'aria-label="Preview range"',
+    '>開始<input id="pvIn"': '>Start<input id="pvIn"',
+    'aria-label="プレビューの開始時刻"': 'aria-label="Preview start time"',
+    'title="現在位置を開始にする（キー I）">現在位置</button>': 'title="Set the start at the playhead (key I)">Playhead</button>',
+    '>終了<input id="pvOut"': '>End<input id="pvOut"',
+    'placeholder="曲の終わり"': 'placeholder="End of song"',
+    'aria-label="プレビューの終了時刻"': 'aria-label="Preview end time"',
+    'title="現在位置を終了にする（キー O）">現在位置</button>': 'title="Set the end at the playhead (key O)">Playhead</button>',
+    'title="範囲を解除して曲全体を再生">解除</button>': 'title="Clear the range and play the whole song">Clear</button>',
     'placeholder="Web プロジェクト ID（例: abc1def）"': 'placeholder="Web project ID (e.g. abc1def)"',
     '<button id="btnAdobeKit">キットを読み込む</button>': '<button id="btnAdobeKit">Load kit</button>',
     'placeholder="CSS で使うフォント名（例: a-otf-ryumin-pr6n）"': 'placeholder="Font name used in CSS (e.g. a-otf-ryumin-pr6n)"',
@@ -189,6 +203,17 @@ BODY = {
 }
 
 UI = {
+    "'落ち着いた演出：オン（効果を切り、全部の行を同じ動きにします）'": "'Calm: on (effects off, every line moves the same way)'",
+    "'落ち着いた演出：オフ（元の演出に戻しました）'": "'Calm: off (back to the original look)'",
+    '`開始は 00:00.00〜${J.fmtTime(D)} の間で指定してください`': '`Set a start between 00:00.00 and ${J.fmtTime(D)}`',
+    '`終了は曲の長さ（${J.fmtTime(D)}）までで指定してください`': '`Set an end no later than the song length (${J.fmtTime(D)})`',
+    "'終了は開始より後にしてください'": "'The end must come after the start'",
+    "'時刻を読み取れませんでした（例：3:22.44 / 3.22.44 / 202.44）'": "'Could not read the time (e.g. 3:22.44 / 3.22.44 / 202.44)'",
+    "'プレビュー範囲：曲全体'": "'Preview range: whole song'",
+    '開始時刻（分:秒.1/100）': 'Start time (min:sec.hundredths)',
+    '\u30003:22.44 / 3.22.44 / 202.44（秒）で入力できます。空にすると自動に戻ります': ' — type 3:22.44, 3.22.44 or 202.44 (seconds). Leave it empty to go back to automatic',
+    '${i + 1}行目の開始時刻': 'Line ${i + 1} start time',
+    '`順番を保つため、前後の${pushed}行の開始時刻も動かしました`': '`To keep the order, ${pushed} neighbouring line(s) were moved too`',
     'Adobe Fonts の書体で表示しています': 'Now using the Adobe Fonts typefaces',
     "'Adobe Fonts を読み込みました：'": "'Adobe Fonts loaded: '",
     "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'Enter an Adobe Fonts name in “Font name used in CSS” and add it'",

@@ -50,6 +50,20 @@ STYLES = {
 }
 
 BODY = {
+    'title="画面効果・つなぎ・カメラの動き・装飾・文字の加工をまとめて切り、全部の行を同じ動きにします"><input id="calmOn" type="checkbox"><span>落ち着いた演出</span></label>': 'title="Matikan efek layar, transisi, gerak kamera, dekorasi, dan olahan teks sekaligus, lalu beri setiap baris gerak yang sama"><input id="calmOn" type="checkbox"><span>Tenang</span></label>',
+    '>動き<select id="calmMotion" aria-label="落ち着いた演出の動き"><option value="fade">フェード</option><option value="chars">一字ずつフェード</option><option value="wipe">ワイプ</option><option value="cut">動きなし</option></select>': '>Gerak<select id="calmMotion" aria-label="Gerak mode tenang"><option value="fade">Fade</option><option value="chars">Fade per huruf</option><option value="wipe">Wipe</option><option value="cut">Tanpa gerak</option></select>',
+    'title="文字を自分で動かすレイアウトを、中央・縦組・大きく・積み重ねのどれかに置き換えます"><input id="calmLayouts" type="checkbox" checked><span>レイアウトも控えめに</span></label>': 'title="Ganti layout yang menggerakkan kata sendiri dengan tengah, vertikal, besar, atau bertumpuk"><input id="calmLayouts" type="checkbox" checked><span>Layout juga sederhana</span></label>',
+    '<small class="muted calm-note">行ごと・カットごとに指定した設定とロックした行はそのまま使います。オフにすれば元の演出に戻ります。</small>': '<small class="muted calm-note">Pengaturan per baris atau per potongan dan baris yang dikunci tetap dipakai. Matikan untuk kembali ke tampilan semula.</small>',
+    'title="再生をこの範囲だけにします（書き出しの範囲は変わりません）。キー I / O で現在位置を開始 / 終了に">プレビュー範囲</span>': 'title="Putar hanya rentang ini (rentang ekspor tidak berubah). Tombol I / O menjadikan posisi putar sebagai awal / akhir">Rentang pratinjau</span>',
+    'aria-label="プレビュー範囲"': 'aria-label="Rentang pratinjau"',
+    '>開始<input id="pvIn"': '>Awal<input id="pvIn"',
+    'aria-label="プレビューの開始時刻"': 'aria-label="Waktu awal pratinjau"',
+    'title="現在位置を開始にする（キー I）">現在位置</button>': 'title="Jadikan posisi putar sebagai awal (tombol I)">Posisi putar</button>',
+    '>終了<input id="pvOut"': '>Akhir<input id="pvOut"',
+    'placeholder="曲の終わり"': 'placeholder="Akhir lagu"',
+    'aria-label="プレビューの終了時刻"': 'aria-label="Waktu akhir pratinjau"',
+    'title="現在位置を終了にする（キー O）">現在位置</button>': 'title="Jadikan posisi putar sebagai akhir (tombol O)">Posisi putar</button>',
+    'title="範囲を解除して曲全体を再生">解除</button>': 'title="Hapus rentang dan putar seluruh lagu">Hapus</button>',
     'placeholder="Web プロジェクト ID（例: abc1def）"': 'placeholder="ID proyek web (mis. abc1def)"',
     '<button id="btnAdobeKit">キットを読み込む</button>': '<button id="btnAdobeKit">Muat kit</button>',
     'placeholder="CSS で使うフォント名（例: a-otf-ryumin-pr6n）"': 'placeholder="Nama font di CSS (mis. a-otf-ryumin-pr6n)"',
@@ -230,6 +244,17 @@ BODY = {
 }
 
 UI = {
+    "'落ち着いた演出：オン（効果を切り、全部の行を同じ動きにします）'": "'Tenang: aktif (efek mati, semua baris bergerak sama)'",
+    "'落ち着いた演出：オフ（元の演出に戻しました）'": "'Tenang: mati (kembali ke tampilan semula)'",
+    '`開始は 00:00.00〜${J.fmtTime(D)} の間で指定してください`': '`Atur awal antara 00:00.00 dan ${J.fmtTime(D)}`',
+    '`終了は曲の長さ（${J.fmtTime(D)}）までで指定してください`': '`Atur akhir paling lambat sepanjang lagu (${J.fmtTime(D)})`',
+    "'終了は開始より後にしてください'": "'Akhir harus setelah awal'",
+    "'時刻を読み取れませんでした（例：3:22.44 / 3.22.44 / 202.44）'": "'Waktu tidak terbaca (mis. 3:22.44 / 3.22.44 / 202.44)'",
+    "'プレビュー範囲：曲全体'": "'Rentang pratinjau: seluruh lagu'",
+    '開始時刻（分:秒.1/100）': 'Waktu mulai (mnt:dtk.1/100)',
+    '\u30003:22.44 / 3.22.44 / 202.44（秒）で入力できます。空にすると自動に戻ります': ' — ketik 3:22.44, 3.22.44 atau 202.44 (detik). Kosongkan untuk kembali otomatis',
+    '${i + 1}行目の開始時刻': 'Waktu mulai baris ${i + 1}',
+    '`順番を保つため、前後の${pushed}行の開始時刻も動かしました`': '`Agar urutan tetap, ${pushed} baris di sekitarnya ikut dipindahkan`',
     'Adobe Fonts の書体で表示しています': 'Kini memakai huruf Adobe Fonts',
     "'Adobe Fonts を読み込みました：'": "'Adobe Fonts dimuat: '",
     "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'Masukkan nama font Adobe Fonts di “Nama font di CSS” lalu tambahkan'",

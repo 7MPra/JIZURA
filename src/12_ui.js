@@ -35,6 +35,13 @@ function cutAround(t) {
 function loopRange(t) {
   const T = t != null ? t : S.t;
   const endAll = S.plan.duration;
+  // the playhead in a gap between cuts (before the first line, a pause, after the last): the gap itself — taking the
+  // cut before it sent playback back to the previous line, so the playhead could not be left in a pause
+  if ((S.loop === 'cut' || S.loop === 'line') && !J.cutAt(S.plan, T)) {
+    const cs = S.plan.cuts; let a = 0, b = endAll;
+    for (const c of cs) { if (c.end <= T + 1e-6) a = Math.max(a, c.end); else if (c.start > T) { b = Math.min(b, c.start); break; } }
+    return { start: a, end: Math.max(a + 0.05, b) };
+  }
   if (S.loop === 'cut') {
     const cut = cutAround(T);
     return cut ? { start: cut.start, end: cut.end } : { start: 0, end: endAll };
@@ -53,7 +60,75 @@ function refreshLoopHold(t) {
 }
 function activeLoopRange() {
   if ((S.loop === 'line' || S.loop === 'cut') && S.loopHold) return S.loopHold;
-  return loopRange(S.t);
+  return previewRange() || loopRange(S.t);
+}
+// preview range: project.preview = { start, end } in seconds (end null = the end of the song). Preview playback only —
+// the export range is separate. Checked against the current length every time it is used (the song can get shorter).
+const PV_MIN = 0.1;
+function previewRange() {
+  const P = S.project && S.project.preview, D = S.plan ? S.plan.duration : 0;
+  if (!P || !(D > 0)) return null;
+  const a = J.clamp(+P.start || 0, 0, Math.max(0, D - PV_MIN)), b = P.end != null && isFinite(+P.end) ? J.clamp(+P.end, a + PV_MIN, D) : D;
+  return b - a >= PV_MIN - 1e-9 ? { start: a, end: b } : null;
+}
+/* set one end of the range (seconds, or null to clear that end); false + a message when it does not fit */
+function setPreview(which, t) {
+  const D = S.plan.duration, cur = S.project.preview || { start: 0, end: null };
+  const next = { start: +cur.start || 0, end: cur.end != null ? +cur.end : null };
+  if (which === 'start') next.start = t == null ? 0 : t;
+  else next.end = t;
+  const end = next.end == null ? D : next.end;
+  if (!(next.start >= 0) || next.start >= D) { toast(`開始は 00:00.00〜${J.fmtTime(D)} の間で指定してください`); return false; }
+  if (next.end != null && (next.end > D + 1e-6 || next.end <= 0)) { toast(`終了は曲の長さ（${J.fmtTime(D)}）までで指定してください`); return false; }
+  if (end - next.start < PV_MIN) { toast('終了は開始より後にしてください'); return false; }
+  S.project.preview = next.start <= 0 && next.end == null ? null : { start: +next.start.toFixed(3), end: next.end == null ? null : +next.end.toFixed(3) };
+  flushSave(); syncPreviewUI(); drawTimeline(); S.need = true;
+  return true;
+}
+function syncPreviewUI() {
+  const a = $('pvIn'), b = $('pvOut'); if (!a) return;
+  const R = previewRange(), P = S.project.preview;
+  if (document.activeElement !== a) a.value = P ? J.fmtClock(R ? R.start : 0) : '';
+  if (document.activeElement !== b) b.value = P && P.end != null && R ? J.fmtClock(R.end) : '';
+  a.closest('.pv-bar').classList.toggle('on', !!P);
+}
+/* 落ち着いた演出 (src/11y_calm.js): project.calm = { on, motion, layouts } */
+function syncCalm() {
+  const on = $('calmOn'); if (!on) return;
+  const C = S.project.calm || {};
+  on.checked = C.on === true; $('calmMotion').value = J.CALM_MOTIONS[C.motion] ? C.motion : 'fade'; $('calmLayouts').checked = C.layouts !== false;
+  $('calmMotion').disabled = $('calmLayouts').disabled = !on.checked;
+  on.closest('.calm-box').classList.toggle('on', on.checked);
+}
+function bindCalm() {
+  if (!$('calmOn')) return;
+  const apply = () => {
+    remember();
+    const on = $('calmOn').checked;
+    S.project.calm = { on, motion: $('calmMotion').value, layouts: $('calmLayouts').checked };
+    syncCalm(); replan(); commit(); flushSave();
+    return on;
+  };
+  $('calmOn').addEventListener('change', () => toast(apply() ? '落ち着いた演出：オン（効果を切り、全部の行を同じ動きにします）' : '落ち着いた演出：オフ（元の演出に戻しました）'));
+  $('calmMotion').addEventListener('change', apply);
+  $('calmLayouts').addEventListener('change', apply);
+  syncCalm();
+}
+function bindPreview() {
+  if (!$('pvIn')) return;
+  const read = (el, which) => {
+    const raw = String(el.value || '').trim();
+    if (!raw) { setPreview(which, null); return; }
+    const t = J.parseTime(raw);
+    if (!isFinite(t)) { toast('時刻を読み取れませんでした（例：3:22.44 / 3.22.44 / 202.44）'); syncPreviewUI(); return; }
+    if (!setPreview(which, t)) syncPreviewUI();
+  };
+  $('pvIn').addEventListener('change', e => read(e.target, 'start'));
+  $('pvOut').addEventListener('change', e => read(e.target, 'end'));
+  $('pvInHere').addEventListener('click', () => setPreview('start', S.t));
+  $('pvOutHere').addEventListener('click', () => setPreview('end', S.t));
+  $('pvClear').addEventListener('click', () => { S.project.preview = null; flushSave(); syncPreviewUI(); drawTimeline(); toast('プレビュー範囲：曲全体'); });
+  syncPreviewUI();
 }
 function syncLoopBtn() {
   const b = $('btnLoop'); if (!b) return;
@@ -129,6 +204,12 @@ function mergeProject(p) {
   o.themeId = p && typeof p.themeId === 'string' && J.THEMES && J.THEMES[p.themeId] ? p.themeId : null;
   o.fonts = {};
   for (const [role, k] of Object.entries((p && p.fonts) || {})) if (typeof k === 'string' && J.FONTS[k] && /^[\w-]+$/.test(role)) o.fonts[role] = k;
+  // calm (older projects have none = off): plain values only
+  const cm = p && p.calm;
+  o.calm = cm && typeof cm === 'object' && cm.on === true ? { on: true, motion: J.CALM_MOTIONS[cm.motion] ? cm.motion : 'fade', layouts: cm.layouts !== false } : null;
+  // preview range (older projects have none): numbers only, end after start
+  const pv = p && p.preview;
+  o.preview = pv && isFinite(+pv.start) && +pv.start >= 0 && (pv.end == null || (isFinite(+pv.end) && +pv.end > +pv.start)) ? { start: +pv.start, end: pv.end == null ? null : +pv.end } : null;
   return o;
 }
 /* v0.10: untagged lines of an LRC text now stay where they are written — move per-line settings of older projects along */
@@ -182,7 +263,7 @@ function replan() {
   langNote();
   if (S.t > S.plan.duration) S.t = 0;
   refreshLoopHold();
-  renderLines(); sizeViewport(); drawTimeline(); updateTimeUI();
+  renderLines(); sizeViewport(); drawTimeline(); updateTimeUI(); syncPreviewUI();
   lastCutIdx = -2;
   if (typeof cutPick !== 'undefined' && cutPick.g) fillCutPick();
   S.need = true; autosave(); ensureFonts(); drawSwatch(); showNow();
@@ -277,7 +358,7 @@ function tick(now) {
     const range = activeLoopRange();
     if (t >= range.end - 1e-3) {
       if (S.loop && !S.tap) { seek(range.start); t = range.start; }
-      else { pause(); t = Math.min(t, S.plan.duration - 1e-3); if (S.tap) stopTap(); }
+      else { pause(); t = Math.min(t, range.end, S.plan.duration - 1e-3); seek(t); if (S.tap) stopTap(); }
     }
     S.t = t; S.need = true;
     followTlPlayhead();
@@ -292,6 +373,8 @@ function updateTimeUI() {
 // タップ同期の速さ (0.5× / 0.75×): only while tapping — the song's own time is what gets stored
 const playRate = () => (S.tap && S.tap.rate > 0 ? S.tap.rate : 1);
 function play() {
+  const PR = !S.tap ? previewRange() : null;              // outside the preview range (or at its end): from its start
+  if (PR && (S.t < PR.start - 1e-3 || S.t >= PR.end - 0.02) && !(S.loop === 'line' || S.loop === 'cut')) S.t = PR.start;
   refreshLoopHold();
   if (S.audio) AP.play(S.audio.buffer, S.t, playRate());
   else S.t0 = performance.now() - S.t * 1000 / playRate();
@@ -350,6 +433,11 @@ function drawTimeline() {
   const top = h * 0.3, bot = h - 8 * dpr;
   const R = exportRange();
   if (R) { x.fillStyle = 'rgba(245,165,12,0.10)'; x.fillRect(X(R.t0), 0, X(R.t1) - X(R.t0), h); }
+  const PR = previewRange();
+  if (PR) {                                                // プレビュー範囲: the outside dimmed, the ends marked
+    x.fillStyle = 'rgba(0,0,0,0.45)'; x.fillRect(0, 0, Math.max(0, X(PR.start)), h); x.fillRect(X(PR.end), 0, Math.max(0, w - X(PR.end)), h);
+    x.fillStyle = '#6fb7c8'; x.fillRect(Math.round(X(PR.start)), 0, 2 * dpr, h); x.fillRect(Math.round(X(PR.end)) - 2 * dpr, 0, 2 * dpr, h);
+  }
   for (const cut of S.plan.cuts) {
     const x0 = X(cut.start), x1 = X(cut.end);
     if (x1 < 0 || x0 > w) continue;
@@ -550,19 +638,42 @@ function tlHandleAt(ev) {
   for (const ln of S.plan.lines) { const d = Math.abs((ln.start - off) / vd * r.width - (ev.clientX - r.left)); if (d < bd) { bd = d; best = ln.index; } }
   return best;
 }
+/* set line i (a lyric line or an interlude) to start at t, keeping the lines in order.
+   The fixed times around it (typed, tapped, dragged, LRC) are not a wall: a fixed line that t crosses is pushed along,
+   0.2 s apart, so a line can be moved past an interlude or its neighbours. Lines left on automatic simply follow.
+   pin: also fix every other line where it is now (dragging on the timeline: moving one boundary never shifts the rest).
+   Returns how many other lines were pushed. */
+const LINE_GAP = 0.2;
+function placeLineTime(i, t, pin) {
+  const L = S.plan.lines, T = S.project.timing;
+  if (!T.lineTimes) T.lineTimes = {};
+  // with a song loaded a line must start inside it; without one the lyrics set the length, so there is no end to hit
+  const lt = T.lineTimes, D = S.audio && S.audio.duration > 0 ? Math.max(S.plan.duration, S.audio.duration) : Infinity;
+  const fixedAt = j => (lt[j] != null && isFinite(+lt[j]) ? +lt[j] : L[j] && L[j].lrc != null && isFinite(L[j].lrc) ? L[j].lrc : null);
+  if (pin) L.forEach(ln => { if (fixedAt(ln.index) == null) lt[ln.index] = +ln.start.toFixed(3); });
+  // room for the lines before / after it at the minimum spacing
+  t = Math.max(i * LINE_GAP * 0.25, Math.min(t, D - (L.length - i) * LINE_GAP * 0.25));
+  lt[i] = +t.toFixed(3);
+  let pushed = 0, prev = t;
+  for (let j = i + 1; j < L.length; j++) {                // later fixed lines it ran into
+    const f = fixedAt(j); if (f == null) continue;
+    if (f < prev + LINE_GAP) { lt[j] = +(prev + LINE_GAP).toFixed(3); pushed++; prev = lt[j]; } else break;
+  }
+  prev = t;
+  for (let j = i - 1; j >= 0; j--) {                      // earlier fixed lines it ran into
+    const f = fixedAt(j); if (f == null) continue;
+    if (f > prev - LINE_GAP) { lt[j] = +Math.max(0, prev - LINE_GAP).toFixed(3); pushed++; prev = lt[j]; } else break;
+  }
+  return pushed;
+}
 function tlDragTo(i, ev) {
   let t = tlTime(ev);
   if (!ev.shiftKey && S.plan.beats && S.plan.beats.length) {       // snap to the nearest beat (Shift: free)
     let bt = null, bd = 0.12; for (const b of S.plan.beats) { const d = Math.abs(b - t); if (d < bd) { bd = d; bt = b; } if (b > t + 0.2) break; }
     if (bt != null) t = bt;
   }
-  const L = S.plan.lines, lo = i > 0 ? L[i - 1].start + 0.2 : 0, hi = i < L.length - 1 ? L[i + 1].start - 0.2 : S.plan.duration - 0.2;
-  t = +J.clamp(t, lo, Math.max(lo, hi)).toFixed(3);
-  if (!S.project.timing.lineTimes) S.project.timing.lineTimes = {};
-  // pin the neighbours too, so moving one boundary never shifts the lines after it
-  L.forEach(ln => { if (S.project.timing.lineTimes[ln.index] == null) S.project.timing.lineTimes[ln.index] = +ln.start.toFixed(3); });
-  S.project.timing.lineTimes[i] = t;
-  replan(); seek(t + 0.001);
+  placeLineTime(i, +t.toFixed(3), true);
+  replan(); seek(S.plan.lines[i] ? S.plan.lines[i].start + 0.001 : t);
 }
 
 /* ---------------- keep the playing line in view (the list scrolls inside its column) ---------------- */
@@ -802,7 +913,7 @@ function renderLines() {
     const manual = S.project.timing.lineTimes && S.project.timing.lineTimes[i] != null;
     const label = ln.interlude ? `〔間奏${ln.secs ? ' ' + ln.secs + '秒' : ''}〕` : ln.text;
     li.innerHTML = `<span class="no">${String(i + 1).padStart(2, '0')}</span>
-      <input class="time mono" type="number" step="0.01" min="0" value="${ln.start.toFixed(2)}" title="開始（秒）${manual ? '・手動' : '・自動'}" aria-label="${i + 1}行目の開始秒" style="${manual ? 'border-color:var(--cyan)' : ''}">
+      <input class="time mono" type="text" inputmode="decimal" spellcheck="false" value="${J.fmtClock(ln.start)}" title="開始時刻（分:秒.1/100）${manual ? '・手動' : '・自動'}　3:22.44 / 3.22.44 / 202.44（秒）で入力できます。空にすると自動に戻ります" aria-label="${i + 1}行目の開始時刻" style="${manual ? 'border-color:var(--cyan)' : ''}">
       <span class="txt" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
       <div class="meta"><span class="cuts"></span>
       <span class="tools">
@@ -818,19 +929,15 @@ function renderLines() {
     if (q('.lay')) q('.lay').value = o.layout || '';
     if (q('.ncut')) q('.ncut').value = o.cuts ? String(o.cuts) : '';
     q('.time').addEventListener('change', e => {
-      const v = parseFloat(e.target.value);
+      const raw = String(e.target.value || '').trim();
+      // empty: back to automatic. Unreadable: say so and keep the time it had — an unreadable entry ("3.22.44" in a
+      // seconds-only box) used to clear the hand-set time, and the line fell back before the interlude
+      if (raw && !isFinite(J.parseTime(raw))) { toast('時刻を読み取れませんでした（例：3:22.44 / 3.22.44 / 202.44）'); e.target.value = J.fmtClock(ln.start); return; }
       pushEdit();
       if (!S.project.timing.lineTimes) S.project.timing.lineTimes = {};
-      if (isFinite(v)) {
-        // keep the order: a typed time stays between the fixed times (typed or LRC) of the lines around it
-        const lt = S.project.timing.lineTimes, L = S.plan.lines;
-        const fix = j => (lt[j] != null && isFinite(+lt[j])) ? +lt[j] : (L[j] && L[j].lrc != null ? L[j].lrc : null);
-        let lo = 0, hi = Infinity;
-        for (let j = i - 1; j >= 0; j--) { const f = fix(j); if (f != null) { lo = f + 0.05; break; } }
-        for (let j = i + 1; j < L.length; j++) { const f = fix(j); if (f != null) { hi = f - 0.05; break; } }
-        let w = Math.max(0, v);
-        if (hi >= lo && (w < lo || w > hi)) { w = J.clamp(w, lo, hi); toast(`前後の行と順番が入れ替わらないよう ${w.toFixed(2)} 秒にしました`); }
-        lt[i] = +w.toFixed(3);
+      if (raw) {
+        const pushed = placeLineTime(i, Math.max(0, J.parseTime(raw)), false);
+        if (pushed) toast(`順番を保つため、前後の${pushed}行の開始時刻も動かしました`);
       } else delete S.project.timing.lineTimes[i];
       replan();
     });
@@ -896,6 +1003,19 @@ function renderLines() {
 /* ---------------- 行から歌詞を直す ---------------- */
 // the lyrics text is the source: a plan line knows the row it came from (ln.src); LRC time tags on that row are kept
 const LRC_PREFIX = /^\s*(?:\[\d+:\d+(?:[.:]\d+)?\])*/;
+/* the lyrics were edited: hand-set times, per-line settings and the export range follow their lines (J.lineIndexMap) —
+   kept by line number, a line added or removed above made every later line take the time of the line before it */
+function remapLines(prevText, nextText) {
+  const map = J.lineIndexMap(prevText, nextText); if (!map) return;
+  const P = S.project;
+  P.timing.lineTimes = J.remapByLine(P.timing.lineTimes || {}, map);
+  P.overrides = J.remapByLine(P.overrides || {}, map);
+  const R = P.exportRange;
+  if (R && Number.isInteger(R.from) && Number.isInteger(R.to)) {
+    const idx = []; for (let i = R.from; i <= R.to && i < map.length; i++) if (map[i] >= 0) idx.push(map[i]);
+    P.exportRange = idx.length ? { from: Math.min(...idx), to: Math.max(...idx) } : null;
+  }
+}
 function editLine(li, ln) {
   if (ln.src == null || li.querySelector('.txt-edit')) return;
   const rows = S.project.lyrics.replace(/\r/g, '').split('\n'), row = rows[ln.src] || '';
@@ -1730,6 +1850,7 @@ function syncUI() {
   for (const set of J.SET_ORDER) document.querySelectorAll('.' + set + '-toggle').forEach(el => { el.checked = J.setOn(S.project, set); });
   document.querySelectorAll('.unify-toggle').forEach(el => { el.checked = S.project.unify === true; });
   document.querySelectorAll('.typeset-toggle').forEach(el => { el.checked = S.project.typeset === true; });
+  syncCalm();
   $('lyricLang').value = J.LANG_LABEL[S.project.lang] ? S.project.lang : 'auto'; langNote();
   document.querySelectorAll('.themeSel').forEach(el => { el.value = J.THEMES[S.project.themeId] ? S.project.themeId : ''; });
   renderFontRoles(); renderColors(); renderFx(); renderTech(); syncOut(); drawStyleGrid();
@@ -1737,7 +1858,7 @@ function syncUI() {
 
 /* ---------------- wiring ---------------- */
 function bind() {
-  $('lyrics').addEventListener('input', e => { S.project.lyrics = e.target.value; replanSoon(260); });
+  $('lyrics').addEventListener('input', e => { const prev = S.project.lyrics; S.project.lyrics = e.target.value; remapLines(prev, S.project.lyrics); replanSoon(260); });
   $('lyricLang').addEventListener('change', e => {
     remember();
     S.project.lang = e.target.value; replan(); renderFontRoles(); commit(); flushSave();
@@ -1807,6 +1928,7 @@ function bind() {
   $('tlOut').addEventListener('click', () => tlZoom(1 / 1.6));
   $('tlFit').addEventListener('click', () => { TL.z = 1; TL.off = 0; drawTimeline(); });
   bindTempo();
+  bindPreview();
   $('btnUndoEdit').addEventListener('click', () => edGo(-1));
   $('tapBack').addEventListener('click', tapBack);
   bindRangeUI();
@@ -1831,6 +1953,7 @@ function bind() {
   setSwitch('typo-toggle', 'typo', true, '文字PV系の部品：使う', '文字PV系の部品：使わない（おまかせ・シャッフルで選ばれません）');
   setSwitch('kinetic-toggle', 'kinetic', true, 'キネティックの部品：使う', 'キネティックの部品：使わない（おまかせ・シャッフルで選ばれません）');
   setSwitch('horror-toggle', 'horror', true, 'ホラーの演出：使う（おまかせの雰囲気に「ホラー」が加わります）', 'ホラーの演出：使わない');
+  bindCalm();
   setSwitch('unify-toggle', 'unify', true, '統一感：オン（パートごとにそろえ、キメ・モーフ・太さも使います）', '統一感：オフ');
   setSwitch('typeset-toggle', 'typeset', true, '文字整列：オン（字間・助詞・英字・0.2秒先・効果控えめ）', '文字整列：オフ');
   $('fxKoma').addEventListener('change', e => { const k = +e.target.value; S.project.fx.koma = k; S.project.fx.onTwos = k > 0; S.project.mood = null; replan(); });
@@ -1992,6 +2115,7 @@ function bind() {
     else if (e.code === 'ArrowRight') seek(S.t + (e.shiftKey ? 1 : 1 / S.plan.fps));
     else if (e.code === 'ArrowLeft') seek(S.t - (e.shiftKey ? 1 : 1 / S.plan.fps));
     else if (e.code === 'KeyR' && !e.metaKey && !e.ctrlKey && !e.altKey && !S.exporting) { e.preventDefault(); omakase(); }
+    else if ((e.code === 'KeyI' || e.code === 'KeyO') && !e.metaKey && !e.ctrlKey && !e.altKey && !S.exporting) { e.preventDefault(); setPreview(e.code === 'KeyI' ? 'start' : 'end', S.t); }
   });
   window.addEventListener('resize', () => { sizeViewport(); drawTimeline(); });
   if (window.ResizeObserver) new ResizeObserver(() => { sizeViewport(); drawTimeline(); }).observe($('viewport'));

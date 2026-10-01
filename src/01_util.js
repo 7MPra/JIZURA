@@ -174,6 +174,37 @@ J.VERT_ROTATE = 'ー〜～…‥―—-()（）「」『』【】〈〉《》〔
   };
 })();
 
+/* a typed time → seconds (NaN when it cannot be read). Accepts what the transport shows and what people type:
+   "202.44" (seconds) · "3:22.44" / "03:22.44" (min:sec.hundredths) · "3.22.44" / "03:22:44" (min, sec, hundredths)
+   · "1:03:22.4" (h:m:s — a fraction on the last part)
+   · "3:22" · full-width digits and colons. A part after the minutes must be under 60. */
+J.parseTime = (s) => {
+  let t = String(s == null ? '' : s).trim().replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[：]/g, ':').replace(/[．。]/g, '.').replace(/\s+/g, '');
+  if (!t) return NaN;
+  if (!/^\d+(?:[.:]\d+)*$/.test(t) && !/^\d*\.\d+$/.test(t)) return NaN;
+  let parts;
+  if (t.includes(':')) {
+    const p = t.split(':');
+    if (p.length === 3 && !p[2].includes('.')) parts = [+p[0], parseFloat(p[1] + '.' + p[2])];   // "03:22:44" = m:s:hundredths, like "3.22.44"
+    else { const last = p.pop(); parts = p.map(Number).concat([parseFloat(last)]); }              // "3:22.44", "1:03:22.4" (h:m:s)
+  } else {
+    const p = t.split('.');
+    if (p.length <= 2) return parseFloat(t);                // plain seconds
+    if (p.length > 3) return NaN;
+    parts = [+p[0], parseFloat(p[1] + '.' + p[2])];         // "3.22.44" = 3 min 22.44 s
+  }
+  if (parts.length > 3 || parts.some(v => !isFinite(v))) return NaN;
+  for (let i = 1; i < parts.length; i++) if (parts[i] >= 60) return NaN;
+  return parts.reduce((a, v) => a * 60 + v, 0);
+};
+
+/* m:ss.cc for the boxes people type into: rounded to the hundredth, so what is shown reads back as the same time
+   (fmtTime floors, and 202.44 would show as 03:22.43 — it stays as it is for the timecodes drawn into videos) */
+J.fmtClock = (t) => {
+  const c = Math.round(Math.max(0, +t || 0) * 100), m = Math.floor(c / 6000), s = Math.floor(c / 100) % 60, f = c % 100;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(f).padStart(2, '0')}`;
+};
+
 J.fmtTime = (t, fps) => {
   t = Math.max(0, t);
   const m = Math.floor(t / 60), s = Math.floor(t % 60), f = Math.floor((t % 1) * (fps || 100));

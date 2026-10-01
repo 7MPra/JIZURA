@@ -137,11 +137,11 @@ button.tap { font: 700 18px/1 var(--mono); letter-spacing: 0.2em; padding: 16px;
 
 /* line list */
 #lineList { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.ln { display: grid; grid-template-columns: 22px 66px minmax(0, 1fr); gap: 4px 6px; align-items: center; padding: 6px; border: 1px solid transparent; border-radius: var(--r); }
+.ln { display: grid; grid-template-columns: 22px 74px minmax(0, 1fr); gap: 4px 6px; align-items: center; padding: 6px; border: 1px solid transparent; border-radius: var(--r); }
 .ln:hover { background: var(--raised); }
 .ln.cur { border-color: var(--line2); background: var(--raised); }
 .ln .no { font: 500 11px var(--mono); color: var(--faint); text-align: right; }
-.ln .time { width: 100%; padding: 3px 5px; font-size: 12px; }
+.ln .time { width: 100%; padding: 3px 4px; font-size: 12px; font-variant-numeric: tabular-nums; }
 .ln .txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .ln .meta { grid-column: 2 / 4; display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; flex-wrap: wrap; }
 .ln .tools { display: flex; gap: 4px; flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
@@ -168,6 +168,15 @@ button.tap { font: 700 18px/1 var(--mono); letter-spacing: 0.2em; padding: 16px;
 #btnLoop[data-mode="line"], #btnLoop[data-mode="cut"] { color: var(--amber); }
 #btnLoop[aria-pressed="false"] { opacity: 0.55; }
 .transport .tc { font: 500 13px var(--mono); font-variant-numeric: tabular-nums; }
+.pv-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 2px 0 4px; font-size: 12px; }
+.pv-bar .field.pv-field { display: inline-flex; flex-direction: row; align-items: center; gap: 4px; margin: 0; font-size: 12px; }
+.pv-bar .field input { width: 80px; padding: 2px 4px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.pv-bar.on .pv-label { color: var(--cyan); }
+.calm-box { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 8px 10px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: var(--r); }
+.calm-box .field.calm-field { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; font-size: 12px; }
+.calm-box .field.calm-field select { width: auto; }
+.calm-box .calm-note { flex-basis: 100%; }
+.calm-box.on { border-color: var(--cyan); }
 .transport input[type=range] { flex: 1 1 160px; accent-color: var(--amber); }
 button.play { width: 40px; height: 34px; padding: 0; font-size: 14px; }
 /* timeline controls, export range, line tools */
@@ -432,7 +441,7 @@ button.small.primary { padding: 4px 12px; }
 #app.is-mobile .col-left, #app.is-mobile .col-right { overflow: visible; border: 0; border-top: 1px solid var(--line); }
 #app.is-mobile .col-stage { order: -1; position: sticky; top: var(--mbar, 96px); z-index: 30; background: var(--ink); padding: 8px 10px; gap: 6px; box-shadow: 0 8px 18px rgba(0,0,0,0.45); }
 #app.is-mobile .viewport canvas { max-height: 34vh; }
-#app.is-mobile .tl-bar, #app.is-mobile #timeline, #app.is-mobile .tempo-wrap, #app.is-mobile .cutinfo, #app.is-mobile .transport .vol, #app.is-mobile #btnLoop, #app.is-mobile #btnShuffle, #app.is-mobile #btnOmakase { display: none; }
+#app.is-mobile .tl-bar, #app.is-mobile .pv-bar, #app.is-mobile #timeline, #app.is-mobile .tempo-wrap, #app.is-mobile .cutinfo, #app.is-mobile .transport .vol, #app.is-mobile #btnLoop, #app.is-mobile #btnShuffle, #app.is-mobile #btnOmakase { display: none; }
 #app.is-mobile .transport { gap: 8px; flex-wrap: nowrap; }
 #app.is-mobile .transport .hist-btns { display: inline-flex; }
 #app.is-mobile .col-right { order: 0; }
@@ -587,6 +596,14 @@ button.small.primary { padding: 4px 12px; }
           <button id="tlTempo" class="ghost small" aria-pressed="false" title="Draw tempo changes as a graph (for DJ mixes and songs whose tempo changes)">BPM graph</button>
         </span>
       </div>
+      <div class="pv-bar" role="group" aria-label="Preview range">
+        <span class="muted pv-label" title="Play only this range (the export range does not change). Keys I / O set the start / end at the playhead">Preview range</span>
+        <label class="field pv-field">Start<input id="pvIn" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="00:00.00" aria-label="Preview start time"></label>
+        <button id="pvInHere" class="ghost small" title="Set the start at the playhead (key I)">Playhead</button>
+        <label class="field pv-field">End<input id="pvOut" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="End of song" aria-label="Preview end time"></label>
+        <button id="pvOutHere" class="ghost small" title="Set the end at the playhead (key O)">Playhead</button>
+        <button id="pvClear" class="ghost small" title="Clear the range and play the whole song">Clear</button>
+      </div>
       <canvas id="timeline" aria-label="Timeline (click to seek, drag line markers to adjust)"></canvas>
       <div id="tempoWrap" class="tempo-wrap" hidden>
         <canvas id="tempoLane" aria-label="Tempo graph"></canvas>
@@ -712,6 +729,12 @@ button.small.primary { padding: 4px 12px; }
       </div>
 
       <div class="tabpane" data-pane="fx" hidden>
+        <div class="calm-box">
+          <label class="check" title="Turn off screen effects, transitions, camera moves, decorations and text treatments at once, and give every line the same motion"><input id="calmOn" type="checkbox"><span>Calm</span></label>
+          <label class="field calm-field">Motion<select id="calmMotion" aria-label="Calm motion"><option value="fade">Fade</option><option value="chars">Fade letter by letter</option><option value="wipe">Wipe</option><option value="cut">No motion</option></select></label>
+          <label class="check" title="Replace layouts that move the words by themselves with centred, vertical, big or stacked"><input id="calmLayouts" type="checkbox" checked><span>Plain layouts too</span></label>
+          <small class="muted calm-note">Settings made for a line or a cut, and locked lines, are kept. Turn it off to get the original look back.</small>
+        </div>
         <div class="unify-box">
           <label class="check"><input class="unify-toggle" type="checkbox"><span>Unified look</span></label>
           <label class="check"><input class="typeset-toggle" type="checkbox"><span>Typesetting</span></label>
@@ -995,6 +1018,37 @@ J.VERT_ROTATE = 'ー〜～…‥―—-()（）「」『』【】〈〉《》〔
     return out;
   };
 })();
+
+/* a typed time → seconds (NaN when it cannot be read). Accepts what the transport shows and what people type:
+   "202.44" (seconds) · "3:22.44" / "03:22.44" (min:sec.hundredths) · "3.22.44" / "03:22:44" (min, sec, hundredths)
+   · "1:03:22.4" (h:m:s — a fraction on the last part)
+   · "3:22" · full-width digits and colons. A part after the minutes must be under 60. */
+J.parseTime = (s) => {
+  let t = String(s == null ? '' : s).trim().replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[：]/g, ':').replace(/[．。]/g, '.').replace(/\s+/g, '');
+  if (!t) return NaN;
+  if (!/^\d+(?:[.:]\d+)*$/.test(t) && !/^\d*\.\d+$/.test(t)) return NaN;
+  let parts;
+  if (t.includes(':')) {
+    const p = t.split(':');
+    if (p.length === 3 && !p[2].includes('.')) parts = [+p[0], parseFloat(p[1] + '.' + p[2])];   // "03:22:44" = m:s:hundredths, like "3.22.44"
+    else { const last = p.pop(); parts = p.map(Number).concat([parseFloat(last)]); }              // "3:22.44", "1:03:22.4" (h:m:s)
+  } else {
+    const p = t.split('.');
+    if (p.length <= 2) return parseFloat(t);                // plain seconds
+    if (p.length > 3) return NaN;
+    parts = [+p[0], parseFloat(p[1] + '.' + p[2])];         // "3.22.44" = 3 min 22.44 s
+  }
+  if (parts.length > 3 || parts.some(v => !isFinite(v))) return NaN;
+  for (let i = 1; i < parts.length; i++) if (parts[i] >= 60) return NaN;
+  return parts.reduce((a, v) => a * 60 + v, 0);
+};
+
+/* m:ss.cc for the boxes people type into: rounded to the hundredth, so what is shown reads back as the same time
+   (fmtTime floors, and 202.44 would show as 03:22.43 — it stays as it is for the timecodes drawn into videos) */
+J.fmtClock = (t) => {
+  const c = Math.round(Math.max(0, +t || 0) * 100), m = Math.floor(c / 6000), s = Math.floor(c / 100) % 60, f = c % 100;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(f).padStart(2, '0')}`;
+};
 
 J.fmtTime = (t, fps) => {
   t = Math.max(0, t);
@@ -3827,6 +3881,51 @@ J.phraseChunks = (words) => {
   return out.length ? out : words;
 };
 
+/* ---------------- line numbers across a lyric edit ----------------
+   Hand-set times (timing.lineTimes), per-line settings (overrides) and the export range are kept by line number.
+   When the lyrics are edited so lines come or go, every number after the edit pointed at another line, and that line's
+   lyric played at the old line's time. J.lineIndexMap(oldText, newText) → map[oldIndex] = newIndex (or -1: removed):
+   lines are matched by their text in order (longest common subsequence); between two matched lines, lines that were
+   changed in place (a typo fixed) are paired in order, so they keep their settings. null when nothing moved. */
+J.lineIndexMap = (oldText, newText) => {
+  const key = l => (l.interlude ? '\u0000inter:' + (l.secs || '') : String(l.text).replace(/\s+/g, ' ').trim());
+  const A = J.parseLyrics(oldText || '').lines.map(key), B = J.parseLyrics(newText || '').lines.map(key);
+  const n = A.length, m = B.length;
+  if (n === m && A.every((k, i) => k === B[i])) return null;
+  if (n * m > 4e6) return null;                                  // a huge paste: leave it
+  const L = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const map = new Array(n).fill(-1), pairs = [];
+  for (let i = 0, j = 0; i < n && j < m;) {
+    if (A[i] === B[j]) { pairs.push([i, j]); i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) i++; else j++;
+  }
+  pairs.forEach(([i, j]) => { map[i] = j; });
+  // the unmatched runs between anchors: lines changed in place keep their number, one for one, in order
+  const anchors = [[-1, -1]].concat(pairs, [[n, m]]);
+  for (let k = 0; k + 1 < anchors.length; k++) {
+    const [i0, j0] = anchors[k], [i1, j1] = anchors[k + 1];
+    const olds = [], news = [];
+    for (let i = i0 + 1; i < i1; i++) olds.push(i);
+    for (let j = j0 + 1; j < j1; j++) news.push(j);
+    const kk = Math.min(olds.length, news.length);
+    // the same count: changed in place; otherwise lines were added or removed too — pair only what lines up from the start
+    for (let q = 0; q < kk; q++) if (olds.length === news.length || A[olds[q]].length && B[news[q]].length && (A[olds[q]][0] === B[news[q]][0] || olds.length === 1 && news.length === 1)) map[olds[q]] = news[q];
+  }
+  return map;
+};
+/* move an object keyed by line number along a lineIndexMap (entries of removed lines are dropped) */
+J.remapByLine = (obj, map) => {
+  if (!obj || !map) return obj;
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    const i = +k;
+    if (!Number.isInteger(i) || i < 0) { out[k] = v; continue; }
+    if (i >= map.length) continue;                               // a line that is not in the lyrics any more
+    if (map[i] >= 0) out[map[i]] = v;
+  }
+  return out;
+};
+
 /* ---------------- timing ---------------- */
 J.computeTiming = (project, parsed, audio) => {
   const T = project.timing || {};
@@ -4262,6 +4361,8 @@ J.plan = (project, audio) => {
   plan.energyRate = audio && audio.energyRate ? audio.energyRate : 0;
   // テキストのみ: the song is staged section by section (src/11x_system.js)
   if (J.systemDirect) J.systemDirect(plan, st);
+  // 落ち着いた演出: one gentle motion for every line, no effects (src/11y_calm.js) — only when the project turns it on
+  if (J.calmPass) J.calmPass(plan, project, st);
   return plan;
 };
 
@@ -37025,7 +37126,10 @@ const EZ = J.EZ;
 /* ---------------------------------------------------------------- shared */
 const POP = 0.1;                                            // seconds: the appearance of a word (about 2 frames at 24 fps)
 // scale of a word dt seconds after it appears (null = not yet): it lands slightly large and settles
-const pop = (dt, amt = 0.12) => (dt < 0 ? null : 1 + amt * (1 - EZ.out(clamp(dt / POP))));
+const pop = (dt, amt = 0.12, env) => (dt < 0 ? null : calm(env) ? 1 : 1 + amt * (1 - EZ.out(clamp(dt / POP))));
+// 落ち着いた演出 (src/11y_calm.js): no pop — the word fades in over 0.4 s instead
+const calm = env => !!(env && env.plan && env.plan.calm);
+const fa = (dt, env) => (calm(env) ? 0.5 - 0.5 * Math.cos(Math.PI * clamp(dt / 0.4)) : 1);
 // items drawn with their own motion only (the cut's enter / exit / hold are not used)
 const own = it => Object.assign(it, { enter: 'cut', exit: 'cut', hold: 'still', mi: 0, noHold: true, plain: true });
 const draw = (env, it) => J.mainDraw(env, own(it));
@@ -37071,7 +37175,9 @@ function setWord(word, font, u) {
 // P.block = { id, texts: [the cut texts of the block, in order], slot: this cut's place in it }
 const buildCache = new Map();
 function buildLayout(env, P) {
-  const { W, H } = env, B = P.block, key = [B.id, B.texts.length, W, H, P.font, P.arr, P.side, J.LATIN || ''].join('|');
+  // keyed by the words themselves: a block id is a seed, and the same seed comes back after the lyrics are edited
+  // (a changed word, a line inserted above) — a key by id alone drew the old words for the whole block
+  const { W, H } = env, B = P.block, key = [B.texts.join('\u0001'), (B.lines || []).join(','), W, H, P.font, P.arr, P.side, J.LATIN || ''].join('|');
   if (buildCache.has(key)) return buildCache.get(key);
   const port = K.isPort(env), M = Math.min(W, H) * 0.08, stairs = P.arr === 'stairs';
   const rw = W * (port ? 0.86 : stairs ? 0.8 : 0.7), rh = H * (port ? 0.72 : 0.84);
@@ -37128,13 +37234,13 @@ J.register('layout', 'sysBuild', {
     let bb = null;
     for (const p of L.pieces) {
       if (p.li > B.slot) continue;
-      let s = 1;
-      if (p.li === B.slot && !B.full) { s = pop(env.lt - ts[mine.indexOf(p)]); if (s == null) continue; }
+      let s = 1, a = 1;
+      if (p.li === B.slot && !B.full) { const dt = env.lt - ts[mine.indexOf(p)]; s = pop(dt, 0.12, env); if (s == null) continue; a = fa(dt, env); }
       const cx = p.ax + p.set.w / 2;
       for (const r of p.set) {
         // every run sits on the row's baseline; the pop scales the word about its centre
         const x = cx + (p.ax + r.x + r.w / 2 - cx) * s, y = p.ay - r.s * s * 0.5;
-        bb = J.unionBB(bb, draw(env, { text: r.t, font: P.font, size: r.s * s, x, y, color: sc.fg }));
+        bb = J.unionBB(bb, draw(env, { text: r.t, font: P.font, size: r.s * s, x, y, color: sc.fg, alpha: a }));
       }
     }
     return bb;
@@ -37207,9 +37313,9 @@ J.register('layout', 'sysGiant', {
       const tot = sizes.reduce((a, b) => a + b * 0.86, 0);
       let y = H / 2 - tot / 2;
       up.forEach((w, i) => {
-        const s = pop(env.lt - ts[i], 0.06), sz = sizes[i];
+        const s = pop(env.lt - ts[i], 0.06, env), sz = sizes[i];
         y += sz * 0.43;
-        if (s != null) bb = J.unionBB(bb, draw(env, { text: w, font, size: sz * s, x: W / 2, y, track: -0.02, color: sc.fg }));
+        if (s != null) bb = J.unionBB(bb, draw(env, { text: w, font, size: sz * s, x: W / 2, y, track: -0.02, color: sc.fg, alpha: fa(env.lt - ts[i], env) }));
         y += sz * 0.43;
       });
       return bb;
@@ -37223,8 +37329,8 @@ J.register('layout', 'sysGiant', {
     words.forEach((w, i) => {
       const sz = sizes[i], cx = x - ord * sz * 0.52;
       x -= ord * (sz * 1.04 + pad);
-      const s = pop(env.lt - ts[i], 0.06);
-      if (s != null) bb = J.unionBB(bb, draw(env, { text: w, font, size: sz * s, x: cx, y: H / 2, vertical: true, track: -0.02, color: sc.fg }));
+      const s = pop(env.lt - ts[i], 0.06, env);
+      if (s != null) bb = J.unionBB(bb, draw(env, { text: w, font, size: sz * s, x: cx, y: H / 2, vertical: true, track: -0.02, color: sc.fg, alpha: fa(env.lt - ts[i], env) }));
     });
     return bb;
   },
@@ -37241,11 +37347,11 @@ J.register('layout', 'sysSplit', {
     const port = K.isPort(env), ts = K.onsets(env, 3), [a, b] = [...key];
     const big = Math.min(H * (port ? 0.34 : 0.7), W * (port ? 0.42 : 0.3));
     const line = K.strip(c.text), ss = Math.min(J.fitSize(line, P.small, W - big * 2.3, H * 0.12, { track: 0.04 }), H * 0.07);
-    const s0 = pop(env.lt - ts[0], 0.1), s1 = pop(env.lt - ts[1], 0.1), s2 = pop(env.lt - ts[2], 0.05), ex = W * 0.03 + big / 2;
+    const s0 = pop(env.lt - ts[0], 0.1, env), s1 = pop(env.lt - ts[1], 0.1, env), s2 = pop(env.lt - ts[2], 0.05, env), ex = W * 0.03 + big / 2;
     let bb = null;
-    if (s0 != null) bb = J.unionBB(bb, draw(env, { text: a, font: P.font, size: big * s0, x: ex, y: H / 2, color: sc.fg }));
-    if (s1 != null) bb = J.unionBB(bb, draw(env, { text: b, font: P.font, size: big * s1, x: W - ex, y: H / 2, color: sc.fg }));
-    if (s2 != null) bb = J.unionBB(bb, draw(env, { text: line, font: P.small, size: ss * s2, x: W / 2, y: H / 2, track: 0.04, color: sc.fg }));
+    if (s0 != null) bb = J.unionBB(bb, draw(env, { text: a, font: P.font, size: big * s0, x: ex, y: H / 2, color: sc.fg, alpha: fa(env.lt - ts[0], env) }));
+    if (s1 != null) bb = J.unionBB(bb, draw(env, { text: b, font: P.font, size: big * s1, x: W - ex, y: H / 2, color: sc.fg, alpha: fa(env.lt - ts[1], env) }));
+    if (s2 != null) bb = J.unionBB(bb, draw(env, { text: line, font: P.small, size: ss * s2, x: W / 2, y: H / 2, track: 0.04, color: sc.fg, alpha: fa(env.lt - ts[2], env) }));
     return bb;
   },
 });
@@ -37272,14 +37378,14 @@ J.register('layout', 'sysScatter', {
     const { W, H, sc } = env, c = env.cut, P = c.params, port = K.isPort(env);
     const words = scatterPieces(c), ts = K.onsets(env, words.length);
     const k = Math.max(0, K.curIdx(ts, env.lt)), w = words[k] || K.strip(c.text);
-    const sp = SPOTS[(k + (P.o | 0)) % 4], op = SPOTS[(k + (P.o | 0) + 1) % 4], s = pop(env.lt - ts[k], 0.14) || 1;
+    const sp = SPOTS[(k + (P.o | 0)) % 4], op = SPOTS[(k + (P.o | 0) + 1) % 4], s = pop(env.lt - ts[k], 0.14, env) || 1, a = fa(env.lt - ts[k], env);
     // the faint giant copy on the other side, cropped by the frame
-    draw(env, { text: w, font: P.font, size: J.fitSize(w, P.font, W * 0.95, H * 0.95, { track: -0.02 }), x: W * op[0], y: H * op[1], track: -0.02, color: tone(sc) });
+    draw(env, { text: w, font: P.font, size: J.fitSize(w, P.font, W * 0.95, H * 0.95, { track: -0.02 }), x: W * op[0], y: H * op[1], track: -0.02, color: tone(sc), alpha: a });
     const size = Math.min(J.fitSize(w, P.font, W * (port ? 0.9 : 0.58), H * (port ? 0.3 : 0.42), { track: -0.01 }), H * 0.38);
     // kept inside the frame's margin
     const m = J.measure({ text: w, font: P.font, size, track: -0.01 }), M = Math.min(W, H) * 0.06;
     const x = clamp(W * (port ? 0.5 : sp[0]), M + m.w / 2, W - M - m.w / 2), y = clamp(H * sp[1], M + m.h / 2, H - M - m.h / 2);
-    return draw(env, { text: w, font: P.font, size: size * s, x, y, track: -0.01, color: sc.fg });
+    return draw(env, { text: w, font: P.font, size: size * s, x, y, track: -0.01, color: sc.fg, alpha: a });
   },
 });
 
@@ -37393,6 +37499,78 @@ for (const k of J.STYLE_ORDER) {
   const st = J.STYLES[k];
   if (st && st.textOnly && !(st.moods || []).includes('horror')) st.system = true;
 }
+})();
+
+/* JIZURA — 落ち着いた演出 (calm): one switch that takes the busy parts out and gives every line the same gentle motion.
+   project.calm = { on: true, motion: 'fade' | 'chars' | 'wipe' | 'cut', layouts: true }   (absent or on:false = off;
+   older projects have no calm and plan exactly as before)
+     · screen effects (flash, zoom hits, shake, colour flips …), cut-to-cut transitions, morphs, text treatments and
+       decorations are off; the camera only drifts in slowly
+     · every cut enters and leaves with the chosen motion and holds still
+     · layouts: anything but the plain ones (centred, vertical columns, big, stacked) — many of them move the words
+       around by themselves — is swapped for a plain one, unless layouts:false
+     · the text-only styles keep their staging (src/11x_system.js) with the words fading in instead of popping
+   Lines (and cuts) set by hand in the line list or the cut picker keep what was set, and so do locked lines.
+   The motions registered here are `special`: random picks never choose them, so plans without calm do not change. */
+(() => {
+'use strict';
+const clamp = J.clamp;
+const ease = x => 0.5 - 0.5 * Math.cos(Math.PI * clamp(x));
+
+J.register('enter', 'calmFade', { name: 'フェード', special: true, tags: ['calm'], w: 0, ae: 'blur',
+  apply(env, it, p) { const e = ease(p); it.alpha = (it.alpha ?? 1) * e; it.y += (1 - e) * it.size * 0.05; } });
+J.register('exit', 'calmFadeOut', { name: 'フェードアウト', special: true, tags: ['calm'], w: 0, ae: 'blur',
+  apply(env, it, p) { it.alpha = (it.alpha ?? 1) * (1 - ease(p)); } });
+
+const MOTIONS = {
+  fade: { enter: 'calmFade', exit: 'calmFadeOut', name: 'フェード' },
+  chars: { enter: 'fadeStagger', exit: 'calmFadeOut', name: '一字ずつフェード' },
+  wipe: { enter: 'wipe', exit: 'wipe', name: 'ワイプ' },
+  cut: { enter: 'cut', exit: 'cut', name: '動きなし' },
+};
+J.CALM_MOTIONS = MOTIONS;
+// plain layouts a calm piece may use (kinetic layouts animate the words themselves)
+const PLAIN = ['center', 'vcols', 'huge', 'stack'];
+
+J.calmOf = project => {
+  const C = project && project.calm;
+  if (!C || C.on !== true) return null;
+  return { motion: MOTIONS[C.motion] ? C.motion : 'fade', layouts: C.layouts !== false };
+};
+
+J.calmPass = (plan, project, st) => {
+  const C = J.calmOf(project);
+  if (!C) return;
+  plan.calm = C;
+  const M = MOTIONS[C.motion], en = J.ENTER[M.enter] ? M.enter : 'cut', ex = J.EXIT[M.exit] ? M.exit : 'cut';
+  for (const c of plan.cuts) {
+    if (c.manual) continue;                                  // set by hand: keep
+    if (c.layout === 'interlude' || !String(c.text || '').trim()) { c.trans = null; c.transDur = 0; delete c.morph; continue; }
+    Object.assign(c, { trans: null, transP: {}, transDur: 0, treat: 'none', treatP: {}, decor: [], weightGrow: false });
+    delete c.morph;
+    if (c.staged) {                                          // text-only staging: it owns its motion (fades in calm mode)
+      // the lively chorus stagings (a word a beat, scattered words, split kanji) become the big vertical columns
+      if (C.layouts && ['bsBeatWord', 'sysScatter', 'sysSplit'].includes(c.layout) && J.LAYOUTS.sysGiant) { c.layout = 'sysGiant'; c.params = J.LAYOUTS.sysGiant.plan(J.rng(J.h(c.seed, 63)), c, st); }
+      continue;
+    }
+    if (C.layouts && !PLAIN.includes(c.layout) && !c.companion) {     // (中央を空ける keeps its pair of layouts)
+      const n = [...String(c.text).replace(/\s+/g, '')].length;
+      const opts = PLAIN.filter(k => J.LAYOUTS[k] && J.LAYOUTS[k].fits(n));
+      const k = opts.length ? opts[J.h(c.seed, 61) % opts.length] : 'center';
+      c.layout = k;
+      c.params = J.LAYOUTS[k].plan(J.rng(J.h(c.seed, 62)), { text: c.text, n, W: plan.W, H: plan.H, dur: c.dur }, st);
+    }
+    const dur = c.end - c.start;
+    c.enter = en; c.exit = dur > 1.1 ? ex : 'cut'; c.hold = 'still';
+    c.inDur = en === 'cut' ? 0.05 : clamp(dur * 0.3, 0.2, 0.6);
+    c.outDur = c.exit === 'cut' ? 0 : clamp(dur * 0.18, 0.15, 0.4);
+    if (c.cam !== 'hold') { c.cam = 'push'; c.camP = {}; }
+    if (c.companion) Object.assign(c.companion, { enter: c.enter, exit: c.exit, hold: 'still', inDur: c.inDur, outDur: c.outDur, trans: null, treat: 'none', decor: [], cam: c.cam, camP: {} });   // 中央を空ける: its twin
+  }
+  // no screen effects at all (flashes, zoom hits, shakes, colour flips …) except on cuts set by hand
+  const hand = plan.cuts.filter(c => c.manual);
+  plan.events = plan.events.filter(e => hand.some(c => e.t >= c.start - 0.05 && e.t < c.end));
+};
 })();
 
 /* English labels are applied after all expression packs register, before the editor starts.
@@ -37640,7 +37818,7 @@ for (const k of J.STYLE_ORDER) {
 /* part sets (horror / typo / kinetic): names, styles and the horror mood */
 (() => {
   'use strict';
-  const P = {"layout": {"hrFlashlight": "Flashlight", "hrDoorGap": "Door Gap", "hrWallScrawl": "Wall Scrawl", "hrCctv": "CCTV Monitor", "hrOuija": "Spirit Board", "hrMissing": "Missing Poster", "hrWrongOne": "The Wrong Glyph", "hrRisingDark": "Out of the Dark", "hrRedacted": "Redacted File", "hrStaticTv": "Static TV", "hrSpiritPhoto": "Spirit Photo", "hrWrongShadow": "Wrong Shadow", "tyKeySplit": "Key Glyph Split", "tyCropGiant": "Cropped Giant", "tyCross": "Cross Setting", "tyBandHide": "Band Cover", "tyRuby": "Ruby Notes", "tyBaseline": "Ruled Lines", "tyScaleSteps": "Size Crescendo", "tyJustify": "Justified Stack", "tyIndexTable": "Glyph Table", "tySplitType": "Split Type", "tyErode": "Eroding Repeat", "tyVRuler": "Vertical Scale", "tyFullTrack": "Full-Width Tracking", "tyStatCount": "Glyph Count", "tyMargin": "White Space", "tyRotBlock": "Rotated Block", "tySquare": "Square Setting", "tyLineFocus": "Line Highlight", "knSlamStack": "Slam Stack", "knQuarterTurn": "Quarter Turn", "knSwapCenter": "Word Swap", "knZoomDive": "Dive Into Letter", "knFlowSnap": "Flow and Snap", "knSeesaw": "Seesaw", "knTypeSlam": "Type then Slam", "knRhythmCuts": "Word Jump Cuts", "knPathRide": "Loop Track", "knGearWords": "Gears", "knCollide": "Head-on Crash", "knTumble": "Tumbling Boxes", "knReflow": "Vertical to Line", "knPadGrid": "Drum Pads", "bsBeatWord": "Word per Beat", "bsScaleLine": "Big Word, Small Line", "bsRefrain": "Refrain Rows", "bsTypeBeat": "Beat Typing", "tyStackJustify": "Stacked Words", "tyCropSlide": "Cropped Slide", "tyGridFill": "Grid Fill", "sysBuild": "Build-up", "sysEdge": "Edge Columns", "sysGiant": "Giant Columns", "sysSplit": "Split to the Edges", "sysScatter": "Scatter"}, "enter": {"hrBlinkCreep": "Between Blinks", "hrJumpScare": "Jump Scare", "hrUneasy": "Uneasy Timing", "hrVhold": "Vertical Hold", "hrMirrorSnap": "Mirror Writing", "hrManifest": "Manifest", "hrClawReveal": "Claw Marks", "tyKeyFirst": "Key Glyph First", "tyLineWipe": "Line-by-Line Wipe", "tyZoomOne": "One by One Zoom", "tyUnderLift": "Rise from Underline", "tyDotGrow": "Dot to Glyph", "tyBracketOpen": "Brackets Open", "tyRetype": "Retype", "tyRubyDrop": "From Ruby", "tyGrowUp": "Grow from Baseline", "tyDropHard": "Hard Drop", "knWordSlam": "Word Slam", "knTypeToSlam": "Type and Grow", "knReplaceIn": "Swap In", "knHingeDrop": "Hinge Drop", "knLoopIn": "Loop In", "knPushIn": "Push In", "knInertia": "Hard Brake", "knWordSpin": "Word Spin", "knDiveIn": "Words From Camera", "knStretchOut": "Tape Stretch"}, "exit": {"hrPulledDown": "Pulled Under", "hrLookBack": "One Remains", "hrTurnAway": "Turn Away", "hrShiver": "Shiver Out", "hrSwallow": "Swallowed", "hrFlickerDie": "Dying Flicker", "hrDrain": "Drain", "tyStrike": "Strike Out", "tyToDot": "Back to Dots", "tyLineFeed": "Line Feed", "tyBracketClose": "Brackets Close", "tyToIndex": "Turn to Numbers", "tyKeyLast": "Key Glyph Last", "tyUnderSink": "Sink into Underline", "tyFoldVert": "Fold to Vertical", "tySinkChars": "Sink by Letter", "tyRiseFade": "Rise by Letter", "knWordKick": "Word Kick", "knPushOut": "Push Out", "knDiveGlyph": "Dive Into Letter", "knLaunch": "Launch", "knWordBlink": "Words Blink Out", "knCloseGap": "Close the Gaps", "knJumpCutOut": "Jump Cut", "knStackAway": "Stack and Drop"}, "hold": {"hrTwitch": "Twitch", "hrStare": "Staring Glyph", "hrLagOne": "The Late One", "hrFlickerLight": "Failing Light", "tyKeyPulse": "Key Glyph Pulse", "tyReadCursor": "Reading Cursor", "tyOutlineBlink": "Outline Blink", "tyTrackStep": "Tracking Steps", "knWordPulse": "Word Pulse", "knCounterRock": "Counter Rock", "knWordRide": "Word Surf", "knTickShift": "Tick Shift", "knBeatLean": "Beat Lean", "knGapBreath": "Breathing Gaps"}, "decor": {"hrScratches": "Claw Scratches", "hrSigil": "Sigil", "hrWatchEye": "Watching Eye", "hrStaticPatch": "Static Patches", "hrDustBeam": "Dusty Light Beam", "hrDrips": "Ink Drips", "hrCracks": "Cracks", "tyColophon": "Colophon", "tyRunningHead": "Running Head & Folio", "tyGlyphBody": "Glyph Body Lines", "tyTextRule": "Text Rule", "tyTypeScale": "Type Scale", "tyBigPunct": "Big Quote Marks", "knSpeedTrail": "Trailing Speed Lines", "knWordTicks": "Word Counter"}, "treat": {"hrInkBleed": "Bleeding Ink", "hrEroded": "Eroded", "hrRedact": "Redacted", "hrDoubleExp": "Double Exposure", "tyHollowKey": "Hollow Key Glyph", "tyHeadRules": "Head & Foot Rules", "tyHeadBig": "Large Initial", "tyIndexSup": "Glyph Numbers", "knWordScale": "Big and Small Words", "knWordPlate": "Word Knockout"}, "bg": {"hrFailingLamp": "Failing Lamp", "hrCorridor": "Dark Corridor", "hrMold": "Spreading Stains", "hrDeadTrees": "Dead Forest"}, "cam": {"hrNervous": "Frightened Handheld", "hrDutchSnap": "Sudden Tilt", "knReadPan": "Reading Pan", "knTiltKick": "Tilt Kick", "knCardFlip": "Card Flip", "knShearKick": "Shear Kick", "knJumpCut": "Jump Cut", "knRushIn": "Rush In"}, "fx": {"hrSubliminal": "Subliminal", "hrSignalLoss": "Signal Loss", "hrPassingShadow": "Passing Shadow"}, "trans": {"hrStaticCut": "Static Cut", "hrBlink": "Blink", "tyRuleWipe": "Ruled Line Wipe", "tyGridCells": "Grid Cell Fill", "knCornerSwing": "Corner Swing", "knStutterCut": "Stutter Cut", "knStripSlam": "Strip Slam"}};
+  const P = {"layout": {"hrFlashlight": "Flashlight", "hrDoorGap": "Door Gap", "hrWallScrawl": "Wall Scrawl", "hrCctv": "CCTV Monitor", "hrOuija": "Spirit Board", "hrMissing": "Missing Poster", "hrWrongOne": "The Wrong Glyph", "hrRisingDark": "Out of the Dark", "hrRedacted": "Redacted File", "hrStaticTv": "Static TV", "hrSpiritPhoto": "Spirit Photo", "hrWrongShadow": "Wrong Shadow", "tyKeySplit": "Key Glyph Split", "tyCropGiant": "Cropped Giant", "tyCross": "Cross Setting", "tyBandHide": "Band Cover", "tyRuby": "Ruby Notes", "tyBaseline": "Ruled Lines", "tyScaleSteps": "Size Crescendo", "tyJustify": "Justified Stack", "tyIndexTable": "Glyph Table", "tySplitType": "Split Type", "tyErode": "Eroding Repeat", "tyVRuler": "Vertical Scale", "tyFullTrack": "Full-Width Tracking", "tyStatCount": "Glyph Count", "tyMargin": "White Space", "tyRotBlock": "Rotated Block", "tySquare": "Square Setting", "tyLineFocus": "Line Highlight", "knSlamStack": "Slam Stack", "knQuarterTurn": "Quarter Turn", "knSwapCenter": "Word Swap", "knZoomDive": "Dive Into Letter", "knFlowSnap": "Flow and Snap", "knSeesaw": "Seesaw", "knTypeSlam": "Type then Slam", "knRhythmCuts": "Word Jump Cuts", "knPathRide": "Loop Track", "knGearWords": "Gears", "knCollide": "Head-on Crash", "knTumble": "Tumbling Boxes", "knReflow": "Vertical to Line", "knPadGrid": "Drum Pads", "bsBeatWord": "Word per Beat", "bsScaleLine": "Big Word, Small Line", "bsRefrain": "Refrain Rows", "bsTypeBeat": "Beat Typing", "tyStackJustify": "Stacked Words", "tyCropSlide": "Cropped Slide", "tyGridFill": "Grid Fill", "sysBuild": "Build-up", "sysEdge": "Edge Columns", "sysGiant": "Giant Columns", "sysSplit": "Split to the Edges", "sysScatter": "Scatter"}, "enter": {"calmFade": "Fade", "hrBlinkCreep": "Between Blinks", "hrJumpScare": "Jump Scare", "hrUneasy": "Uneasy Timing", "hrVhold": "Vertical Hold", "hrMirrorSnap": "Mirror Writing", "hrManifest": "Manifest", "hrClawReveal": "Claw Marks", "tyKeyFirst": "Key Glyph First", "tyLineWipe": "Line-by-Line Wipe", "tyZoomOne": "One by One Zoom", "tyUnderLift": "Rise from Underline", "tyDotGrow": "Dot to Glyph", "tyBracketOpen": "Brackets Open", "tyRetype": "Retype", "tyRubyDrop": "From Ruby", "tyGrowUp": "Grow from Baseline", "tyDropHard": "Hard Drop", "knWordSlam": "Word Slam", "knTypeToSlam": "Type and Grow", "knReplaceIn": "Swap In", "knHingeDrop": "Hinge Drop", "knLoopIn": "Loop In", "knPushIn": "Push In", "knInertia": "Hard Brake", "knWordSpin": "Word Spin", "knDiveIn": "Words From Camera", "knStretchOut": "Tape Stretch"}, "exit": {"calmFadeOut": "Fade Out", "hrPulledDown": "Pulled Under", "hrLookBack": "One Remains", "hrTurnAway": "Turn Away", "hrShiver": "Shiver Out", "hrSwallow": "Swallowed", "hrFlickerDie": "Dying Flicker", "hrDrain": "Drain", "tyStrike": "Strike Out", "tyToDot": "Back to Dots", "tyLineFeed": "Line Feed", "tyBracketClose": "Brackets Close", "tyToIndex": "Turn to Numbers", "tyKeyLast": "Key Glyph Last", "tyUnderSink": "Sink into Underline", "tyFoldVert": "Fold to Vertical", "tySinkChars": "Sink by Letter", "tyRiseFade": "Rise by Letter", "knWordKick": "Word Kick", "knPushOut": "Push Out", "knDiveGlyph": "Dive Into Letter", "knLaunch": "Launch", "knWordBlink": "Words Blink Out", "knCloseGap": "Close the Gaps", "knJumpCutOut": "Jump Cut", "knStackAway": "Stack and Drop"}, "hold": {"hrTwitch": "Twitch", "hrStare": "Staring Glyph", "hrLagOne": "The Late One", "hrFlickerLight": "Failing Light", "tyKeyPulse": "Key Glyph Pulse", "tyReadCursor": "Reading Cursor", "tyOutlineBlink": "Outline Blink", "tyTrackStep": "Tracking Steps", "knWordPulse": "Word Pulse", "knCounterRock": "Counter Rock", "knWordRide": "Word Surf", "knTickShift": "Tick Shift", "knBeatLean": "Beat Lean", "knGapBreath": "Breathing Gaps"}, "decor": {"hrScratches": "Claw Scratches", "hrSigil": "Sigil", "hrWatchEye": "Watching Eye", "hrStaticPatch": "Static Patches", "hrDustBeam": "Dusty Light Beam", "hrDrips": "Ink Drips", "hrCracks": "Cracks", "tyColophon": "Colophon", "tyRunningHead": "Running Head & Folio", "tyGlyphBody": "Glyph Body Lines", "tyTextRule": "Text Rule", "tyTypeScale": "Type Scale", "tyBigPunct": "Big Quote Marks", "knSpeedTrail": "Trailing Speed Lines", "knWordTicks": "Word Counter"}, "treat": {"hrInkBleed": "Bleeding Ink", "hrEroded": "Eroded", "hrRedact": "Redacted", "hrDoubleExp": "Double Exposure", "tyHollowKey": "Hollow Key Glyph", "tyHeadRules": "Head & Foot Rules", "tyHeadBig": "Large Initial", "tyIndexSup": "Glyph Numbers", "knWordScale": "Big and Small Words", "knWordPlate": "Word Knockout"}, "bg": {"hrFailingLamp": "Failing Lamp", "hrCorridor": "Dark Corridor", "hrMold": "Spreading Stains", "hrDeadTrees": "Dead Forest"}, "cam": {"hrNervous": "Frightened Handheld", "hrDutchSnap": "Sudden Tilt", "knReadPan": "Reading Pan", "knTiltKick": "Tilt Kick", "knCardFlip": "Card Flip", "knShearKick": "Shear Kick", "knJumpCut": "Jump Cut", "knRushIn": "Rush In"}, "fx": {"hrSubliminal": "Subliminal", "hrSignalLoss": "Signal Loss", "hrPassingShadow": "Passing Shadow"}, "trans": {"hrStaticCut": "Static Cut", "hrBlink": "Blink", "tyRuleWipe": "Ruled Line Wipe", "tyGridCells": "Grid Cell Fill", "knCornerSwing": "Corner Swing", "knStutterCut": "Stutter Cut", "knStripSlam": "Strip Slam"}};
   for (const [g, m] of Object.entries(P)) { const t = J.registry(g) || {}; for (const [k, n] of Object.entries(m)) if (t[k]) t[k].name = n; }
   const S = {"hrRuin": ["Ruins", "Faded green-grey, rust red and echoing serif type"], "hrNightRec": ["Midnight Recording", "Pitch-black frames, CCTV white and red, static"], "hrCurse": ["Cursed Letter", "Yellowed paper, faded ink and dark red handwriting"]};
   for (const [k, [n, d]] of Object.entries(S)) if (J.STYLES[k]) { J.STYLES[k].name = n; J.STYLES[k].desc = d; }
@@ -37684,6 +37862,13 @@ function cutAround(t) {
 function loopRange(t) {
   const T = t != null ? t : S.t;
   const endAll = S.plan.duration;
+  // the playhead in a gap between cuts (before the first line, a pause, after the last): the gap itself — taking the
+  // cut before it sent playback back to the previous line, so the playhead could not be left in a pause
+  if ((S.loop === 'cut' || S.loop === 'line') && !J.cutAt(S.plan, T)) {
+    const cs = S.plan.cuts; let a = 0, b = endAll;
+    for (const c of cs) { if (c.end <= T + 1e-6) a = Math.max(a, c.end); else if (c.start > T) { b = Math.min(b, c.start); break; } }
+    return { start: a, end: Math.max(a + 0.05, b) };
+  }
   if (S.loop === 'cut') {
     const cut = cutAround(T);
     return cut ? { start: cut.start, end: cut.end } : { start: 0, end: endAll };
@@ -37702,7 +37887,75 @@ function refreshLoopHold(t) {
 }
 function activeLoopRange() {
   if ((S.loop === 'line' || S.loop === 'cut') && S.loopHold) return S.loopHold;
-  return loopRange(S.t);
+  return previewRange() || loopRange(S.t);
+}
+// preview range: project.preview = { start, end } in seconds (end null = the end of the song). Preview playback only —
+// the export range is separate. Checked against the current length every time it is used (the song can get shorter).
+const PV_MIN = 0.1;
+function previewRange() {
+  const P = S.project && S.project.preview, D = S.plan ? S.plan.duration : 0;
+  if (!P || !(D > 0)) return null;
+  const a = J.clamp(+P.start || 0, 0, Math.max(0, D - PV_MIN)), b = P.end != null && isFinite(+P.end) ? J.clamp(+P.end, a + PV_MIN, D) : D;
+  return b - a >= PV_MIN - 1e-9 ? { start: a, end: b } : null;
+}
+/* set one end of the range (seconds, or null to clear that end); false + a message when it does not fit */
+function setPreview(which, t) {
+  const D = S.plan.duration, cur = S.project.preview || { start: 0, end: null };
+  const next = { start: +cur.start || 0, end: cur.end != null ? +cur.end : null };
+  if (which === 'start') next.start = t == null ? 0 : t;
+  else next.end = t;
+  const end = next.end == null ? D : next.end;
+  if (!(next.start >= 0) || next.start >= D) { toast(`Set a start between 00:00.00 and ${J.fmtTime(D)}`); return false; }
+  if (next.end != null && (next.end > D + 1e-6 || next.end <= 0)) { toast(`Set an end no later than the song length (${J.fmtTime(D)})`); return false; }
+  if (end - next.start < PV_MIN) { toast('The end must come after the start'); return false; }
+  S.project.preview = next.start <= 0 && next.end == null ? null : { start: +next.start.toFixed(3), end: next.end == null ? null : +next.end.toFixed(3) };
+  flushSave(); syncPreviewUI(); drawTimeline(); S.need = true;
+  return true;
+}
+function syncPreviewUI() {
+  const a = $('pvIn'), b = $('pvOut'); if (!a) return;
+  const R = previewRange(), P = S.project.preview;
+  if (document.activeElement !== a) a.value = P ? J.fmtClock(R ? R.start : 0) : '';
+  if (document.activeElement !== b) b.value = P && P.end != null && R ? J.fmtClock(R.end) : '';
+  a.closest('.pv-bar').classList.toggle('on', !!P);
+}
+/* 落ち着いたEffects (src/11y_calm.js): project.calm = { on, motion, layouts } */
+function syncCalm() {
+  const on = $('calmOn'); if (!on) return;
+  const C = S.project.calm || {};
+  on.checked = C.on === true; $('calmMotion').value = J.CALM_MOTIONS[C.motion] ? C.motion : 'fade'; $('calmLayouts').checked = C.layouts !== false;
+  $('calmMotion').disabled = $('calmLayouts').disabled = !on.checked;
+  on.closest('.calm-box').classList.toggle('on', on.checked);
+}
+function bindCalm() {
+  if (!$('calmOn')) return;
+  const apply = () => {
+    remember();
+    const on = $('calmOn').checked;
+    S.project.calm = { on, motion: $('calmMotion').value, layouts: $('calmLayouts').checked };
+    syncCalm(); replan(); commit(); flushSave();
+    return on;
+  };
+  $('calmOn').addEventListener('change', () => toast(apply() ? 'Calm: on (effects off, every line moves the same way)' : 'Calm: off (back to the original look)'));
+  $('calmMotion').addEventListener('change', apply);
+  $('calmLayouts').addEventListener('change', apply);
+  syncCalm();
+}
+function bindPreview() {
+  if (!$('pvIn')) return;
+  const read = (el, which) => {
+    const raw = String(el.value || '').trim();
+    if (!raw) { setPreview(which, null); return; }
+    const t = J.parseTime(raw);
+    if (!isFinite(t)) { toast('Could not read the time (e.g. 3:22.44 / 3.22.44 / 202.44)'); syncPreviewUI(); return; }
+    if (!setPreview(which, t)) syncPreviewUI();
+  };
+  $('pvIn').addEventListener('change', e => read(e.target, 'start'));
+  $('pvOut').addEventListener('change', e => read(e.target, 'end'));
+  $('pvInHere').addEventListener('click', () => setPreview('start', S.t));
+  $('pvOutHere').addEventListener('click', () => setPreview('end', S.t));
+  $('pvClear').addEventListener('click', () => { S.project.preview = null; flushSave(); syncPreviewUI(); drawTimeline(); toast('Preview range: whole song'); });
+  syncPreviewUI();
 }
 function syncLoopBtn() {
   const b = $('btnLoop'); if (!b) return;
@@ -37778,6 +38031,12 @@ function mergeProject(p) {
   o.themeId = p && typeof p.themeId === 'string' && J.THEMES && J.THEMES[p.themeId] ? p.themeId : null;
   o.fonts = {};
   for (const [role, k] of Object.entries((p && p.fonts) || {})) if (typeof k === 'string' && J.FONTS[k] && /^[\w-]+$/.test(role)) o.fonts[role] = k;
+  // calm (older projects have none = off): plain values only
+  const cm = p && p.calm;
+  o.calm = cm && typeof cm === 'object' && cm.on === true ? { on: true, motion: J.CALM_MOTIONS[cm.motion] ? cm.motion : 'fade', layouts: cm.layouts !== false } : null;
+  // preview range (older projects have none): numbers only, end after start
+  const pv = p && p.preview;
+  o.preview = pv && isFinite(+pv.start) && +pv.start >= 0 && (pv.end == null || (isFinite(+pv.end) && +pv.end > +pv.start)) ? { start: +pv.start, end: pv.end == null ? null : +pv.end } : null;
   return o;
 }
 /* v0.10: untagged lines of an LRC text now stay where they are written — move per-line settings of older projects along */
@@ -37831,7 +38090,7 @@ function replan() {
   langNote();
   if (S.t > S.plan.duration) S.t = 0;
   refreshLoopHold();
-  renderLines(); sizeViewport(); drawTimeline(); updateTimeUI();
+  renderLines(); sizeViewport(); drawTimeline(); updateTimeUI(); syncPreviewUI();
   lastCutIdx = -2;
   if (typeof cutPick !== 'undefined' && cutPick.g) fillCutPick();
   S.need = true; autosave(); ensureFonts(); drawSwatch(); showNow();
@@ -37926,7 +38185,7 @@ function tick(now) {
     const range = activeLoopRange();
     if (t >= range.end - 1e-3) {
       if (S.loop && !S.tap) { seek(range.start); t = range.start; }
-      else { pause(); t = Math.min(t, S.plan.duration - 1e-3); if (S.tap) stopTap(); }
+      else { pause(); t = Math.min(t, range.end, S.plan.duration - 1e-3); seek(t); if (S.tap) stopTap(); }
     }
     S.t = t; S.need = true;
     followTlPlayhead();
@@ -37941,6 +38200,8 @@ function updateTimeUI() {
 // タップ同期の速さ (0.5× / 0.75×): only while tapping — the song's own time is what gets stored
 const playRate = () => (S.tap && S.tap.rate > 0 ? S.tap.rate : 1);
 function play() {
+  const PR = !S.tap ? previewRange() : null;              // outside the preview range (or at its end): from its start
+  if (PR && (S.t < PR.start - 1e-3 || S.t >= PR.end - 0.02) && !(S.loop === 'line' || S.loop === 'cut')) S.t = PR.start;
   refreshLoopHold();
   if (S.audio) AP.play(S.audio.buffer, S.t, playRate());
   else S.t0 = performance.now() - S.t * 1000 / playRate();
@@ -37999,6 +38260,11 @@ function drawTimeline() {
   const top = h * 0.3, bot = h - 8 * dpr;
   const R = exportRange();
   if (R) { x.fillStyle = 'rgba(245,165,12,0.10)'; x.fillRect(X(R.t0), 0, X(R.t1) - X(R.t0), h); }
+  const PR = previewRange();
+  if (PR) {                                                // プレビュー範囲: the outside dimmed, the ends marked
+    x.fillStyle = 'rgba(0,0,0,0.45)'; x.fillRect(0, 0, Math.max(0, X(PR.start)), h); x.fillRect(X(PR.end), 0, Math.max(0, w - X(PR.end)), h);
+    x.fillStyle = '#6fb7c8'; x.fillRect(Math.round(X(PR.start)), 0, 2 * dpr, h); x.fillRect(Math.round(X(PR.end)) - 2 * dpr, 0, 2 * dpr, h);
+  }
   for (const cut of S.plan.cuts) {
     const x0 = X(cut.start), x1 = X(cut.end);
     if (x1 < 0 || x0 > w) continue;
@@ -38199,19 +38465,42 @@ function tlHandleAt(ev) {
   for (const ln of S.plan.lines) { const d = Math.abs((ln.start - off) / vd * r.width - (ev.clientX - r.left)); if (d < bd) { bd = d; best = ln.index; } }
   return best;
 }
+/* set line i (a lyric line or an interlude) to start at t, keeping the lines in order.
+   The fixed times around it (typed, tapped, dragged, LRC) are not a wall: a fixed line that t crosses is pushed along,
+   0.2 s apart, so a line can be moved past an interlude or its neighbours. Lines left on automatic simply follow.
+   pin: also fix every other line where it is now (dragging on the timeline: moving one boundary never shifts the rest).
+   Returns how many other lines were pushed. */
+const LINE_GAP = 0.2;
+function placeLineTime(i, t, pin) {
+  const L = S.plan.lines, T = S.project.timing;
+  if (!T.lineTimes) T.lineTimes = {};
+  // with a song loaded a line must start inside it; without one the lyrics set the length, so there is no end to hit
+  const lt = T.lineTimes, D = S.audio && S.audio.duration > 0 ? Math.max(S.plan.duration, S.audio.duration) : Infinity;
+  const fixedAt = j => (lt[j] != null && isFinite(+lt[j]) ? +lt[j] : L[j] && L[j].lrc != null && isFinite(L[j].lrc) ? L[j].lrc : null);
+  if (pin) L.forEach(ln => { if (fixedAt(ln.index) == null) lt[ln.index] = +ln.start.toFixed(3); });
+  // room for the lines before / after it at the minimum spacing
+  t = Math.max(i * LINE_GAP * 0.25, Math.min(t, D - (L.length - i) * LINE_GAP * 0.25));
+  lt[i] = +t.toFixed(3);
+  let pushed = 0, prev = t;
+  for (let j = i + 1; j < L.length; j++) {                // later fixed lines it ran into
+    const f = fixedAt(j); if (f == null) continue;
+    if (f < prev + LINE_GAP) { lt[j] = +(prev + LINE_GAP).toFixed(3); pushed++; prev = lt[j]; } else break;
+  }
+  prev = t;
+  for (let j = i - 1; j >= 0; j--) {                      // earlier fixed lines it ran into
+    const f = fixedAt(j); if (f == null) continue;
+    if (f > prev - LINE_GAP) { lt[j] = +Math.max(0, prev - LINE_GAP).toFixed(3); pushed++; prev = lt[j]; } else break;
+  }
+  return pushed;
+}
 function tlDragTo(i, ev) {
   let t = tlTime(ev);
   if (!ev.shiftKey && S.plan.beats && S.plan.beats.length) {       // snap to the nearest beat (Shift: free)
     let bt = null, bd = 0.12; for (const b of S.plan.beats) { const d = Math.abs(b - t); if (d < bd) { bd = d; bt = b; } if (b > t + 0.2) break; }
     if (bt != null) t = bt;
   }
-  const L = S.plan.lines, lo = i > 0 ? L[i - 1].start + 0.2 : 0, hi = i < L.length - 1 ? L[i + 1].start - 0.2 : S.plan.duration - 0.2;
-  t = +J.clamp(t, lo, Math.max(lo, hi)).toFixed(3);
-  if (!S.project.timing.lineTimes) S.project.timing.lineTimes = {};
-  // pin the neighbours too, so moving one boundary never shifts the lines after it
-  L.forEach(ln => { if (S.project.timing.lineTimes[ln.index] == null) S.project.timing.lineTimes[ln.index] = +ln.start.toFixed(3); });
-  S.project.timing.lineTimes[i] = t;
-  replan(); seek(t + 0.001);
+  placeLineTime(i, +t.toFixed(3), true);
+  replan(); seek(S.plan.lines[i] ? S.plan.lines[i].start + 0.001 : t);
 }
 
 /* ---------------- keep the playing line in view (the list scrolls inside its column) ---------------- */
@@ -38451,7 +38740,7 @@ function renderLines() {
     const manual = S.project.timing.lineTimes && S.project.timing.lineTimes[i] != null;
     const label = ln.interlude ? `[interlude${ln.secs ? ' ' + ln.secs + 's' : ''}]` : ln.text;
     li.innerHTML = `<span class="no">${String(i + 1).padStart(2, '0')}</span>
-      <input class="time mono" type="number" step="0.01" min="0" value="${ln.start.toFixed(2)}" title="Start (s)${manual ? ' · manual' : ' · automatic'}" aria-label="Line ${i + 1} start time (s)" style="${manual ? 'border-color:var(--cyan)' : ''}">
+      <input class="time mono" type="text" inputmode="decimal" spellcheck="false" value="${J.fmtClock(ln.start)}" title="Start time (min:sec.hundredths)${manual ? ' · manual' : ' · automatic'} — type 3:22.44, 3.22.44 or 202.44 (seconds). Leave it empty to go back to automatic" aria-label="Line ${i + 1} start time" style="${manual ? 'border-color:var(--cyan)' : ''}">
       <span class="txt" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
       <div class="meta"><span class="cuts"></span>
       <span class="tools">
@@ -38467,19 +38756,15 @@ function renderLines() {
     if (q('.lay')) q('.lay').value = o.layout || '';
     if (q('.ncut')) q('.ncut').value = o.cuts ? String(o.cuts) : '';
     q('.time').addEventListener('change', e => {
-      const v = parseFloat(e.target.value);
+      const raw = String(e.target.value || '').trim();
+      // empty: back to automatic. Unreadable: say so and keep the time it had — an unreadable entry ("3.22.44" in a
+      // seconds-only box) used to clear the hand-set time, and the line fell back before the interlude
+      if (raw && !isFinite(J.parseTime(raw))) { toast('Could not read the time (e.g. 3:22.44 / 3.22.44 / 202.44)'); e.target.value = J.fmtClock(ln.start); return; }
       pushEdit();
       if (!S.project.timing.lineTimes) S.project.timing.lineTimes = {};
-      if (isFinite(v)) {
-        // keep the order: a typed time stays between the fixed times (typed or LRC) of the lines around it
-        const lt = S.project.timing.lineTimes, L = S.plan.lines;
-        const fix = j => (lt[j] != null && isFinite(+lt[j])) ? +lt[j] : (L[j] && L[j].lrc != null ? L[j].lrc : null);
-        let lo = 0, hi = Infinity;
-        for (let j = i - 1; j >= 0; j--) { const f = fix(j); if (f != null) { lo = f + 0.05; break; } }
-        for (let j = i + 1; j < L.length; j++) { const f = fix(j); if (f != null) { hi = f - 0.05; break; } }
-        let w = Math.max(0, v);
-        if (hi >= lo && (w < lo || w > hi)) { w = J.clamp(w, lo, hi); toast(`Set to ${w.toFixed(2)} s so the lines stay in order`); }
-        lt[i] = +w.toFixed(3);
+      if (raw) {
+        const pushed = placeLineTime(i, Math.max(0, J.parseTime(raw)), false);
+        if (pushed) toast(`To keep the order, ${pushed} neighbouring line(s) were moved too`);
       } else delete S.project.timing.lineTimes[i];
       replan();
     });
@@ -38545,6 +38830,19 @@ function renderLines() {
 /* ---------------- line から歌詞を直す ---------------- */
 // the lyrics text is the source: a plan line knows the row it came from (ln.src); LRC time tags on that row are kept
 const LRC_PREFIX = /^\s*(?:\[\d+:\d+(?:[.:]\d+)?\])*/;
+/* the lyrics were edited: hand-set times, per-line settings and the export range follow their lines (J.lineIndexMap) —
+   kept by line number, a line added or removed above made every later line take the time of the line before it */
+function remapLines(prevText, nextText) {
+  const map = J.lineIndexMap(prevText, nextText); if (!map) return;
+  const P = S.project;
+  P.timing.lineTimes = J.remapByLine(P.timing.lineTimes || {}, map);
+  P.overrides = J.remapByLine(P.overrides || {}, map);
+  const R = P.exportRange;
+  if (R && Number.isInteger(R.from) && Number.isInteger(R.to)) {
+    const idx = []; for (let i = R.from; i <= R.to && i < map.length; i++) if (map[i] >= 0) idx.push(map[i]);
+    P.exportRange = idx.length ? { from: Math.min(...idx), to: Math.max(...idx) } : null;
+  }
+}
 function editLine(li, ln) {
   if (ln.src == null || li.querySelector('.txt-edit')) return;
   const rows = S.project.lyrics.replace(/\r/g, '').split('\n'), row = rows[ln.src] || '';
@@ -39379,6 +39677,7 @@ function syncUI() {
   for (const set of J.SET_ORDER) document.querySelectorAll('.' + set + '-toggle').forEach(el => { el.checked = J.setOn(S.project, set); });
   document.querySelectorAll('.unify-toggle').forEach(el => { el.checked = S.project.unify === true; });
   document.querySelectorAll('.typeset-toggle').forEach(el => { el.checked = S.project.typeset === true; });
+  syncCalm();
   $('lyricLang').value = J.LANG_LABEL[S.project.lang] ? S.project.lang : 'auto'; langNote();
   document.querySelectorAll('.themeSel').forEach(el => { el.value = J.THEMES[S.project.themeId] ? S.project.themeId : ''; });
   renderFontRoles(); renderColors(); renderFx(); renderTech(); syncOut(); drawStyleGrid();
@@ -39386,7 +39685,7 @@ function syncUI() {
 
 /* ---------------- wiring ---------------- */
 function bind() {
-  $('lyrics').addEventListener('input', e => { S.project.lyrics = e.target.value; replanSoon(260); });
+  $('lyrics').addEventListener('input', e => { const prev = S.project.lyrics; S.project.lyrics = e.target.value; remapLines(prev, S.project.lyrics); replanSoon(260); });
   $('lyricLang').addEventListener('change', e => {
     remember();
     S.project.lang = e.target.value; replan(); renderFontRoles(); commit(); flushSave();
@@ -39456,6 +39755,7 @@ function bind() {
   $('tlOut').addEventListener('click', () => tlZoom(1 / 1.6));
   $('tlFit').addEventListener('click', () => { TL.z = 1; TL.off = 0; drawTimeline(); });
   bindTempo();
+  bindPreview();
   $('btnUndoEdit').addEventListener('click', () => edGo(-1));
   $('tapBack').addEventListener('click', tapBack);
   bindRangeUI();
@@ -39480,6 +39780,7 @@ function bind() {
   setSwitch('typo-toggle', 'typo', true, 'Typographic parts: on', 'Typographic parts: off (not picked by Randomize or Shuffle)');
   setSwitch('kinetic-toggle', 'kinetic', true, 'Kinetic parts: on', 'Kinetic parts: off (not picked by Randomize or Shuffle)');
   setSwitch('horror-toggle', 'horror', true, 'Horror effects: on (Randomize adds a Horror mood)', 'Horror effects: off');
+  bindCalm();
   setSwitch('unify-toggle', 'unify', true, 'Unified look: on (parts match; hits, morphs and weight too)', 'Unified look: off');
   setSwitch('typeset-toggle', 'typeset', true, 'Typesetting: on (spacing, particles, Latin, 0.2 s lead, fewer effects)', 'Typesetting: off');
   $('fxKoma').addEventListener('change', e => { const k = +e.target.value; S.project.fx.koma = k; S.project.fx.onTwos = k > 0; S.project.mood = null; replan(); });
@@ -39641,6 +39942,7 @@ function bind() {
     else if (e.code === 'ArrowRight') seek(S.t + (e.shiftKey ? 1 : 1 / S.plan.fps));
     else if (e.code === 'ArrowLeft') seek(S.t - (e.shiftKey ? 1 : 1 / S.plan.fps));
     else if (e.code === 'KeyR' && !e.metaKey && !e.ctrlKey && !e.altKey && !S.exporting) { e.preventDefault(); omakase(); }
+    else if ((e.code === 'KeyI' || e.code === 'KeyO') && !e.metaKey && !e.ctrlKey && !e.altKey && !S.exporting) { e.preventDefault(); setPreview(e.code === 'KeyI' ? 'start' : 'end', S.t); }
   });
   window.addEventListener('resize', () => { sizeViewport(); drawTimeline(); });
   if (window.ResizeObserver) new ResizeObserver(() => { sizeViewport(); drawTimeline(); }).observe($('viewport'));

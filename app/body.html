@@ -111,6 +111,14 @@
           <button id="tlTempo" class="ghost small" aria-pressed="false" title="BPM の変化をグラフで描きます（DJ ミックスなど、途中でテンポが変わる曲に）">BPMグラフ</button>
         </span>
       </div>
+      <div class="pv-bar" role="group" aria-label="プレビュー範囲">
+        <span class="muted pv-label" title="再生をこの範囲だけにします（書き出しの範囲は変わりません）。キー I / O で現在位置を開始 / 終了に">プレビュー範囲</span>
+        <label class="field pv-field">開始<input id="pvIn" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="00:00.00" aria-label="プレビューの開始時刻"></label>
+        <button id="pvInHere" class="ghost small" title="現在位置を開始にする（キー I）">現在位置</button>
+        <label class="field pv-field">終了<input id="pvOut" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="曲の終わり" aria-label="プレビューの終了時刻"></label>
+        <button id="pvOutHere" class="ghost small" title="現在位置を終了にする（キー O）">現在位置</button>
+        <button id="pvClear" class="ghost small" title="範囲を解除して曲全体を再生">解除</button>
+      </div>
       <canvas id="timeline" aria-label="タイムライン（クリックで移動・行の区切りはドラッグで調整）"></canvas>
       <div id="tempoWrap" class="tempo-wrap" hidden>
         <canvas id="tempoLane" aria-label="BPM グラフ"></canvas>
@@ -236,6 +244,12 @@
       </div>
 
       <div class="tabpane" data-pane="fx" hidden>
+        <div class="calm-box">
+          <label class="check" title="画面効果・つなぎ・カメラの動き・装飾・文字の加工をまとめて切り、全部の行を同じ動きにします"><input id="calmOn" type="checkbox"><span>落ち着いた演出</span></label>
+          <label class="field calm-field">動き<select id="calmMotion" aria-label="落ち着いた演出の動き"><option value="fade">フェード</option><option value="chars">一字ずつフェード</option><option value="wipe">ワイプ</option><option value="cut">動きなし</option></select></label>
+          <label class="check" title="文字を自分で動かすレイアウトを、中央・縦組・大きく・積み重ねのどれかに置き換えます"><input id="calmLayouts" type="checkbox" checked><span>レイアウトも控えめに</span></label>
+          <small class="muted calm-note">行ごと・カットごとに指定した設定とロックした行はそのまま使います。オフにすれば元の演出に戻ります。</small>
+        </div>
         <div class="unify-box">
           <label class="check"><input class="unify-toggle" type="checkbox"><span>統一感</span></label>
           <label class="check"><input class="typeset-toggle" type="checkbox"><span>文字整列</span></label>

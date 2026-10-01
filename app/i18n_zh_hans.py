@@ -49,6 +49,20 @@ STYLES = {
 }
 
 BODY = {
+    'title="画面効果・つなぎ・カメラの動き・装飾・文字の加工をまとめて切り、全部の行を同じ動きにします"><input id="calmOn" type="checkbox"><span>落ち着いた演出</span></label>': 'title="一次关闭画面效果、转场、镜头移动、装饰与文字加工，让每一行都用同样的动作"><input id="calmOn" type="checkbox"><span>沉稳演出</span></label>',
+    '>動き<select id="calmMotion" aria-label="落ち着いた演出の動き"><option value="fade">フェード</option><option value="chars">一字ずつフェード</option><option value="wipe">ワイプ</option><option value="cut">動きなし</option></select>': '>动作<select id="calmMotion" aria-label="沉稳演出的动作"><option value="fade">淡入</option><option value="chars">逐字淡入</option><option value="wipe">擦入</option><option value="cut">不动</option></select>',
+    'title="文字を自分で動かすレイアウトを、中央・縦組・大きく・積み重ねのどれかに置き換えます"><input id="calmLayouts" type="checkbox" checked><span>レイアウトも控えめに</span></label>': 'title="把会自己移动文字的布局，换成居中、竖排、放大或堆叠"><input id="calmLayouts" type="checkbox" checked><span>布局也收敛</span></label>',
+    '<small class="muted calm-note">行ごと・カットごとに指定した設定とロックした行はそのまま使います。オフにすれば元の演出に戻ります。</small>': '<small class="muted calm-note">逐行、逐镜头指定的设置与锁定的行会保留。关闭即恢复原来的演出。</small>',
+    'title="再生をこの範囲だけにします（書き出しの範囲は変わりません）。キー I / O で現在位置を開始 / 終了に">プレビュー範囲</span>': 'title="只播放这个范围（导出范围不变）。按 I / O 键把当前位置设为开始 / 结束">预览范围</span>',
+    'aria-label="プレビュー範囲"': 'aria-label="预览范围"',
+    '>開始<input id="pvIn"': '>开始<input id="pvIn"',
+    'aria-label="プレビューの開始時刻"': 'aria-label="预览的开始时间"',
+    'title="現在位置を開始にする（キー I）">現在位置</button>': 'title="把当前位置设为开始（I 键）">当前位置</button>',
+    '>終了<input id="pvOut"': '>结束<input id="pvOut"',
+    'placeholder="曲の終わり"': 'placeholder="歌曲结尾"',
+    'aria-label="プレビューの終了時刻"': 'aria-label="预览的结束时间"',
+    'title="現在位置を終了にする（キー O）">現在位置</button>': 'title="把当前位置设为结束（O 键）">当前位置</button>',
+    'title="範囲を解除して曲全体を再生">解除</button>': 'title="取消范围，播放整首歌">取消</button>',
     'placeholder="Web プロジェクト ID（例: abc1def）"': 'placeholder="Web 项目 ID（例：abc1def）"',
     '<button id="btnAdobeKit">キットを読み込む</button>': '<button id="btnAdobeKit">载入套件</button>',
     'placeholder="CSS で使うフォント名（例: a-otf-ryumin-pr6n）"': 'placeholder="CSS 使用的字体名称（例：a-otf-ryumin-pr6n）"',
@@ -237,6 +251,17 @@ BODY = {
 }
 
 UI = {
+    "'落ち着いた演出：オン（効果を切り、全部の行を同じ動きにします）'": "'沉稳演出：开启（关闭效果，每一行都用同样的动作）'",
+    "'落ち着いた演出：オフ（元の演出に戻しました）'": "'沉稳演出：关闭（已恢复原来的演出）'",
+    '`開始は 00:00.00〜${J.fmtTime(D)} の間で指定してください`': '`开始请设在 00:00.00 到 ${J.fmtTime(D)} 之间`',
+    '`終了は曲の長さ（${J.fmtTime(D)}）までで指定してください`': '`结束请设在歌曲长度（${J.fmtTime(D)}）以内`',
+    "'終了は開始より後にしてください'": "'结束必须在开始之后'",
+    "'時刻を読み取れませんでした（例：3:22.44 / 3.22.44 / 202.44）'": "'无法读取时间（例：3:22.44 / 3.22.44 / 202.44）'",
+    "'プレビュー範囲：曲全体'": "'预览范围：整首歌'",
+    '開始時刻（分:秒.1/100）': '开始时间（分:秒.1/100）',
+    '\u30003:22.44 / 3.22.44 / 202.44（秒）で入力できます。空にすると自動に戻ります': '\u3000可输入 3:22.44 / 3.22.44 / 202.44（秒）。清空即恢复自动',
+    '${i + 1}行目の開始時刻': '第 ${i + 1} 行的开始时间',
+    '`順番を保つため、前後の${pushed}行の開始時刻も動かしました`': '`为了保持顺序，前后 ${pushed} 行的开始时间也一起移动了`',
     'Adobe Fonts の書体で表示しています': '正在使用 Adobe Fonts 的字体',
     "'Adobe Fonts を読み込みました：'": "'已载入 Adobe Fonts：'",
     "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'请在「CSS 使用的字体名称」输入 Adobe Fonts 的字体名称后添加'",

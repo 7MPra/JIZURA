@@ -51,6 +51,20 @@ STYLES = {
 }
 
 BODY = {
+    'title="画面効果・つなぎ・カメラの動き・装飾・文字の加工をまとめて切り、全部の行を同じ動きにします"><input id="calmOn" type="checkbox"><span>落ち着いた演出</span></label>': 'title="Tắt cùng lúc hiệu ứng màn hình, chuyển cảnh, chuyển động máy quay, trang trí và xử lý chữ, cho mọi câu cùng một chuyển động"><input id="calmOn" type="checkbox"><span>Nhẹ nhàng</span></label>',
+    '>動き<select id="calmMotion" aria-label="落ち着いた演出の動き"><option value="fade">フェード</option><option value="chars">一字ずつフェード</option><option value="wipe">ワイプ</option><option value="cut">動きなし</option></select>': '>Chuyển động<select id="calmMotion" aria-label="Chuyển động của chế độ nhẹ nhàng"><option value="fade">Mờ dần</option><option value="chars">Mờ dần từng chữ</option><option value="wipe">Quét</option><option value="cut">Không chuyển động</option></select>',
+    'title="文字を自分で動かすレイアウトを、中央・縦組・大きく・積み重ねのどれかに置き換えます"><input id="calmLayouts" type="checkbox" checked><span>レイアウトも控えめに</span></label>': 'title="Thay các bố cục tự di chuyển chữ bằng giữa, dọc, lớn hoặc xếp chồng"><input id="calmLayouts" type="checkbox" checked><span>Bố cục cũng đơn giản</span></label>',
+    '<small class="muted calm-note">行ごと・カットごとに指定した設定とロックした行はそのまま使います。オフにすれば元の演出に戻ります。</small>': '<small class="muted calm-note">Cài đặt cho từng câu, từng cảnh và các câu đã khóa được giữ nguyên. Tắt để quay về như cũ.</small>',
+    'title="再生をこの範囲だけにします（書き出しの範囲は変わりません）。キー I / O で現在位置を開始 / 終了に">プレビュー範囲</span>': 'title="Chỉ phát đoạn này (đoạn xuất không đổi). Phím I / O đặt điểm đầu / cuối tại vị trí phát">Đoạn xem trước</span>',
+    'aria-label="プレビュー範囲"': 'aria-label="Đoạn xem trước"',
+    '>開始<input id="pvIn"': '>Đầu<input id="pvIn"',
+    'aria-label="プレビューの開始時刻"': 'aria-label="Thời điểm bắt đầu xem trước"',
+    'title="現在位置を開始にする（キー I）">現在位置</button>': 'title="Đặt điểm đầu tại vị trí phát (phím I)">Vị trí phát</button>',
+    '>終了<input id="pvOut"': '>Cuối<input id="pvOut"',
+    'placeholder="曲の終わり"': 'placeholder="Hết bài"',
+    'aria-label="プレビューの終了時刻"': 'aria-label="Thời điểm kết thúc xem trước"',
+    'title="現在位置を終了にする（キー O）">現在位置</button>': 'title="Đặt điểm cuối tại vị trí phát (phím O)">Vị trí phát</button>',
+    'title="範囲を解除して曲全体を再生">解除</button>': 'title="Bỏ đoạn và phát cả bài">Bỏ</button>',
     'placeholder="Web プロジェクト ID（例: abc1def）"': 'placeholder="ID dự án web (vd. abc1def)"',
     '<button id="btnAdobeKit">キットを読み込む</button>': '<button id="btnAdobeKit">Tải bộ phông</button>',
     'placeholder="CSS で使うフォント名（例: a-otf-ryumin-pr6n）"': 'placeholder="Tên phông dùng trong CSS (vd. a-otf-ryumin-pr6n)"',
@@ -288,6 +302,17 @@ BODY = {
 }
 
 UI = {
+    "'落ち着いた演出：オン（効果を切り、全部の行を同じ動きにします）'": "'Nhẹ nhàng: bật (tắt hiệu ứng, mọi câu chuyển động giống nhau)'",
+    "'落ち着いた演出：オフ（元の演出に戻しました）'": "'Nhẹ nhàng: tắt (đã quay về như cũ)'",
+    '`開始は 00:00.00〜${J.fmtTime(D)} の間で指定してください`': '`Hãy đặt điểm đầu trong khoảng 00:00.00 đến ${J.fmtTime(D)}`',
+    '`終了は曲の長さ（${J.fmtTime(D)}）までで指定してください`': '`Hãy đặt điểm cuối không quá độ dài bài (${J.fmtTime(D)})`',
+    "'終了は開始より後にしてください'": "'Điểm cuối phải sau điểm đầu'",
+    "'時刻を読み取れませんでした（例：3:22.44 / 3.22.44 / 202.44）'": "'Không đọc được thời gian (vd. 3:22.44 / 3.22.44 / 202.44)'",
+    "'プレビュー範囲：曲全体'": "'Đoạn xem trước: cả bài'",
+    '開始時刻（分:秒.1/100）': 'Thời gian bắt đầu (phút:giây.1/100)',
+    '\u30003:22.44 / 3.22.44 / 202.44（秒）で入力できます。空にすると自動に戻ります': ' — nhập 3:22.44, 3.22.44 hoặc 202.44 (giây). Để trống để trở về tự động',
+    '${i + 1}行目の開始時刻': 'Thời gian bắt đầu câu ${i + 1}',
+    '`順番を保つため、前後の${pushed}行の開始時刻も動かしました`': '`Để giữ thứ tự, ${pushed} câu lân cận cũng được dời theo`',
     'Adobe Fonts の書体で表示しています': 'Đang dùng kiểu chữ Adobe Fonts',
     "'Adobe Fonts を読み込みました：'": "'Đã tải Adobe Fonts: '",
     "'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください'": "'Hãy nhập tên phông Adobe Fonts vào “Tên phông dùng trong CSS” rồi thêm'",
