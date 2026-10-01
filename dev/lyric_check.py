@@ -22,7 +22,8 @@ async ({ styles, lyrics }) => {
   const out = { fails: [], checked: 0, cutAt: 0 };
   const cv = document.createElement('canvas'); cv.width = 192; cv.height = 108; const ctx = cv.getContext('2d');
   const r = new J.Renderer();
-  const flat = s => [...String(s || '').replace(/[\s、。，．,.!！?？…・「」『』（）()"'“”‘’~〜ー―\-]/g, '')];
+  // punctuation and separators a layout puts between words ("/" in 均等割り) are not lines
+  const flat = s => [...String(s || '').replace(/[\s、。，．,.!！?？…・「」『』（）()"'“”‘’~〜ー―\-\/／|｜]/g, '')];
   const list = styles ? styles.split(',') : J.STYLE_ORDER;
   // edits: the same project re-planned after a line is changed / a line is inserted above (caches must not keep the old words)
   const edits = [];

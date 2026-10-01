@@ -6,7 +6,6 @@
      · every cut enters and leaves with the chosen motion and holds still
      · layouts: anything but the plain ones (centred, vertical columns, big, stacked) — many of them move the words
        around by themselves — is swapped for a plain one, unless layouts:false
-     · the text-only styles keep their staging (src/11x_system.js) with the words fading in instead of popping
    Lines (and cuts) set by hand in the line list or the cut picker keep what was set, and so do locked lines.
    The motions registered here are `special`: random picks never choose them, so plans without calm do not change. */
 (() => {
@@ -45,11 +44,6 @@ J.calmPass = (plan, project, st) => {
     if (c.layout === 'interlude' || !String(c.text || '').trim()) { c.trans = null; c.transDur = 0; delete c.morph; continue; }
     Object.assign(c, { trans: null, transP: {}, transDur: 0, treat: 'none', treatP: {}, decor: [], weightGrow: false });
     delete c.morph;
-    if (c.staged) {                                          // text-only staging: it owns its motion (fades in calm mode)
-      // the lively chorus stagings (a word a beat, scattered words, split kanji) become the big vertical columns
-      if (C.layouts && ['bsBeatWord', 'sysScatter', 'sysSplit'].includes(c.layout) && J.LAYOUTS.sysGiant) { c.layout = 'sysGiant'; c.params = J.LAYOUTS.sysGiant.plan(J.rng(J.h(c.seed, 63)), c, st); }
-      continue;
-    }
     if (C.layouts && !PLAIN.includes(c.layout) && !c.companion) {     // (中央を空ける keeps its pair of layouts)
       const n = [...String(c.text).replace(/\s+/g, '')].length;
       const opts = PLAIN.filter(k => J.LAYOUTS[k] && J.LAYOUTS[k].fits(n));
@@ -61,7 +55,7 @@ J.calmPass = (plan, project, st) => {
     c.enter = en; c.exit = dur > 1.1 ? ex : 'cut'; c.hold = 'still';
     c.inDur = en === 'cut' ? 0.05 : clamp(dur * 0.3, 0.2, 0.6);
     c.outDur = c.exit === 'cut' ? 0 : clamp(dur * 0.18, 0.15, 0.4);
-    if (c.cam !== 'hold') { c.cam = 'push'; c.camP = {}; }
+    c.cam = 'push'; c.camP = {};
     if (c.companion) Object.assign(c.companion, { enter: c.enter, exit: c.exit, hold: 'still', inDur: c.inDur, outDur: c.outDur, trans: null, treat: 'none', decor: [], cam: c.cam, camP: {} });   // 中央を空ける: its twin
   }
   // no screen effects at all (flashes, zoom hits, shakes, colour flips …) except on cuts set by hand

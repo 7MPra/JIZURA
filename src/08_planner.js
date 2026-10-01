@@ -617,7 +617,7 @@ J.plan = (project, audio) => {
       if (weightGrow) cut.weightGrow = true;
       if (morph) cut.morph = morph;
       if (UU) UU.remember(li, k, txt, cut);
-      if (ovAny || lockSpecs || Object.keys(tech).length) cut.manual = true;          // set by hand: the director (src/11x_system.js) leaves it alone
+      if (ovAny || lockSpecs || Object.keys(tech).length) cut.manual = true;          // set by hand: 落ち着いた演出 (src/11y_calm.js) leaves it alone
       if (zones) splitCut(cut, halves, zones, st, dur, LS);
       // 文字整列: effects don't pile up — one decoration, no text treatment on top of it
       if (plan.typeset) { cut.decor = cut.decor.slice(0, 1); if (cut.decor.length && cut.treat !== 'none') { cut.treat = 'none'; cut.treatP = {}; } }
@@ -680,8 +680,6 @@ J.plan = (project, audio) => {
   plan.events.sort((a, b) => a.t - b.t);
   plan.energy = audio && audio.energy ? audio.energy : null;
   plan.energyRate = audio && audio.energyRate ? audio.energyRate : 0;
-  // テキストのみ: the song is staged section by section (src/11x_system.js)
-  if (J.systemDirect) J.systemDirect(plan, st);
   // 落ち着いた演出: one gentle motion for every line, no effects (src/11y_calm.js) — only when the project turns it on
   if (J.calmPass) J.calmPass(plan, project, st);
   return plan;
