@@ -21,7 +21,7 @@ J.TEXT_POOL = {
     W(['tyCropGiant', 'huge', 'knRhythmCuts', 'bsBeatWord'], 1.6),
     W(['knTypeSlam', 'tyKeySplit', 'knZoomDive', 'columnsBig', 'tyScaleSteps', 'bsScaleLine', 'knQuarterTurn', 'center', 'vcols'], 1.1),
     W(['poster', 'swissGrid', 'headlineDeck', 'tyMargin', 'knSwapCenter', 'knFlowSnap', 'knCollide', 'knReflow', 'mixed', 'kanjiFocus', 'dropCap',
-      'tyCross', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'type', 'corners', 'sideways', 'halfVertical'], 0.6)),
+      'tyCross', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'sideways', 'halfVertical'], 0.6)),
   enter: Object.assign(
     W(['knWordSlam'], 1.5), W(['cut'], 0.8),
     W(['zoom', 'stretch', 'slice', 'whip', 'knTypeToSlam', 'riseMask', 'dropMask', 'wipe', 'trackIn', 'blurStagger', 'tyKeyFirst', 'zoomOut', 'splitJoin'], 0.9),
@@ -82,6 +82,8 @@ J.restrainStyle = (st) => {
   if (!st || !st.textOnly) return st;
   if (!st.pool) st.pool = J.textPool(st);
   st.ghost = 0;
+  // words thrown to the corners of the frame (the middle left empty) read as an unfinished frame in text only
+  if (st.pool && st.pool.layout) for (const k of ['corners', 'type']) delete st.pool.layout[k];
   for (const role of Object.keys(st.fonts || {})) if (Array.isArray(st.fonts[role]) && st.fonts[role].length > 1) st.fonts[role] = st.fonts[role].slice(0, 1);
   return st;
 };

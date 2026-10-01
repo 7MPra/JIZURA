@@ -336,10 +336,13 @@ J.transPlainOn = (ctx, bgs) => {
 function readable(env, it) {
   const bg = env.sc && env.sc.bg, fg = env.sc && env.sc.fg;
   if (!bg || !fg) return it;
+  if (env.shapePainted) return it;          // a plate is on screen (シンプルな図形): the counter text belongs on it
   const bad = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) && J.contrast(c, bg) < 1.08;   // the ground colour itself (counter text of a plate) — faint on purpose (dim) stays faint
   if (!bad(it.color) && !bad(it.strokeColor)) return it;
   return Object.assign({}, it, bad(it.color) ? { color: fg } : null, bad(it.strokeColor) ? { strokeColor: fg } : null);
 }
+/* テキストのみでも使うシンプルな図形 (rules, bars, rectangles, circles): on unless the style says shapes: 'none' */
+J.simpleShapes = st => !!(st && st.textOnly && st.shapes !== 'none');
 J.drawItem = (env, it) => {
   const ctx = env.ctx;
   // テキストのみ: type under 3% of the frame is filler (sub-captions, repeated fine print), not the lyric being sung

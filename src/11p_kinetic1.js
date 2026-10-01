@@ -631,7 +631,7 @@ reg('knRhythmCuts', {
       const vtxt = hasLatin(t) ? t : strip(t);
       // テキストのみ: the shapes (corner brackets, the band) are not drawn — the small shot without its brackets read as an empty
       // frame, the band's text kept the band's colour: both become a plain, mid-size word
-      const plain = env.st && env.st.textOnly && (shot === 'small' || shot === 'band');
+      const plain = env.st && env.st.textOnly && !(J.simpleShapes && J.simpleShapes(env.st)) && (shot === 'small' || shot === 'band');
       if (plain) {
         it.size = Math.min(J.fitSize(t, Pm.fontB, W * 0.6, H * 0.22, { track: 0.1 }), H * 0.2) * punch; it.font = Pm.fontB; it.track = 0.1;
         return J.mainDraw(env, it);

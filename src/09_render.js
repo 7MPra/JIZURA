@@ -374,6 +374,18 @@ class Renderer {
       for (let i = 1; i <= n; i++) { const p = pts[i % n], m = mid(i); ctx.quadraticCurveTo(p[0], p[1], m[0], m[1]); }
       ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
     };
+    // テキストのみ + シンプルな図形 (J.simpleShapes): rules, bars, rectangles, circles and arcs a layout draws through these
+    // helpers are painted; anything else a layout paints by hand (tickets, bubbles, stars …) stays off
+    if (J.simpleShapes && J.simpleShapes(env.st)) {
+      for (const k of ['rect', 'line', 'circle', 'arc', 'rrect']) {
+        const f = env[k];
+        env[k] = (...a) => {
+          if (!ctx.jzPlain || !ctx.jzShapesOk) return f(...a);
+          J.plainOff(ctx); env.shapePainted = true;
+          try { return f(...a); } finally { J.plainOn(ctx); }
+        };
+      }
+    }
     return env;
   }
 
@@ -384,9 +396,9 @@ class Renderer {
     if (env.layer !== 'front') for (const d of decor) { const D = J.DECOR[d.id]; if (D && D.layer === 'back') try { D.draw(env, null, d); } catch (e) { console.warn(e); } }
     if (env.layer === 'back') return null;                // 後景だけ: the lyrics and the front decorations go to the other layer
     let bb = null;
-    if (textOnly) J.plainOn(env.ctx);
+    if (textOnly) { J.plainOn(env.ctx); env.ctx.jzShapesOk = true; }
     try { bb = L.render(env); } catch (e) { console.warn('layout', cut.layout, e); }
-    finally { if (textOnly) J.plainOff(env.ctx); }
+    finally { if (textOnly) { J.plainOff(env.ctx); env.ctx.jzShapesOk = false; } }
     for (const d of decor) { const D = J.DECOR[d.id]; if (D && D.layer === 'front') try { D.draw(env, bb, d); } catch (e) { console.warn(e); } }
     return bb;
   }

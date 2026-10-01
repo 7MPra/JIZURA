@@ -1918,10 +1918,13 @@ J.transPlainOn = (ctx, bgs) => {
 function readable(env, it) {
   const bg = env.sc && env.sc.bg, fg = env.sc && env.sc.fg;
   if (!bg || !fg) return it;
+  if (env.shapePainted) return it;          // a plate is on screen (シンプルな図形): the counter text belongs on it
   const bad = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) && J.contrast(c, bg) < 1.08;   // the ground colour itself (counter text of a plate) — faint on purpose (dim) stays faint
   if (!bad(it.color) && !bad(it.strokeColor)) return it;
   return Object.assign({}, it, bad(it.color) ? { color: fg } : null, bad(it.strokeColor) ? { strokeColor: fg } : null);
 }
+/* テキストのみでも使うシンプルな図形 (rules, bars, rectangles, circles): on unless the style says shapes: 'none' */
+J.simpleShapes = st => !!(st && st.textOnly && st.shapes !== 'none');
 J.drawItem = (env, it) => {
   const ctx = env.ctx;
   // テキストのみ: type under 3% of the frame is filler (sub-captions, repeated fine print), not the lyric being sung
@@ -5361,6 +5364,18 @@ class Renderer {
       for (let i = 1; i <= n; i++) { const p = pts[i % n], m = mid(i); ctx.quadraticCurveTo(p[0], p[1], m[0], m[1]); }
       ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
     };
+    // テキストのみ + シンプルな図形 (J.simpleShapes): rules, bars, rectangles, circles and arcs a layout draws through these
+    // helpers are painted; anything else a layout paints by hand (tickets, bubbles, stars …) stays off
+    if (J.simpleShapes && J.simpleShapes(env.st)) {
+      for (const k of ['rect', 'line', 'circle', 'arc', 'rrect']) {
+        const f = env[k];
+        env[k] = (...a) => {
+          if (!ctx.jzPlain || !ctx.jzShapesOk) return f(...a);
+          J.plainOff(ctx); env.shapePainted = true;
+          try { return f(...a); } finally { J.plainOn(ctx); }
+        };
+      }
+    }
     return env;
   }
 
@@ -5371,9 +5386,9 @@ class Renderer {
     if (env.layer !== 'front') for (const d of decor) { const D = J.DECOR[d.id]; if (D && D.layer === 'back') try { D.draw(env, null, d); } catch (e) { console.warn(e); } }
     if (env.layer === 'back') return null;                // 後景だけ: the lyrics and the front decorations go to the other layer
     let bb = null;
-    if (textOnly) J.plainOn(env.ctx);
+    if (textOnly) { J.plainOn(env.ctx); env.ctx.jzShapesOk = true; }
     try { bb = L.render(env); } catch (e) { console.warn('layout', cut.layout, e); }
-    finally { if (textOnly) J.plainOff(env.ctx); }
+    finally { if (textOnly) { J.plainOff(env.ctx); env.ctx.jzShapesOk = false; } }
     for (const d of decor) { const D = J.DECOR[d.id]; if (D && D.layer === 'front') try { D.draw(env, bb, d); } catch (e) { console.warn(e); } }
     return bb;
   }
@@ -20213,7 +20228,7 @@ reg('knRhythmCuts', {
       const vtxt = hasLatin(t) ? t : strip(t);
       // テキストのみ: the shapes (corner brackets, the band) are not drawn — the small shot without its brackets read as an empty
       // frame, the band's text kept the band's colour: both become a plain, mid-size word
-      const plain = env.st && env.st.textOnly && (shot === 'small' || shot === 'band');
+      const plain = env.st && env.st.textOnly && !(J.simpleShapes && J.simpleShapes(env.st)) && (shot === 'small' || shot === 'band');
       if (plain) {
         it.size = Math.min(J.fitSize(t, Pm.fontB, W * 0.6, H * 0.22, { track: 0.1 }), H * 0.2) * punch; it.font = Pm.fontB; it.track = 0.1;
         return J.mainDraw(env, it);
@@ -36778,7 +36793,7 @@ J.TEXT_POOL = {
     W(['tyCropGiant', 'huge', 'knRhythmCuts', 'bsBeatWord'], 1.6),
     W(['knTypeSlam', 'tyKeySplit', 'knZoomDive', 'columnsBig', 'tyScaleSteps', 'bsScaleLine', 'knQuarterTurn', 'center', 'vcols'], 1.1),
     W(['poster', 'swissGrid', 'headlineDeck', 'tyMargin', 'knSwapCenter', 'knFlowSnap', 'knCollide', 'knReflow', 'mixed', 'kanjiFocus', 'dropCap',
-      'tyCross', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'type', 'corners', 'sideways', 'halfVertical'], 0.6)),
+      'tyCross', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'sideways', 'halfVertical'], 0.6)),
   enter: Object.assign(
     W(['knWordSlam'], 1.5), W(['cut'], 0.8),
     W(['zoom', 'stretch', 'slice', 'whip', 'knTypeToSlam', 'riseMask', 'dropMask', 'wipe', 'trackIn', 'blurStagger', 'tyKeyFirst', 'zoomOut', 'splitJoin'], 0.9),
@@ -36839,6 +36854,8 @@ J.restrainStyle = (st) => {
   if (!st || !st.textOnly) return st;
   if (!st.pool) st.pool = J.textPool(st);
   st.ghost = 0;
+  // words thrown to the corners of the frame (the middle left empty) read as an unfinished frame in text only
+  if (st.pool && st.pool.layout) for (const k of ['corners', 'type']) delete st.pool.layout[k];
   for (const role of Object.keys(st.fonts || {})) if (Array.isArray(st.fonts[role]) && st.fonts[role].length > 1) st.fonts[role] = st.fonts[role].slice(0, 1);
   return st;
 };
@@ -37214,6 +37231,160 @@ J.calmPass = (plan, project, st) => {
   const hand = plan.cuts.filter(c => c.manual);
   plan.events = plan.events.filter(e => hand.some(c => e.t >= c.start - 0.05 && e.t < c.end));
 };
+})();
+
+/* JIZURA pack: space — text placed in 3D (perspective), drawn glyph by glyph with Canvas 2D: each glyph's centre is
+   projected, its size follows the depth, its baseline turns with the plane and is foreshortened along it.
+     sp3Plane     傾いた面    the line set on a plane tilted away in space, turning slowly; glyphs drop onto it on the beat
+     sp3Depth     奥行きの道  each word further into the frame; the camera travels forward and each word arrives as it is sung
+     sp3Cylinder  回る筒      the glyphs round a vertical cylinder that turns; the sung part comes round to the front
+   Text only (no shapes). Text-only styles draw from these (J.TEXT_POOL); every other style plans as before. */
+(() => {
+'use strict';
+const clamp = J.clamp, K = J.beatKit, DEG = Math.PI / 180;
+const out3 = x => 1 - Math.pow(1 - clamp(x), 3), inOut = x => { x = clamp(x); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+const lat = t => K.hasLatin(t);
+const strip = t => (lat(t) ? String(t).trim() : K.strip(t));
+const reg = (key, def) => J.register('layout', key, Object.assign(def, { set: 'kinetic' }), 'space');
+const own = it => Object.assign(it, { enter: 'cut', exit: 'cut', hold: 'still', mi: 0, noHold: true });
+const font = (st, roles) => J.fontsOf(st, roles)[0];
+
+/* a camera: focal length f, points with z > -f*0.85 are drawn */
+function cam(W, H, f) {
+  const P = (x, y, z) => { const s = f / (f + z); return { x: W / 2 + x * s, y: H / 2 + y * s, s }; };
+  return { f, P };
+}
+const rotX = (p, a) => ({ x: p.x, y: p.y * Math.cos(a) - p.z * Math.sin(a), z: p.y * Math.sin(a) + p.z * Math.cos(a) });
+const rotY = (p, a) => ({ x: p.x * Math.cos(a) + p.z * Math.sin(a), y: p.y, z: -p.x * Math.sin(a) + p.z * Math.cos(a) });
+
+/* draw a text on a 3D plane: local (u along the line, v down) → world through R(), each glyph projected */
+function drawOnPlane(env, text, fnt, size, R, C, glyphFn) {
+  const it0 = { text, font: fnt, size, track: 0.04 };
+  const lay = J.layoutText(it0);
+  let bb = null;
+  for (const g of lay) {
+    if (/\s/.test(g.ch)) continue;
+    const o = glyphFn ? glyphFn(g.i, lay.N) : {};
+    if (o === null) continue;
+    const u = g.x, v = g.y;
+    const p0 = R({ x: u, y: v, z: o.lift || 0 }), p1 = R({ x: u + size * 0.5, y: v, z: o.lift || 0 }), p2 = R({ x: u, y: v + size * 0.5, z: o.lift || 0 });
+    if (p0.z < -C.f * 0.8) continue;
+    const a = C.P(p0.x, p0.y, p0.z), b = C.P(p1.x, p1.y, p1.z), d = C.P(p2.x, p2.y, p2.z);
+    const ux = b.x - a.x, uy = b.y - a.y, vx = d.x - a.x, vy = d.y - a.y;
+    const lu = Math.hypot(ux, uy) / (size * 0.5), lv = Math.hypot(vx, vy) / (size * 0.5);
+    if (lu < 0.02 || lv < 0.02) continue;
+    // the glyph's own box: rotated with the baseline, stretched by the two foreshortened axes
+    const rot = Math.atan2(uy, ux) / DEG, s = Math.max(lu, lv), sx = lu / s, sy = lv / s;
+    const facing = ux * vy - uy * vx;                       // < 0: the plane is seen from behind
+    bb = J.unionBB(bb, J.mainDraw(env, own({ text: g.ch, font: fnt, size: size * s, x: a.x, y: a.y, rot, sx: facing < 0 ? -sx : sx, sy, color: o.color || env.sc.fg, alpha: (o.alpha ?? 1) * clamp(1.4 - (p0.z / (C.f * 1.6))) })));
+  }
+  return bb;
+}
+
+/* ================================================================== sp3Plane — 傾いた面 */
+reg('sp3Plane', {
+  name: '傾いた面', tags: ['editorial', 'graphic', 'emotional', 'calm'], w: 0.9, ae: 'center', fits: n => n >= 2 && n <= 24,
+  plan(rng, cut, st) {
+    return { font: font(st, ['display']), ay: rng.pick([1, -1]) * rng.range(38, 55), ax: rng.range(12, 26) * rng.pick([1, -1]), turn: rng.pick([1, -1]) * rng.range(2.5, 5), drop: rng.chance(0.6) };
+  },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, P = c.params, port = K.isPort(env);
+    const t = strip(c.text), n = [...t].length;
+    const lines = n > (port ? 6 : 10) ? J.splitLines(t, Math.ceil(n / 2)) : t;
+    const f = Math.max(W, H) * 0.85, C = cam(W, H, f);
+    const ay = (P.ay + P.turn * env.lt) * DEG, ax = P.ax * DEG;
+    // the size where the plane, seen in perspective, fills the frame: measured on the projected glyph centres
+    // the plane is pushed back until its near end is no closer than half the focal length (a long line on a steep plane
+    // would otherwise come right up to the camera and force everything small)
+    let size = H * 0.3, off = { x: 0, y: 0 }, zc = 0;
+    for (let k = 0; k < 4; k++) {
+      const lay = J.layoutText({ text: lines, font: P.font, size, track: 0.04 });
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, zmin = 1e9;
+      for (const g of lay) { const p = rotX(rotY({ x: g.x, y: g.y, z: 0 }, ay), ax); zmin = Math.min(zmin, p.z); }
+      zc = Math.max(0, -zmin - f * 0.5);
+      for (const g of lay) for (const [du, dv] of [[-0.5, -0.5], [0.5, 0.5], [-0.5, 0.5], [0.5, -0.5]]) {
+        const p = rotX(rotY({ x: g.x + du * size, y: g.y + dv * size, z: 0 }, ay), ax), q = C.P(p.x, p.y, p.z + zc);
+        x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y);
+      }
+      const k2 = Math.min(W * (port ? 0.86 : 0.84) / (x1 - x0), H * (port ? 0.5 : 0.78) / (y1 - y0));
+      size *= k2; off = { x: (W / 2 - (x0 + x1) / 2) * k2, y: (H / 2 - (y0 + y1) / 2) * k2 };
+    }
+    const C2 = { f, P: (x, y, z) => { const q = C.P(x, y, z + zc); return { x: q.x + off.x, y: q.y + off.y, s: q.s }; } };
+    const R = p => rotX(rotY(p, ay), ax);
+    const N = J.layoutText({ text: lines, font: P.font, size, track: 0.04 }).N;
+    const step = Math.min(0.06, c.dur * 0.4 / Math.max(1, N));
+    return drawOnPlane(env, lines, P.font, size, R, C2, i => {
+      const dt = env.lt - i * step; if (dt < 0) return null;
+      const q = out3(dt / 0.3);
+      return P.drop ? { lift: -(1 - q) * size * 2.2, alpha: Math.min(1, q * 2) } : { alpha: Math.min(1, q * 2.5) };
+    });
+  },
+});
+
+/* ================================================================== sp3Depth — 奥行きの道 */
+reg('sp3Depth', {
+  name: '奥行きの道', tags: ['pop', 'graphic', 'editorial', 'glitch'], w: 0.9, ae: 'scatter', fits: n => n >= 2 && n <= 30,
+  plan(rng, cut, st) { return { font: font(st, ['display']), side: rng.pick([1, -1]), gap: rng.range(0.9, 1.3), tilt: rng.range(-8, 8) }; },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, P = c.params, port = K.isPort(env);
+    const words = K.unitsOf(c, 6).map(strip).filter(Boolean), n = words.length, ts = K.onsets(env, n);
+    const f = Math.max(W, H) * 1.1, C = cam(W, H, f), gap = f * P.gap;
+    // each word i sits at depth i*gap; the camera reaches it when it is sung (eased between onsets), then keeps drifting
+    let k = 0; for (let i = 0; i < n; i++) if (env.lt >= ts[i]) k = i;
+    // a quick move forward on each word (the previous word slides past the camera), then a slow drift
+    const camZs = k * gap - gap * (1 - out3((env.lt - ts[k]) / 0.35)) + Math.max(0, env.lt - ts[k] - 0.35) * gap * 0.08;
+    const base = Math.min(H * (port ? 0.2 : 0.34), W * 0.84 / Math.max(2, Math.max(...words.map(w => [...w].length)) * 0.95));
+    let bb = null;
+    // the camera also slides sideways onto the word being sung, so that word is always centred and whole
+    const posOf = i => [(i % 2 ? 1 : -1) * P.side * W * (port ? 0.1 : 0.26), (i % 2 ? -1 : 1) * H * (port ? 0.14 : 0.1)];
+    const mv = out3((env.lt - ts[k]) / 0.35), pa = posOf(Math.max(0, k - 1)), pb = posOf(k);
+    const cx = k > 0 ? pa[0] + (pb[0] - pa[0]) * mv : pb[0], cy = k > 0 ? pa[1] + (pb[1] - pa[1]) * mv : pb[1];
+    for (let i = n - 1; i >= 0; i--) {
+      const z = i * gap - camZs;
+      if (z < -f * 0.7 || z > gap * 3.2) continue;
+      // the words further in sit off to alternate sides (and up / down), so the one ahead shows past the one being sung
+      const [x0, y0] = posOf(i), x = x0 - cx, y = y0 - cy;
+      const p = C.P(x, y, z), near = z < 0 ? clamp(1 + z / (f * 0.7)) : 1, far = clamp(1 - z / (gap * 3.2));
+      const sung = env.lt >= ts[i] - 0.05;
+      const sz = Math.min(J.fitSize(words[i], P.font, W * 0.84, H * 0.42, { track: 0.02 }), base);
+      bb = J.unionBB(bb, J.mainDraw(env, own({ text: words[i], font: P.font, size: sz * p.s, x: p.x, y: p.y, rot: P.tilt * (i % 2 ? 1 : -1) * 0.5, track: 0.02, color: sc.fg, alpha: near * (sung ? 1 : 0.18) * (0.25 + 0.75 * far) })));
+    }
+    return bb;
+  },
+});
+
+/* ================================================================== sp3Cylinder — 回る筒 */
+reg('sp3Cylinder', {
+  name: '回る筒', tags: ['pop', 'graphic', 'emotional'], w: 0.8, ae: 'circle', fits: n => n >= 3 && n <= 18,
+  plan(rng, cut, st) { return { font: font(st, ['display']), tilt: rng.range(-10, 10) }; },
+  render(env) {
+    const { W, H, sc } = env, c = env.cut, P = c.params, port = K.isPort(env);
+    const chars = [...strip(c.text)].filter(ch => !/\s/.test(ch)), n = chars.length;
+    if (!n) return null;
+    const step = 360 / Math.max(9, n + 3), R = Math.min(W * (port ? 0.46 : 0.36), H * 0.6), f = Math.max(W, H) * 1.2, C = cam(W, H, f);
+    const size = Math.min(2 * Math.PI * R * step / 360 * 1.0, H * (port ? 0.2 : 0.34));
+    // read left to right across the front; the drum turns as the line goes on, so the sung part comes round to the front
+    const prog = clamp(env.lt / Math.max(0.3, c.dur * 0.75)), spin = (prog - 0.5) * (n - 1) * step * 0.7;
+    const items = [];
+    chars.forEach((ch, i) => {
+      const a = ((i - (n - 1) / 2) * step - spin) * DEG;
+      const x = Math.sin(a) * R, z = R - Math.cos(a) * R, cosA = Math.cos(a);
+      if (cosA < 0.05) return;                                       // the back of the drum
+      const p = C.P(x, (i - (n - 1) / 2) * size * P.tilt * 0.012, z);
+      const shown = env.lt >= (i / n) * c.dur * 0.6 - 0.05;
+      items.push({ z, it: own({ text: ch, font: P.font, size: size * p.s, x: p.x, y: p.y, sx: Math.max(0.1, cosA), color: sc.fg, alpha: (shown ? 1 : 0.22) * clamp(0.15 + cosA) }) });
+    });
+    let bb = null;
+    items.sort((a, b) => b.z - a.z).forEach(g => { bb = J.unionBB(bb, J.mainDraw(env, g.it)); });
+    return bb;
+  },
+});
+
+// the text-only styles draw from these
+if (J.TEXT_POOL) Object.assign(J.TEXT_POOL.layout, { sp3Plane: 0.9, sp3Depth: 0.9, sp3Cylinder: 0.6 });
+for (const [k, add] of Object.entries({ edMincho: { sp3Plane: 1 }, minimal: { sp3Plane: 0.9 }, street: { sp3Depth: 1.1 }, showa: { sp3Plane: 0.8 }, bsSlam: { sp3Depth: 1 }, bsScale: { sp3Plane: 0.9 }, mpSpin: { sp3Depth: 0.6 }, mpEllipse: { sp3Cylinder: 0.7 } })) {
+  const st = J.STYLES[k]; if (st && st.pool && st.pool.layout) Object.assign(st.pool.layout, add);
+}
 })();
 
 /* JIZURA pack: mojipv — three text-only styles after lyric videos people picked as references (2026-10-01):
@@ -37773,7 +37944,7 @@ for (const [k, v] of Object.entries(S)) {
 /* part sets (horror / typo / kinetic): names, styles and the horror mood */
 (() => {
   'use strict';
-  const P = {"layout": {"hrFlashlight": "Flashlight", "hrDoorGap": "Door Gap", "hrWallScrawl": "Wall Scrawl", "hrCctv": "CCTV Monitor", "hrOuija": "Spirit Board", "hrMissing": "Missing Poster", "hrWrongOne": "The Wrong Glyph", "hrRisingDark": "Out of the Dark", "hrRedacted": "Redacted File", "hrStaticTv": "Static TV", "hrSpiritPhoto": "Spirit Photo", "hrWrongShadow": "Wrong Shadow", "tyKeySplit": "Key Glyph Split", "tyCropGiant": "Cropped Giant", "tyCross": "Cross Setting", "tyBandHide": "Band Cover", "tyRuby": "Ruby Notes", "tyBaseline": "Ruled Lines", "tyScaleSteps": "Size Crescendo", "tyJustify": "Justified Stack", "tyIndexTable": "Glyph Table", "tySplitType": "Split Type", "tyErode": "Eroding Repeat", "tyVRuler": "Vertical Scale", "tyFullTrack": "Full-Width Tracking", "tyStatCount": "Glyph Count", "tyMargin": "White Space", "tyRotBlock": "Rotated Block", "tySquare": "Square Setting", "tyLineFocus": "Line Highlight", "knSlamStack": "Slam Stack", "knQuarterTurn": "Quarter Turn", "knSwapCenter": "Word Swap", "knZoomDive": "Dive Into Letter", "knFlowSnap": "Flow and Snap", "knSeesaw": "Seesaw", "knTypeSlam": "Type then Slam", "knRhythmCuts": "Word Jump Cuts", "knPathRide": "Loop Track", "knGearWords": "Gears", "knCollide": "Head-on Crash", "knTumble": "Tumbling Boxes", "knReflow": "Vertical to Line", "knPadGrid": "Drum Pads", "bsBeatWord": "Word per Beat", "bsScaleLine": "Big Word, Small Line", "bsRefrain": "Refrain Rows", "bsTypeBeat": "Beat Typing", "tyStackJustify": "Stacked Words", "tyCropSlide": "Cropped Slide", "tyGridFill": "Grid Fill"}, "enter": {"calmFade": "Fade", "hrBlinkCreep": "Between Blinks", "hrJumpScare": "Jump Scare", "hrUneasy": "Uneasy Timing", "hrVhold": "Vertical Hold", "hrMirrorSnap": "Mirror Writing", "hrManifest": "Manifest", "hrClawReveal": "Claw Marks", "tyKeyFirst": "Key Glyph First", "tyLineWipe": "Line-by-Line Wipe", "tyZoomOne": "One by One Zoom", "tyUnderLift": "Rise from Underline", "tyDotGrow": "Dot to Glyph", "tyBracketOpen": "Brackets Open", "tyRetype": "Retype", "tyRubyDrop": "From Ruby", "tyGrowUp": "Grow from Baseline", "tyDropHard": "Hard Drop", "knWordSlam": "Word Slam", "knTypeToSlam": "Type and Grow", "knReplaceIn": "Swap In", "knHingeDrop": "Hinge Drop", "knLoopIn": "Loop In", "knPushIn": "Push In", "knInertia": "Hard Brake", "knWordSpin": "Word Spin", "knDiveIn": "Words From Camera", "knStretchOut": "Tape Stretch"}, "exit": {"calmFadeOut": "Fade Out", "hrPulledDown": "Pulled Under", "hrLookBack": "One Remains", "hrTurnAway": "Turn Away", "hrShiver": "Shiver Out", "hrSwallow": "Swallowed", "hrFlickerDie": "Dying Flicker", "hrDrain": "Drain", "tyStrike": "Strike Out", "tyToDot": "Back to Dots", "tyLineFeed": "Line Feed", "tyBracketClose": "Brackets Close", "tyToIndex": "Turn to Numbers", "tyKeyLast": "Key Glyph Last", "tyUnderSink": "Sink into Underline", "tyFoldVert": "Fold to Vertical", "tySinkChars": "Sink by Letter", "tyRiseFade": "Rise by Letter", "knWordKick": "Word Kick", "knPushOut": "Push Out", "knDiveGlyph": "Dive Into Letter", "knLaunch": "Launch", "knWordBlink": "Words Blink Out", "knCloseGap": "Close the Gaps", "knJumpCutOut": "Jump Cut", "knStackAway": "Stack and Drop"}, "hold": {"hrTwitch": "Twitch", "hrStare": "Staring Glyph", "hrLagOne": "The Late One", "hrFlickerLight": "Failing Light", "tyKeyPulse": "Key Glyph Pulse", "tyReadCursor": "Reading Cursor", "tyOutlineBlink": "Outline Blink", "tyTrackStep": "Tracking Steps", "knWordPulse": "Word Pulse", "knCounterRock": "Counter Rock", "knWordRide": "Word Surf", "knTickShift": "Tick Shift", "knBeatLean": "Beat Lean", "knGapBreath": "Breathing Gaps"}, "decor": {"hrScratches": "Claw Scratches", "hrSigil": "Sigil", "hrWatchEye": "Watching Eye", "hrStaticPatch": "Static Patches", "hrDustBeam": "Dusty Light Beam", "hrDrips": "Ink Drips", "hrCracks": "Cracks", "tyColophon": "Colophon", "tyRunningHead": "Running Head & Folio", "tyGlyphBody": "Glyph Body Lines", "tyTextRule": "Text Rule", "tyTypeScale": "Type Scale", "tyBigPunct": "Big Quote Marks", "knSpeedTrail": "Trailing Speed Lines", "knWordTicks": "Word Counter"}, "treat": {"hrInkBleed": "Bleeding Ink", "hrEroded": "Eroded", "hrRedact": "Redacted", "hrDoubleExp": "Double Exposure", "tyHollowKey": "Hollow Key Glyph", "tyHeadRules": "Head & Foot Rules", "tyHeadBig": "Large Initial", "tyIndexSup": "Glyph Numbers", "knWordScale": "Big and Small Words", "knWordPlate": "Word Knockout"}, "bg": {"hrFailingLamp": "Failing Lamp", "hrCorridor": "Dark Corridor", "hrMold": "Spreading Stains", "hrDeadTrees": "Dead Forest"}, "cam": {"hrNervous": "Frightened Handheld", "hrDutchSnap": "Sudden Tilt", "knReadPan": "Reading Pan", "knTiltKick": "Tilt Kick", "knCardFlip": "Card Flip", "knShearKick": "Shear Kick", "knJumpCut": "Jump Cut", "knRushIn": "Rush In"}, "fx": {"hrSubliminal": "Subliminal", "hrSignalLoss": "Signal Loss", "hrPassingShadow": "Passing Shadow"}, "trans": {"hrStaticCut": "Static Cut", "hrBlink": "Blink", "tyRuleWipe": "Ruled Line Wipe", "tyGridCells": "Grid Cell Fill", "knCornerSwing": "Corner Swing", "knStutterCut": "Stutter Cut", "knStripSlam": "Strip Slam"}};
+  const P = {"layout": {"hrFlashlight": "Flashlight", "hrDoorGap": "Door Gap", "hrWallScrawl": "Wall Scrawl", "hrCctv": "CCTV Monitor", "hrOuija": "Spirit Board", "hrMissing": "Missing Poster", "hrWrongOne": "The Wrong Glyph", "hrRisingDark": "Out of the Dark", "hrRedacted": "Redacted File", "hrStaticTv": "Static TV", "hrSpiritPhoto": "Spirit Photo", "hrWrongShadow": "Wrong Shadow", "tyKeySplit": "Key Glyph Split", "tyCropGiant": "Cropped Giant", "tyCross": "Cross Setting", "tyBandHide": "Band Cover", "tyRuby": "Ruby Notes", "tyBaseline": "Ruled Lines", "tyScaleSteps": "Size Crescendo", "tyJustify": "Justified Stack", "tyIndexTable": "Glyph Table", "tySplitType": "Split Type", "tyErode": "Eroding Repeat", "tyVRuler": "Vertical Scale", "tyFullTrack": "Full-Width Tracking", "tyStatCount": "Glyph Count", "tyMargin": "White Space", "tyRotBlock": "Rotated Block", "tySquare": "Square Setting", "tyLineFocus": "Line Highlight", "knSlamStack": "Slam Stack", "knQuarterTurn": "Quarter Turn", "knSwapCenter": "Word Swap", "knZoomDive": "Dive Into Letter", "knFlowSnap": "Flow and Snap", "knSeesaw": "Seesaw", "knTypeSlam": "Type then Slam", "knRhythmCuts": "Word Jump Cuts", "knPathRide": "Loop Track", "knGearWords": "Gears", "knCollide": "Head-on Crash", "knTumble": "Tumbling Boxes", "knReflow": "Vertical to Line", "knPadGrid": "Drum Pads", "bsBeatWord": "Word per Beat", "bsScaleLine": "Big Word, Small Line", "bsRefrain": "Refrain Rows", "bsTypeBeat": "Beat Typing", "tyStackJustify": "Stacked Words", "tyCropSlide": "Cropped Slide", "tyGridFill": "Grid Fill", "sp3Plane": "Tilted Plane", "sp3Depth": "Road into Depth", "sp3Cylinder": "Turning Drum"}, "enter": {"calmFade": "Fade", "hrBlinkCreep": "Between Blinks", "hrJumpScare": "Jump Scare", "hrUneasy": "Uneasy Timing", "hrVhold": "Vertical Hold", "hrMirrorSnap": "Mirror Writing", "hrManifest": "Manifest", "hrClawReveal": "Claw Marks", "tyKeyFirst": "Key Glyph First", "tyLineWipe": "Line-by-Line Wipe", "tyZoomOne": "One by One Zoom", "tyUnderLift": "Rise from Underline", "tyDotGrow": "Dot to Glyph", "tyBracketOpen": "Brackets Open", "tyRetype": "Retype", "tyRubyDrop": "From Ruby", "tyGrowUp": "Grow from Baseline", "tyDropHard": "Hard Drop", "knWordSlam": "Word Slam", "knTypeToSlam": "Type and Grow", "knReplaceIn": "Swap In", "knHingeDrop": "Hinge Drop", "knLoopIn": "Loop In", "knPushIn": "Push In", "knInertia": "Hard Brake", "knWordSpin": "Word Spin", "knDiveIn": "Words From Camera", "knStretchOut": "Tape Stretch"}, "exit": {"calmFadeOut": "Fade Out", "hrPulledDown": "Pulled Under", "hrLookBack": "One Remains", "hrTurnAway": "Turn Away", "hrShiver": "Shiver Out", "hrSwallow": "Swallowed", "hrFlickerDie": "Dying Flicker", "hrDrain": "Drain", "tyStrike": "Strike Out", "tyToDot": "Back to Dots", "tyLineFeed": "Line Feed", "tyBracketClose": "Brackets Close", "tyToIndex": "Turn to Numbers", "tyKeyLast": "Key Glyph Last", "tyUnderSink": "Sink into Underline", "tyFoldVert": "Fold to Vertical", "tySinkChars": "Sink by Letter", "tyRiseFade": "Rise by Letter", "knWordKick": "Word Kick", "knPushOut": "Push Out", "knDiveGlyph": "Dive Into Letter", "knLaunch": "Launch", "knWordBlink": "Words Blink Out", "knCloseGap": "Close the Gaps", "knJumpCutOut": "Jump Cut", "knStackAway": "Stack and Drop"}, "hold": {"hrTwitch": "Twitch", "hrStare": "Staring Glyph", "hrLagOne": "The Late One", "hrFlickerLight": "Failing Light", "tyKeyPulse": "Key Glyph Pulse", "tyReadCursor": "Reading Cursor", "tyOutlineBlink": "Outline Blink", "tyTrackStep": "Tracking Steps", "knWordPulse": "Word Pulse", "knCounterRock": "Counter Rock", "knWordRide": "Word Surf", "knTickShift": "Tick Shift", "knBeatLean": "Beat Lean", "knGapBreath": "Breathing Gaps"}, "decor": {"hrScratches": "Claw Scratches", "hrSigil": "Sigil", "hrWatchEye": "Watching Eye", "hrStaticPatch": "Static Patches", "hrDustBeam": "Dusty Light Beam", "hrDrips": "Ink Drips", "hrCracks": "Cracks", "tyColophon": "Colophon", "tyRunningHead": "Running Head & Folio", "tyGlyphBody": "Glyph Body Lines", "tyTextRule": "Text Rule", "tyTypeScale": "Type Scale", "tyBigPunct": "Big Quote Marks", "knSpeedTrail": "Trailing Speed Lines", "knWordTicks": "Word Counter"}, "treat": {"hrInkBleed": "Bleeding Ink", "hrEroded": "Eroded", "hrRedact": "Redacted", "hrDoubleExp": "Double Exposure", "tyHollowKey": "Hollow Key Glyph", "tyHeadRules": "Head & Foot Rules", "tyHeadBig": "Large Initial", "tyIndexSup": "Glyph Numbers", "knWordScale": "Big and Small Words", "knWordPlate": "Word Knockout"}, "bg": {"hrFailingLamp": "Failing Lamp", "hrCorridor": "Dark Corridor", "hrMold": "Spreading Stains", "hrDeadTrees": "Dead Forest"}, "cam": {"hrNervous": "Frightened Handheld", "hrDutchSnap": "Sudden Tilt", "knReadPan": "Reading Pan", "knTiltKick": "Tilt Kick", "knCardFlip": "Card Flip", "knShearKick": "Shear Kick", "knJumpCut": "Jump Cut", "knRushIn": "Rush In"}, "fx": {"hrSubliminal": "Subliminal", "hrSignalLoss": "Signal Loss", "hrPassingShadow": "Passing Shadow"}, "trans": {"hrStaticCut": "Static Cut", "hrBlink": "Blink", "tyRuleWipe": "Ruled Line Wipe", "tyGridCells": "Grid Cell Fill", "knCornerSwing": "Corner Swing", "knStutterCut": "Stutter Cut", "knStripSlam": "Strip Slam"}};
   for (const [g, m] of Object.entries(P)) { const t = J.registry(g) || {}; for (const [k, n] of Object.entries(m)) if (t[k]) t[k].name = n; }
   const S = {"hrRuin": ["Ruins", "Faded green-grey, rust red and echoing serif type"], "hrNightRec": ["Midnight Recording", "Pitch-black frames, CCTV white and red, static"], "hrCurse": ["Cursed Letter", "Yellowed paper, faded ink and dark red handwriting"]};
   for (const [k, [n, d]] of Object.entries(S)) if (J.STYLES[k]) { J.STYLES[k].name = n; J.STYLES[k].desc = d; }
@@ -37969,7 +38140,7 @@ for (const [k, v] of Object.entries(S)) {
 /* part sets (horror / typo / kinetic): names, styles and the horror mood */
 (() => {
   'use strict';
-  const P = {"layout": {"hrFlashlight": "手电筒", "hrDoorGap": "门缝", "hrWallScrawl": "墙上涂写", "hrCctv": "监控屏幕", "hrOuija": "通灵板", "hrMissing": "寻人启事", "hrWrongOne": "唯一不对的字", "hrRisingDark": "从黑暗爬出", "hrRedacted": "涂黑文件", "hrStaticTv": "雪花电视", "hrSpiritPhoto": "灵异照片", "hrWrongShadow": "不对劲的影子", "tyKeySplit": "大字夹排", "tyCropGiant": "出框大字", "tyCross": "十字排", "tyBandHide": "带状遮字", "tyRuby": "标音注记", "tyBaseline": "格线排版", "tyScaleSteps": "字级递增", "tyJustify": "等宽堆叠", "tyIndexTable": "字表", "tySplitType": "断字错位", "tyErode": "渐削重复", "tyVRuler": "竖排刻度", "tyFullTrack": "满版字距", "tyStatCount": "字数显示", "tyMargin": "留白", "tyRotBlock": "旋转字块", "tySquare": "方块排", "tyLineFocus": "行中强调", "knSlamStack": "堆叠重击", "knQuarterTurn": "直角转向", "knSwapCenter": "逐字替换", "knZoomDive": "钻入字中", "knFlowSnap": "流动后对齐", "knSeesaw": "跷跷板", "knTypeSlam": "打字→重击", "knRhythmCuts": "逐字分镜", "knPathRide": "环形轨道", "knGearWords": "齿轮", "knCollide": "正面冲撞", "knTumble": "翻滚方块", "knReflow": "竖排转横排", "knPadGrid": "打击垫", "bsBeatWord": "一拍一词", "bsScaleLine": "大小排列", "bsRefrain": "叠句排列", "bsTypeBeat": "节拍打字", "tyStackJustify": "堆叠字词", "tyCropSlide": "裁切滑动", "tyGridFill": "格子填充"}, "enter": {"calmFade": "淡入", "hrBlinkCreep": "眨眼之间", "hrJumpScare": "突然跳出", "hrUneasy": "不安的出现", "hrVhold": "垂直同步", "hrMirrorSnap": "镜像字", "hrManifest": "缓缓浮现", "hrClawReveal": "爪痕浮现", "tyKeyFirst": "主字先行", "tyLineWipe": "逐行擦入", "tyZoomOne": "逐字放大", "tyUnderLift": "从底线升起", "tyDotGrow": "点化为字", "tyBracketOpen": "括号展开", "tyRetype": "打错重打", "tyRubyDrop": "从注音落下", "tyGrowUp": "从基线长出", "tyDropHard": "利落落下", "knWordSlam": "逐词重击", "knTypeToSlam": "打字→放大", "knReplaceIn": "替换登场", "knHingeDrop": "铰链落下", "knLoopIn": "绕圈进场", "knPushIn": "推入", "knInertia": "急刹车", "knWordSpin": "逐词旋转", "knDiveIn": "从镜头飞入", "knStretchOut": "伸展弹出"}, "exit": {"calmFadeOut": "淡出", "hrPulledDown": "被拖下去", "hrLookBack": "留下一字", "hrTurnAway": "转身背对", "hrShiver": "颤抖消失", "hrSwallow": "被黑暗吞没", "hrFlickerDie": "闪烁熄灭", "hrDrain": "滴落", "tyStrike": "划线删除", "tyToDot": "缩回圆点", "tyLineFeed": "换行送出", "tyBracketClose": "括号合上", "tyToIndex": "化为编号", "tyKeyLast": "留下一字", "tyUnderSink": "沉入底线", "tyFoldVert": "折成竖排", "tySinkChars": "逐字下沉", "tyRiseFade": "逐字上升", "knWordKick": "逐词踢飞", "knPushOut": "推出退场", "knDiveGlyph": "冲入一字", "knLaunch": "急起步", "knWordBlink": "逐词熄灭", "knCloseGap": "收拢消失", "knJumpCutOut": "跳切", "knStackAway": "叠起落下"}, "hold": {"hrTwitch": "抽搐", "hrStare": "凝视的字", "hrLagOne": "慢一拍的字", "hrFlickerLight": "将熄的灯", "tyKeyPulse": "主字脉动", "tyReadCursor": "阅读光标", "tyOutlineBlink": "空心闪烁", "tyTrackStep": "字距跳段", "knWordPulse": "逐词节拍", "knCounterRock": "反向摇摆", "knWordRide": "词语冲浪", "knTickShift": "滴答位移", "knBeatLean": "随拍倾斜", "knGapBreath": "词间呼吸"}, "decor": {"hrScratches": "抓痕", "hrSigil": "魔法阵", "hrWatchEye": "注视之眼", "hrStaticPatch": "杂讯碎片", "hrDustBeam": "光束与尘埃", "hrDrips": "垂落的墨", "hrCracks": "裂痕", "tyColophon": "版权页", "tyRunningHead": "书眉页码", "tyGlyphBody": "字身分割线", "tyTextRule": "文字线条", "tyTypeScale": "字级样本", "tyBigPunct": "巨大引号", "knSpeedTrail": "跟随速度线", "knWordTicks": "词数计数器"}, "treat": {"hrInkBleed": "晕染滴落", "hrEroded": "风化", "hrRedact": "涂黑", "hrDoubleExp": "双重曝光", "tyHollowKey": "单字镂空", "tyHeadRules": "天地线", "tyHeadBig": "首字放大", "tyIndexSup": "字序号", "knWordScale": "大小词", "knWordPlate": "逐词反白"}, "bg": {"hrFailingLamp": "将熄的灯", "hrCorridor": "昏暗走廊", "hrMold": "蔓延的污渍", "hrDeadTrees": "枯树林"}, "cam": {"hrNervous": "惊恐手持", "hrDutchSnap": "突然倾斜", "knReadPan": "随读平移", "knTiltKick": "逐词倾斜", "knCardFlip": "翻牌", "knShearKick": "斜切弹动", "knJumpCut": "跳切", "knRushIn": "从远处冲来"}, "fx": {"hrSubliminal": "潜意识闪现", "hrSignalLoss": "信号中断", "hrPassingShadow": "掠过的影子"}, "trans": {"hrStaticCut": "杂讯转场", "hrBlink": "眨眼", "tyRuleWipe": "格线擦换", "tyGridCells": "稿纸格填入", "knCornerSwing": "转角回旋", "knStutterCut": "节奏跳切", "knStripSlam": "条幅落下"}};
+  const P = {"layout": {"hrFlashlight": "手电筒", "hrDoorGap": "门缝", "hrWallScrawl": "墙上涂写", "hrCctv": "监控屏幕", "hrOuija": "通灵板", "hrMissing": "寻人启事", "hrWrongOne": "唯一不对的字", "hrRisingDark": "从黑暗爬出", "hrRedacted": "涂黑文件", "hrStaticTv": "雪花电视", "hrSpiritPhoto": "灵异照片", "hrWrongShadow": "不对劲的影子", "tyKeySplit": "大字夹排", "tyCropGiant": "出框大字", "tyCross": "十字排", "tyBandHide": "带状遮字", "tyRuby": "标音注记", "tyBaseline": "格线排版", "tyScaleSteps": "字级递增", "tyJustify": "等宽堆叠", "tyIndexTable": "字表", "tySplitType": "断字错位", "tyErode": "渐削重复", "tyVRuler": "竖排刻度", "tyFullTrack": "满版字距", "tyStatCount": "字数显示", "tyMargin": "留白", "tyRotBlock": "旋转字块", "tySquare": "方块排", "tyLineFocus": "行中强调", "knSlamStack": "堆叠重击", "knQuarterTurn": "直角转向", "knSwapCenter": "逐字替换", "knZoomDive": "钻入字中", "knFlowSnap": "流动后对齐", "knSeesaw": "跷跷板", "knTypeSlam": "打字→重击", "knRhythmCuts": "逐字分镜", "knPathRide": "环形轨道", "knGearWords": "齿轮", "knCollide": "正面冲撞", "knTumble": "翻滚方块", "knReflow": "竖排转横排", "knPadGrid": "打击垫", "bsBeatWord": "一拍一词", "bsScaleLine": "大小排列", "bsRefrain": "叠句排列", "bsTypeBeat": "节拍打字", "tyStackJustify": "堆叠字词", "tyCropSlide": "裁切滑动", "tyGridFill": "格子填充", "sp3Plane": "倾斜平面", "sp3Depth": "纵深之路", "sp3Cylinder": "旋转圆筒"}, "enter": {"calmFade": "淡入", "hrBlinkCreep": "眨眼之间", "hrJumpScare": "突然跳出", "hrUneasy": "不安的出现", "hrVhold": "垂直同步", "hrMirrorSnap": "镜像字", "hrManifest": "缓缓浮现", "hrClawReveal": "爪痕浮现", "tyKeyFirst": "主字先行", "tyLineWipe": "逐行擦入", "tyZoomOne": "逐字放大", "tyUnderLift": "从底线升起", "tyDotGrow": "点化为字", "tyBracketOpen": "括号展开", "tyRetype": "打错重打", "tyRubyDrop": "从注音落下", "tyGrowUp": "从基线长出", "tyDropHard": "利落落下", "knWordSlam": "逐词重击", "knTypeToSlam": "打字→放大", "knReplaceIn": "替换登场", "knHingeDrop": "铰链落下", "knLoopIn": "绕圈进场", "knPushIn": "推入", "knInertia": "急刹车", "knWordSpin": "逐词旋转", "knDiveIn": "从镜头飞入", "knStretchOut": "伸展弹出"}, "exit": {"calmFadeOut": "淡出", "hrPulledDown": "被拖下去", "hrLookBack": "留下一字", "hrTurnAway": "转身背对", "hrShiver": "颤抖消失", "hrSwallow": "被黑暗吞没", "hrFlickerDie": "闪烁熄灭", "hrDrain": "滴落", "tyStrike": "划线删除", "tyToDot": "缩回圆点", "tyLineFeed": "换行送出", "tyBracketClose": "括号合上", "tyToIndex": "化为编号", "tyKeyLast": "留下一字", "tyUnderSink": "沉入底线", "tyFoldVert": "折成竖排", "tySinkChars": "逐字下沉", "tyRiseFade": "逐字上升", "knWordKick": "逐词踢飞", "knPushOut": "推出退场", "knDiveGlyph": "冲入一字", "knLaunch": "急起步", "knWordBlink": "逐词熄灭", "knCloseGap": "收拢消失", "knJumpCutOut": "跳切", "knStackAway": "叠起落下"}, "hold": {"hrTwitch": "抽搐", "hrStare": "凝视的字", "hrLagOne": "慢一拍的字", "hrFlickerLight": "将熄的灯", "tyKeyPulse": "主字脉动", "tyReadCursor": "阅读光标", "tyOutlineBlink": "空心闪烁", "tyTrackStep": "字距跳段", "knWordPulse": "逐词节拍", "knCounterRock": "反向摇摆", "knWordRide": "词语冲浪", "knTickShift": "滴答位移", "knBeatLean": "随拍倾斜", "knGapBreath": "词间呼吸"}, "decor": {"hrScratches": "抓痕", "hrSigil": "魔法阵", "hrWatchEye": "注视之眼", "hrStaticPatch": "杂讯碎片", "hrDustBeam": "光束与尘埃", "hrDrips": "垂落的墨", "hrCracks": "裂痕", "tyColophon": "版权页", "tyRunningHead": "书眉页码", "tyGlyphBody": "字身分割线", "tyTextRule": "文字线条", "tyTypeScale": "字级样本", "tyBigPunct": "巨大引号", "knSpeedTrail": "跟随速度线", "knWordTicks": "词数计数器"}, "treat": {"hrInkBleed": "晕染滴落", "hrEroded": "风化", "hrRedact": "涂黑", "hrDoubleExp": "双重曝光", "tyHollowKey": "单字镂空", "tyHeadRules": "天地线", "tyHeadBig": "首字放大", "tyIndexSup": "字序号", "knWordScale": "大小词", "knWordPlate": "逐词反白"}, "bg": {"hrFailingLamp": "将熄的灯", "hrCorridor": "昏暗走廊", "hrMold": "蔓延的污渍", "hrDeadTrees": "枯树林"}, "cam": {"hrNervous": "惊恐手持", "hrDutchSnap": "突然倾斜", "knReadPan": "随读平移", "knTiltKick": "逐词倾斜", "knCardFlip": "翻牌", "knShearKick": "斜切弹动", "knJumpCut": "跳切", "knRushIn": "从远处冲来"}, "fx": {"hrSubliminal": "潜意识闪现", "hrSignalLoss": "信号中断", "hrPassingShadow": "掠过的影子"}, "trans": {"hrStaticCut": "杂讯转场", "hrBlink": "眨眼", "tyRuleWipe": "格线擦换", "tyGridCells": "稿纸格填入", "knCornerSwing": "转角回旋", "knStutterCut": "节奏跳切", "knStripSlam": "条幅落下"}};
   for (const [g, m] of Object.entries(P)) { const t = J.registry(g) || {}; for (const [k, n] of Object.entries(m)) if (t[k]) t[k].name = n; }
   const S = {"hrRuin": ["废墟", "褪色灰绿、锈红与回响的宋体"], "hrNightRec": ["深夜录像", "漆黑画面、监控影像的白与红、雪花噪点"], "hrCurse": ["诅咒之信", "泛黄信纸、褪色墨迹与暗红笔迹"]};
   for (const [k, [n, d]] of Object.entries(S)) if (J.STYLES[k]) { J.STYLES[k].name = n; J.STYLES[k].desc = d; }
