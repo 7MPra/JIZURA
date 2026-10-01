@@ -381,6 +381,10 @@ class Renderer {
         const f = env[k];
         env[k] = (...a) => {
           if (!ctx.jzPlain || !ctx.jzShapesOk) return f(...a);
+          // tiny marks (a typing cursor, dots, ticks) read as glitches next to the type: only shapes of some size
+          const U = Math.min(env.W, env.H);
+          if ((k === 'rect' || k === 'rrect') && Math.max(Math.abs(a[2]), Math.abs(a[3])) < U * 0.06) return;
+          if ((k === 'circle' || k === 'arc') && a[2] < U * 0.03) return;
           J.plainOff(ctx); env.shapePainted = true;
           try { return f(...a); } finally { J.plainOn(ctx); }
         };

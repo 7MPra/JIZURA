@@ -220,7 +220,7 @@ J.LAYOUTS = {
     render(env) {
       const { W, H, sc } = env, P = env.cut.params, text = env.cut.text.replace(/\s+/g, '');
       const n = glyphCount(text);
-      if (P.variant === 'repeat' && n <= 9) {
+      if (P.variant === 'repeat' && n <= 9 && !(J.isLatinText && J.isLatinText(env.cut.text) && /\s/.test(env.cut.text.trim()))) {   // (English phrases: a word a column, below)
         // テキストのみ: one column, larger — the same word side by side read as filler copies
         const cols = env.st && env.st.textOnly ? 1 : P.cols;
         const size = Math.min(H * 0.8 / (n * 1.04), W * 0.86 / (cols * 1.75), cols === 1 ? H * 0.3 : Infinity);

@@ -948,6 +948,12 @@ function pickLayout(rng, st, en, n, dur, history, emph, recap, portrait) {
     cands.push([k, w]);
   }
   if (!cands.length) return 'center';
+  // テキストのみ with its own pool: when none of the pool fits this cut (a long English line …), a plain setting —
+  // not any layout at all (chat bubbles, labels … would come in)
+  if (st.textOnly && st.pool && st.pool.layout && !cands.some(c => st.pool.layout[c[0]] != null)) {
+    const plain = cands.filter(c => ['center', 'vcols', 'huge', 'tyStackJustify', 'stack'].includes(c[0]));
+    if (plain.length) return rng.wpick(plain);
+  }
   return rng.wpick(inPool(st, 'layout', cands));
 }
 const LAYOUT_ENTER = {

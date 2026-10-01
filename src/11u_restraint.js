@@ -24,7 +24,8 @@ J.TEXT_POOL = {
       'tyCross', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'sideways', 'halfVertical'], 0.6)),
   enter: Object.assign(
     W(['knWordSlam'], 1.5), W(['cut'], 0.8),
-    W(['zoom', 'stretch', 'slice', 'whip', 'knTypeToSlam', 'riseMask', 'dropMask', 'wipe', 'trackIn', 'blurStagger', 'tyKeyFirst', 'zoomOut', 'splitJoin'], 0.9),
+    W(['slice'], 0.35),   // the strips linger and read as broken type
+    W(['zoom', 'stretch', 'whip', 'knTypeToSlam', 'riseMask', 'dropMask', 'wipe', 'trackIn', 'blurStagger', 'tyKeyFirst', 'zoomOut', 'splitJoin'], 0.9),
     W(['fadeStagger', 'type', 'tyLineWipe', 'blur', 'slideL', 'slideR', 'slideWhole', 'vSlice', 'outlineFill', 'skewIn', 'stamp',
       'knReplaceIn', 'knPushIn', 'knInertia', 'knDiveIn', 'knStretchOut', 'tyUnderLift', 'tyRetype'], 0.5)),
   exit: Object.assign(

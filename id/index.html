@@ -2962,7 +2962,7 @@ J.LAYOUTS = {
     render(env) {
       const { W, H, sc } = env, P = env.cut.params, text = env.cut.text.replace(/\s+/g, '');
       const n = glyphCount(text);
-      if (P.variant === 'repeat' && n <= 9) {
+      if (P.variant === 'repeat' && n <= 9 && !(J.isLatinText && J.isLatinText(env.cut.text) && /\s/.test(env.cut.text.trim()))) {   // (English phrases: a word a column, below)
         // テキストのみ: one column, larger — the same word side by side read as filler copies
         const cols = env.st && env.st.textOnly ? 1 : P.cols;
         const size = Math.min(H * 0.8 / (n * 1.04), W * 0.86 / (cols * 1.75), cols === 1 ? H * 0.3 : Infinity);
@@ -4642,6 +4642,12 @@ function pickLayout(rng, st, en, n, dur, history, emph, recap, portrait) {
     cands.push([k, w]);
   }
   if (!cands.length) return 'center';
+  // テキストのみ with its own pool: when none of the pool fits this cut (a long English line …), a plain setting —
+  // not any layout at all (chat bubbles, labels … would come in)
+  if (st.textOnly && st.pool && st.pool.layout && !cands.some(c => st.pool.layout[c[0]] != null)) {
+    const plain = cands.filter(c => ['center', 'vcols', 'huge', 'tyStackJustify', 'stack'].includes(c[0]));
+    if (plain.length) return rng.wpick(plain);
+  }
   return rng.wpick(inPool(st, 'layout', cands));
 }
 const LAYOUT_ENTER = {
@@ -5371,6 +5377,10 @@ class Renderer {
         const f = env[k];
         env[k] = (...a) => {
           if (!ctx.jzPlain || !ctx.jzShapesOk) return f(...a);
+          // tiny marks (a typing cursor, dots, ticks) read as glitches next to the type: only shapes of some size
+          const U = Math.min(env.W, env.H);
+          if ((k === 'rect' || k === 'rrect') && Math.max(Math.abs(a[2]), Math.abs(a[3])) < U * 0.06) return;
+          if ((k === 'circle' || k === 'arc') && a[2] < U * 0.03) return;
           J.plainOff(ctx); env.shapePainted = true;
           try { return f(...a); } finally { J.plainOn(ctx); }
         };
@@ -26447,7 +26457,8 @@ reg('poster', {
       });
     } else {
       const w1 = lines.map(l => meas(l, p.font, 100, { track: -0.02 }).w / 100);
-      let sz = w1.map(w => aw / Math.max(0.5, w));
+      // (テキストのみ: a little inside the margin — the camera's push and the type's own overhang crop it otherwise)
+      let sz = w1.map(w => aw * (env.st && env.st.textOnly ? 0.92 : 1) / Math.max(0.5, w));
       const tot = sz.reduce((a, b) => a + b * 0.98, 0);
       const f = Math.min(1, avH / tot);
       sz = sz.map(v => v * f);
@@ -36796,7 +36807,8 @@ J.TEXT_POOL = {
       'tyCross', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'sideways', 'halfVertical'], 0.6)),
   enter: Object.assign(
     W(['knWordSlam'], 1.5), W(['cut'], 0.8),
-    W(['zoom', 'stretch', 'slice', 'whip', 'knTypeToSlam', 'riseMask', 'dropMask', 'wipe', 'trackIn', 'blurStagger', 'tyKeyFirst', 'zoomOut', 'splitJoin'], 0.9),
+    W(['slice'], 0.35),   // the strips linger and read as broken type
+    W(['zoom', 'stretch', 'whip', 'knTypeToSlam', 'riseMask', 'dropMask', 'wipe', 'trackIn', 'blurStagger', 'tyKeyFirst', 'zoomOut', 'splitJoin'], 0.9),
     W(['fadeStagger', 'type', 'tyLineWipe', 'blur', 'slideL', 'slideR', 'slideWhole', 'vSlice', 'outlineFill', 'skewIn', 'stamp',
       'knReplaceIn', 'knPushIn', 'knInertia', 'knDiveIn', 'knStretchOut', 'tyUnderLift', 'tyRetype'], 0.5)),
   exit: Object.assign(

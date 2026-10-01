@@ -48,6 +48,7 @@ async (o) => {
   const hookLines = new Set(plan0.lines.filter(l => /!|叫|回れ|踊れ|すき|離さ|壊|鼓動|透明|笑って|連れて/.test(l.text)).map(l => l.index));
   const energy = Array.from({ length: 4000 }, (_, i) => { const t = i / 10, l = plan0.lines.find(x => t >= x.start && t < x.end); return l && hookLines.has(l.index) ? 0.85 : 0.45; });
   const plan = J.plan(p, { beats, duration: plan0.duration + 1, energy, energyRate: 10 });
+  window.__rev = { plan, r: new J.Renderer() };                  // (for VIDEO=…)
   const st = plan.style, poolL = st.pool && st.pool.layout ? Object.keys(st.pool.layout) : null;
   const cv = document.createElement('canvas'), ctx = cv.getContext('2d', { willReadFrequently: true });
   const r = new J.Renderer(), S = o.scale; cv.width = Math.round(plan.W * S); cv.height = Math.round(plan.H * S);
@@ -85,8 +86,17 @@ async (o) => {
     cuts.push({ t: +t.toFixed(2), text: c.text, layout: c.layout, enter: c.enter, exit: c.exit, cam: c.cam, trans: c.trans || '', flags, img: cv.toDataURL('image/jpeg', 0.8) });
   }
   J.drawItem = core;
+  // blank time: moments inside a lyric cut (past its first 0.15 s) where almost nothing is on screen
+  let tot = 0, blank = 0;
+  for (let t = 0.2; t < plan.duration; t += 0.125) {
+    const c = J.cutAt(plan, t); if (!c || c.layout === 'interlude' || !String(c.text || '').trim() || t - c.start < 0.15) continue;
+    r.frame(ctx, plan, t, { scale: S }); tot++;
+    const sc = st.schemes[c.scheme % st.schemes.length], bg = hex(sc.bg) || [0, 0, 0], d = ctx.getImageData(0, 0, cv.width, cv.height).data;
+    let ink = 0; for (let i = 0; i < d.length; i += 16) if (Math.abs(d[i] - bg[0]) + Math.abs(d[i + 1] - bg[1]) + Math.abs(d[i + 2] - bg[2]) > 90) ink++;
+    if (ink / (d.length / 16) < 0.003) blank++;
+  }
   const font = p.fonts && p.fonts.display ? p.fonts.display : '';
-  return { style: p.style, styleName: st.name, mood: p.mood, font, fx: plan.fx, duration: plan.duration, nCuts: cuts.length, cuts, colors: !!(p.colors && p.colors.accentOn) };
+  return { blank: tot ? +(blank / tot).toFixed(3) : 0, style: p.style, styleName: st.name, mood: p.mood, font, fx: plan.fx, duration: plan.duration, nCuts: cuts.length, cuts, colors: !!(p.colors && p.colors.accentOn) };
 }
 """
 
@@ -157,13 +167,29 @@ async def main():
                 for f in c['flags']: flags[f] = flags.get(f, 0) + 1
             summary.append({'run': run, 'style': res['style'], 'mood': res['mood'], 'font': res['font'], 'bpm': bpm, 'cuts': res['nCuts'], 'flags': flags,
                             'layouts': sorted({c['layout'] for c in res['cuts']})})
-            print(f"run {run:3d} {res['style']:10s} {res['mood']:10s} cuts {res['nCuts']:3d} flags {flags} layouts {len(summary[-1]['layouts'])}")
+            summary[-1]['blank'] = res['blank']
+            print(f"run {run:3d} {res['style']:10s} {res['mood']:10s} cuts {res['nCuts']:3d} blank {res['blank']:.3f} flags {flags} layouts {len(summary[-1]['layouts'])}")
             json.dump(res, open(f'{OUT}/run{run:03d}.json', 'w'), ensure_ascii=False, indent=1)
+            # VIDEO=seconds: the first seconds of the song as an mp4 (24 fps, a click on the beat) to judge the motion
+            if os.environ.get('VIDEO'):
+                import subprocess, tempfile, shutil
+                T = float(os.environ['VIDEO']); fd = tempfile.mkdtemp()
+                n = int(T * 24)
+                for i in range(0, n, 24):
+                    frames = await pg.evaluate("""([a, b]) => { const { plan, r } = window.__rev, cv = document.createElement('canvas'); const S = 0.4;
+                      cv.width = Math.round(plan.W * S); cv.height = Math.round(plan.H * S); const out = [];
+                      for (let i = a; i < b; i++) { r.frame(cv.getContext('2d'), plan, i / 24, { scale: S }); out.push(cv.toDataURL('image/jpeg', 0.85)); } return out; }""", [i, min(n, i + 24)])
+                    for j, d in enumerate(frames): open(f'{fd}/{i + j:05d}.jpg', 'wb').write(_b64.b64decode(d.split(',')[1]))
+                bl = 60 / bpm
+                subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', f"aevalsrc='0.5*sin(2*PI*1200*t)*exp(-80*mod(t-0.4+{bl}*100,{bl}))*gte(t,0.4)':s=44100:d={T}",
+                                '-framerate', '24', '-i', f'{fd}/%05d.jpg', '-map', '1:v', '-map', '0:a', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '24', '-c:a', 'aac', '-shortest', f'{OUT}/run{run:03d}.mp4'], check=True)
+                shutil.rmtree(fd)
         await b.close()
     tot = {}
     for s in summary:
         for k, v in s['flags'].items(): tot[k] = tot.get(k, 0) + v
     cuts = sum(s['cuts'] for s in summary)
+    print('mean blank', round(sum(s['blank'] for s in summary) / max(1, len(summary)), 3))
     print('TOTAL cuts', cuts, 'flags', tot, 'flagged share', round(sum(tot.values()) / max(1, cuts), 3))
     json.dump(summary, open(f'{OUT}/summary.json', 'w'), ensure_ascii=False, indent=1)
 

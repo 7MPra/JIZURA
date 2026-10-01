@@ -1127,7 +1127,8 @@ reg('poster', {
       });
     } else {
       const w1 = lines.map(l => meas(l, p.font, 100, { track: -0.02 }).w / 100);
-      let sz = w1.map(w => aw / Math.max(0.5, w));
+      // (テキストのみ: a little inside the margin — the camera's push and the type's own overhang crop it otherwise)
+      let sz = w1.map(w => aw * (env.st && env.st.textOnly ? 0.92 : 1) / Math.max(0.5, w));
       const tot = sz.reduce((a, b) => a + b * 0.98, 0);
       const f = Math.min(1, avH / tot);
       sz = sz.map(v => v * f);
