@@ -23,12 +23,12 @@ J.TEXT_POOL = {
     W(['poster', 'swissGrid', 'headlineDeck', 'tyMargin', 'knSwapCenter', 'knFlowSnap', 'knCollide', 'knReflow', 'mixed', 'kanjiFocus', 'dropCap',
       'tyCross', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'type', 'corners', 'sideways', 'halfVertical'], 0.6)),
   enter: Object.assign(
-    W(['cut', 'knWordSlam'], 1.5),
+    W(['knWordSlam'], 1.5), W(['cut'], 0.8),
     W(['zoom', 'stretch', 'slice', 'whip', 'knTypeToSlam', 'riseMask', 'dropMask', 'wipe', 'trackIn', 'blurStagger', 'tyKeyFirst', 'zoomOut', 'splitJoin'], 0.9),
     W(['fadeStagger', 'type', 'tyLineWipe', 'blur', 'slideL', 'slideR', 'slideWhole', 'vSlice', 'outlineFill', 'skewIn', 'stamp',
       'knReplaceIn', 'knPushIn', 'knInertia', 'knDiveIn', 'knStretchOut', 'tyUnderLift', 'tyRetype'], 0.5)),
   exit: Object.assign(
-    W(['cut'], 2),
+    W(['cut'], 1.1),
     W(['zoomThrough', 'knJumpCutOut', 'knLaunch', 'whipOut', 'slice', 'riseOut', 'wipe', 'trackOutWide'], 0.9),
     W(['sinkMask', 'blur', 'blurOutStagger', 'tyLineFeed', 'slideOutL', 'slideOutR', 'zoomFar', 'splitApart', 'backspace', 'shrink', 'stretch',
       'knWordKick', 'knPushOut', 'knCloseGap', 'knWordBlink', 'tyStrike', 'tyUnderSink', 'tyKeyLast'], 0.5)),
@@ -56,7 +56,7 @@ J.textPool = (st) => {
 if (J.BG && J.BG.bigChar) J.BG.bigChar.lyricType = true;
 /* a song's own vocabulary: from the style's pool, a handful per group — drawn by weight, leaning towards the parts
    whose mood tags match the style's moods — so a song reads as one piece and two styles (or two seeds) differ */
-const VOCAB = { layout: 7, enter: 5, exit: 4, hold: 3, cam: 4, trans: 3, fx: 3, treat: 3 };
+const VOCAB = { layout: 7, enter: 7, exit: 6, hold: 4, cam: 5, trans: 3, fx: 3, treat: 3 };
 const KEEP = { enter: 'cut', exit: 'cut', treat: 'none' };
 J.songVocab = (st, seed, styleKey) => {
   if (!st || !st.pool) return st;

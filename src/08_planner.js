@@ -342,6 +342,18 @@ J.plan = (project, audio) => {
   // then the 追加分 / 和風 switches decide what random picks may use (a per-line override still works)
   const en = {};
   for (const g of J.GROUP_KEYS) { en[g] = {}; const src = (project.enabled || {})[g] || {}; for (const k of J.order(g)) en[g][k] = src[k] !== false && (!J.randomOk || J.randomOk(project, g, k)); }
+  // テキストのみ: the song's own layouts (its pool) need room to vary. おまかせ switches parts on and off by mood, and could
+  // leave one or two of them — a whole song in one layout. Fewer than 4 left: the pool's heaviest come back on.
+  // The same for the motions (entrance / exit / hold / camera): a song moving only by plain cuts looks bare.
+  if (st.textOnly && st.pool) {
+    const FLOOR = { layout: 4, enter: 4, exit: 3, hold: 2, cam: 3 }, NONE = { enter: 'cut', exit: 'cut', hold: 'still', cam: 'push' };
+    for (const [g, need] of Object.entries(FLOOR)) {
+      const P = st.pool[g]; if (!P || !en[g]) continue;
+      const reg = J.registry(g) || {}, keys = Object.keys(P).filter(k => reg[k] && k !== NONE[g]), want = Math.min(need, keys.length);
+      const on = keys.filter(k => en[g][k]).length;
+      if (on < want) for (const k of keys.filter(k => !en[g][k]).sort((a, b) => P[b] - P[a]).slice(0, want - on)) en[g][k] = true;
+    }
+  }
   // 中央を空ける (キャラクター用): every cut is laid out in a side band — left / right on wide frames, top / bottom on tall
   // ones — alternating line by line; the centre keeps only the full-frame background and screen effects
   const zones = project.centerFree ? J.sideZones(W, H, project.centerDir) : null;
@@ -426,7 +438,10 @@ J.plan = (project, audio) => {
     const visEnd = Math.min(e, s + Math.max(3.6, n * 0.5 + 1.2));
     const D = visEnd - s;
     plan.lines.push({ index: li, src: ln.src, lrc: ln.lrc, text: ln.text, start: s, end: e, visEnd, note: ln.note, impact: ln.impact, emph: ln.emph, chunks: null, seed: lineSeed, gapBefore: !!ln.gapBefore, ruby: ln.ruby || null });
-    const chunks = ln.manual || (plan.lang === 'en' ? J.phraseChunks(J.chunkText(ln.text)) : J.chunkText(ln.text));
+    // an English line is cut into phrases ("Hello, can you" / "hear me now"), also inside a Japanese song — word by word,
+    // every "can" / "me" became a cut of its own
+    const latinLine = /[A-Za-z]/.test(ln.text) && !/[\u3040-\u30ff\u3400-\u9fff]/.test(ln.text);
+    const chunks = ln.manual || (plan.lang === 'en' || latinLine ? J.phraseChunks(J.chunkText(ln.text)) : J.chunkText(ln.text));
     plan.lines[li].chunks = chunks;
     const L = J.lerp(1.3, 0.5, fx.density);
     let nC = Math.round(D / L);

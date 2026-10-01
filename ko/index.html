@@ -2070,7 +2070,7 @@ J.STYLES = {
     name: 'クリムゾン・シグナル', desc: '深紅地・白と黒の二段組み・データ破損',
     schemes: [
       { bg: '#C8103F', fg: '#FFFFFF', sub: '#FFD9E2', accent: '#140509', accent2: '#39F2C8', ink: '#140509', dim: '#B00D37', ghostA: '#FFFFFF', ghostB: '#39F2C8' },
-      { bg: '#FF6F98', fg: '#FFFFFF', sub: '#FFE3EB', accent: '#1A0710', accent2: '#39F2C8', ink: '#1A0710', dim: '#F25C87', ghostA: '#FFFFFF', ghostB: '#1A0710' },
+      { bg: '#E5376C', fg: '#FFFFFF', sub: '#FFE3EB', accent: '#1A0710', accent2: '#39F2C8', ink: '#1A0710', dim: '#D62E61', ghostA: '#FFFFFF', ghostB: '#1A0710' },
       { bg: '#150509', fg: '#FF3D6E', sub: '#FF9DB6', accent: '#FFFFFF', accent2: '#39F2C8', ink: '#FF3D6E', dim: '#2A0B14', ghostA: '#FF3D6E', ghostB: '#39F2C8' },
     ],
     fonts: { display: ['gothic_black', 'zenkaku'], serif: ['mincho'], body: ['gothic_med', 'sansui'], mono: ['mono'] },
@@ -2154,7 +2154,7 @@ J.STYLES = {
     schemes: [
       { bg: '#5B582B', fg: '#FFFFFF', sub: '#E6E2BC', accent: '#E8C21A', accent2: '#1A1A1A', ink: '#E8C21A', dim: '#67633A', ghostA: '#E8C21A', ghostB: '#1A1A1A' },
       { bg: '#1A1A1A', fg: '#FFFFFF', sub: '#B8B5A0', accent: '#E8C21A', accent2: '#FFFFFF', ink: '#E8C21A', dim: '#242424', ghostA: '#E8C21A', ghostB: '#7C7A55' },
-      { bg: '#9C9A94', fg: '#FFFFFF', sub: '#F0EEE6', accent: '#E8C21A', accent2: '#1A1A1A', ink: '#1A1A1A', dim: '#A6A49E', ghostA: '#E8C21A', ghostB: '#1A1A1A' },
+      { bg: '#74726C', fg: '#FFFFFF', sub: '#E6E4DC', accent: '#E8C21A', accent2: '#1A1A1A', ink: '#1A1A1A', dim: '#7E7C76', ghostA: '#E8C21A', ghostB: '#1A1A1A' },
     ],
     fonts: { display: ['zenkaku', 'gothic_black'], serif: ['mincho_bold'], body: ['gothic_bold'], mono: ['mono'] },
     texture: { grain: 0.8, paper: 0.2, scan: 0 }, ghost: 0.5,
@@ -2872,6 +2872,11 @@ J.splitLines = (text, maxPer) => {
       if (J.isHira(a) && !J.isHira(b)) s += 3;
       if (J.isPunct(a) || a === ' ' || a === '　') s += 5;
       if (J.isSmallKana(b) || 'ーっ、。'.includes(b)) s -= 6;
+      // a word is not broken: never inside a katakana word (コー｜ヒー), rarely inside a kanji compound; before a particle is good
+      const kata = c => /[\u30a0-\u30ff]/.test(c), kan = c => /[\u3400-\u9fff々]/.test(c);
+      if (kata(a) && kata(b)) s -= 8;
+      if (kan(a) && kan(b)) s -= 2;
+      if (/^(は|が|を|に|で|の|も|と|へ|や|だけ|まで|から)/.test(arr.slice(k, k + 2).join('')) && !J.isHira(a)) s += 2;
       if (s > bestScore) { bestScore = s; best = k; }
     }
     out.push(arr.slice(start, best).join('').trim()); start = best;
@@ -2955,8 +2960,9 @@ J.LAYOUTS = {
       const { W, H, sc } = env, P = env.cut.params, text = env.cut.text.replace(/\s+/g, '');
       const n = glyphCount(text);
       if (P.variant === 'repeat' && n <= 9) {
-        const cols = P.cols;
-        const size = Math.min(H * 0.8 / (n * 1.04), W * 0.86 / (cols * 1.75));
+        // テキストのみ: one column, larger — the same word side by side read as filler copies
+        const cols = env.st && env.st.textOnly ? 1 : P.cols;
+        const size = Math.min(H * 0.8 / (n * 1.04), W * 0.86 / (cols * 1.75), cols === 1 ? H * 0.3 : Infinity);
         let bb = null; const mid = (cols - 1) / 2;
         for (let i = 0; i < cols; i++) {
           const side = i !== Math.round(mid);
@@ -2968,11 +2974,12 @@ J.LAYOUTS = {
         return bb;
       }
       const per = Math.max(2, Math.min(P.perCol + 1, Math.ceil(n / Math.ceil(n / 7))));
-      const colsArr = []; const arr = [...text];
-      for (let i = 0; i < arr.length; i += per) colsArr.push(arr.slice(i, i + per).join(''));
-      const t2 = colsArr.join('\n');
-      const size = Math.min(H * 0.78 / (per * 1.03), W * 0.8 / (colsArr.length * 1.4));
-      const colH = per * size * 1.03;
+      // columns break between words (English: a word a column, its spaces kept; Japanese: at the boundaries J.splitLines prefers)
+      const latin = J.isLatinText && J.isLatinText(env.cut.text);
+      const colsArr = latin ? String(env.cut.text).trim().split(/\s+/) : J.splitLines(text, per).split('\n');
+      const t2 = colsArr.join('\n'), longest = Math.max(...colsArr.map(c => [...c].length));
+      const size = Math.min(H * 0.78 / (longest * (latin ? 0.62 : 1.03)), W * 0.8 / (colsArr.length * 1.4));
+      const colH = longest * size * (latin ? 0.62 : 1.03);
       return J.mainDraw(env, { text: t2, font: P.font, size, x: W / 2, y: H / 2 - colH / 2, vertical: true, lead: 1.4, align: 'left', track: 0.03, color: sc.fg });
     },
   },
@@ -3134,9 +3141,12 @@ J.LAYOUTS = {
       const n = glyphCount(text0);
       const text = n >= 5 ? J.splitLines(text0, Math.ceil(n / 2)) : text0;
       const lines = text.split('\n').length;
-      const size = lines > 1 ? Math.min(H * 0.56, W * 1.2 / (Math.ceil(n / 2) * 0.98)) : Math.min(H * 0.98, W * 1.3 / (n * 0.96));
+      let size = lines > 1 ? Math.min(H * 0.56, W * 1.2 / (Math.ceil(n / 2) * 0.98)) : Math.min(H * 0.98, W * 1.3 / (n * 0.96));
+      // テキストのみ: as big as the frame allows, but the whole word stays in it (a word cut off by accident reads as a mistake)
+      if (env.st && env.st.textOnly) { const m = J.measure({ text, font: P.font, size, lead: 0.98, track: -0.02 }); if (m.w > W * 0.92) size *= W * 0.92 / m.w; }
       const u = env.lt / env.cut.dur;
-      const bb = J.mainDraw(env, { text, font: P.font, size, x: W / 2 + (0.5 - u) * W * 0.16 * P.dir, y: H / 2 + H * 0.02, lead: 0.98, track: -0.02, color: sc.fg, gradient: P.grad && sc.grad ? sc.grad : null });
+      const drift = env.st && env.st.textOnly ? 0.04 : 0.16;
+      const bb = J.mainDraw(env, { text, font: P.font, size, x: W / 2 + (0.5 - u) * W * drift * P.dir, y: H / 2 + H * 0.02, lead: 0.98, track: -0.02, color: sc.fg, gradient: P.grad && sc.grad ? sc.grad : null });
       if (P.label) {
         const ls = J.clamp(H * 0.028, 16, 30);
         const a = E.outCubic(J.clamp((env.lt - env.cut.inDur * 0.5) / 0.2)) * (1 - env.pOut);
@@ -4023,6 +4033,18 @@ J.plan = (project, audio) => {
   // then the 追加分 / 和風 switches decide what random picks may use (a per-line override still works)
   const en = {};
   for (const g of J.GROUP_KEYS) { en[g] = {}; const src = (project.enabled || {})[g] || {}; for (const k of J.order(g)) en[g][k] = src[k] !== false && (!J.randomOk || J.randomOk(project, g, k)); }
+  // テキストのみ: the song's own layouts (its pool) need room to vary. おまかせ switches parts on and off by mood, and could
+  // leave one or two of them — a whole song in one layout. Fewer than 4 left: the pool's heaviest come back on.
+  // The same for the motions (entrance / exit / hold / camera): a song moving only by plain cuts looks bare.
+  if (st.textOnly && st.pool) {
+    const FLOOR = { layout: 4, enter: 4, exit: 3, hold: 2, cam: 3 }, NONE = { enter: 'cut', exit: 'cut', hold: 'still', cam: 'push' };
+    for (const [g, need] of Object.entries(FLOOR)) {
+      const P = st.pool[g]; if (!P || !en[g]) continue;
+      const reg = J.registry(g) || {}, keys = Object.keys(P).filter(k => reg[k] && k !== NONE[g]), want = Math.min(need, keys.length);
+      const on = keys.filter(k => en[g][k]).length;
+      if (on < want) for (const k of keys.filter(k => !en[g][k]).sort((a, b) => P[b] - P[a]).slice(0, want - on)) en[g][k] = true;
+    }
+  }
   // 中央を空ける (キャラクター用): every cut is laid out in a side band — left / right on wide frames, top / bottom on tall
   // ones — alternating line by line; the centre keeps only the full-frame background and screen effects
   const zones = project.centerFree ? J.sideZones(W, H, project.centerDir) : null;
@@ -4107,7 +4129,10 @@ J.plan = (project, audio) => {
     const visEnd = Math.min(e, s + Math.max(3.6, n * 0.5 + 1.2));
     const D = visEnd - s;
     plan.lines.push({ index: li, src: ln.src, lrc: ln.lrc, text: ln.text, start: s, end: e, visEnd, note: ln.note, impact: ln.impact, emph: ln.emph, chunks: null, seed: lineSeed, gapBefore: !!ln.gapBefore, ruby: ln.ruby || null });
-    const chunks = ln.manual || (plan.lang === 'en' ? J.phraseChunks(J.chunkText(ln.text)) : J.chunkText(ln.text));
+    // an English line is cut into phrases ("Hello, can you" / "hear me now"), also inside a Japanese song — word by word,
+    // every "can" / "me" became a cut of its own
+    const latinLine = /[A-Za-z]/.test(ln.text) && !/[\u3040-\u30ff\u3400-\u9fff]/.test(ln.text);
+    const chunks = ln.manual || (plan.lang === 'en' || latinLine ? J.phraseChunks(J.chunkText(ln.text)) : J.chunkText(ln.text));
     plan.lines[li].chunks = chunks;
     const L = J.lerp(1.3, 0.5, fx.density);
     let nC = Math.round(D / L);
@@ -4939,13 +4964,16 @@ J.omakase = (project, rnd = Math.random, themeId = null) => {
   enabled.hold.still = true;
   // fonts: sometimes swap the headline / mincho faces for another catalogue face
   const fonts = {};
-  const faces = Object.entries(J.FONTS).filter(([k, f]) => !f.user && !['mono', 'pixel'].includes(f.kind) && (!J.randomOk || J.randomOk(project, 'font', k)));
+  // (Adobe Fonts faces only while the kit is active — elsewhere they fall back to a system face, English in a Times-like serif)
+  const faces = Object.entries(J.FONTS).filter(([k, f]) => !f.user && !['mono', 'pixel'].includes(f.kind) && !(f.kind === 'adobe' && !J.adobeReady) && (!J.randomOk || J.randomOk(project, 'font', k)));
   if (rnd() < 0.4) fonts.display = pick(faces.filter(([k, f]) => f.weight >= 700 || f.kind === 'display' || f.kind === 'round'))[0];
   if (rnd() < 0.3) fonts.serif = pick(faces.filter(([k, f]) => f.kind === 'mincho' || f.kind === 'brush'))[0];
   if (mood === 'chaos' && rnd() < 0.2) fonts.display = 'dot';
   // colours: style palette most of the time, a fresh accent / ghost pair otherwise
   const colors = Object.assign({}, project.colors, { enabled: false, accentOn: false });
-  if (rnd() < 0.38) {
+  // (text-only styles keep their own palette: their colours are designed as a set, and a random accent on them —
+  // purple on red — looked cheap. The draw still happens, so the rest of the result stays the same)
+  if (rnd() < 0.38 && !J.STYLES[style].textOnly) {
     const bg = J.STYLES[style].schemes[0].bg;
     Object.assign(colors, J.randomPalette(bg, rnd), { accentOn: true });
     delete colors.mode;
@@ -19599,10 +19627,33 @@ function splitUnit(s) {
     for (let i = 0; i < t.length; i++) if (t[i] === ' ' && Math.abs(i - mid) < bd) { bd = Math.abs(i - mid); bi = i; }
     return [t.slice(0, bi).trim(), t.slice(bi + 1).trim()];
   }
-  const n = [...t].length;
-  const parts = J.splitLines(t, Math.ceil(n / 2)).split('\n');
-  return parts.length >= 2 ? [parts[0], parts.slice(1).join('')] : [t];
+  // Japanese: the boundary that reads best, nearest the middle — before a particle (影｜だけ, ポケットの → ポケット｜の),
+  // between words, then between a kanji and its kana; never before a small kana / ー / ん, never inside a katakana word
+  const a = [...t], n = a.length;
+  if (n < 2) return [t];
+  let bi = -1, bs = Infinity, bp = 0;
+  for (let i = 1; i < n; i++) {
+    const s2 = joinRun(a, i), p = a[i - 1], q = a[i];
+    let pen;
+    if (/[ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮーんン、。，．！？!?…・」』）)]/.test(q) || /[「『（(]/.test(p)) pen = 100;
+    else if (p === 'っ' || p === 'ッ') pen = 50;
+    else if (PARTICLE.test(s2) && !isKata(p)) pen = 0;
+    else if (isKata(p) && isKata(q)) pen = 20;
+    else if (isKan(p) && isKan(q)) pen = 6;
+    else if (isHira(p) && isHira(q)) pen = 8;
+    else if (isKan(p) && isHira(q)) pen = 4;
+    else pen = 1;                                         // a change of script: kana → kanji, kana → katakana …
+    const sc = pen + Math.abs(i - n / 2) * 0.7;
+    if (sc < bs) { bs = sc; bi = i; bp = pen; }
+  }
+  // no boundary that reads (ほど｜けた, さよ｜なら): the word stays whole
+  if (bp >= 8) return [t];
+  return [a.slice(0, bi).join(''), a.slice(bi).join('')];
 }
+const PARTICLE = /^(だけ|まで|から|より|ので|のに|ない|ながら|は|が|を|に|で|の|も|と|へ|や)/;
+const joinRun = (a, i) => a.slice(i, i + 4).join('');
+J.splitWord = (t) => splitUnit(t);               // (also for the tests)
+const isKan = ch => /[\u3400-\u9fff\uf900-\ufaff々〆]/.test(ch), isHira = ch => /[\u3041-\u309f]/.test(ch), isKata = ch => /[\u30a0-\u30ff]/.test(ch);
 function unitsOf(cut, maxU = 6, minU = 1) {
   const text = String(cut.text || '');
   const key = text + '\u0002' + (cut.words || []).join('\u0001') + '\u0002' + maxU + ':' + minU;
@@ -20160,6 +20211,13 @@ reg('knRhythmCuts', {
       const punch = 1 + 0.1 * Math.exp(-dt * 14);
       const it = { text: t, font: Pm.font, x: W / 2, y: H / 2, color: sc.fg, track: 0.02, mi: miAt(env, ts[k]) };
       const vtxt = hasLatin(t) ? t : strip(t);
+      // テキストのみ: the shapes (corner brackets, the band) are not drawn — the small shot without its brackets read as an empty
+      // frame, the band's text kept the band's colour: both become a plain, mid-size word
+      const plain = env.st && env.st.textOnly && (shot === 'small' || shot === 'band');
+      if (plain) {
+        it.size = Math.min(J.fitSize(t, Pm.fontB, W * 0.6, H * 0.22, { track: 0.1 }), H * 0.2) * punch; it.font = Pm.fontB; it.track = 0.1;
+        return J.mainDraw(env, it);
+      }
       if (shot === 'huge') it.size = Math.min(J.fitSize(t, Pm.font, W * 0.82, H * 0.6, { track: 0.02 }), H * 0.54);
       else if (shot === 'vert' && !hasLatin(t)) {
         Object.assign(it, { text: vtxt, vertical: true, x: W / 2 + Pm.side * W * (port ? 0.18 : 0.22) });
@@ -36722,12 +36780,12 @@ J.TEXT_POOL = {
     W(['poster', 'swissGrid', 'headlineDeck', 'tyMargin', 'knSwapCenter', 'knFlowSnap', 'knCollide', 'knReflow', 'mixed', 'kanjiFocus', 'dropCap',
       'tyCross', 'tyFullTrack', 'tySquare', 'tyLineFocus', 'type', 'corners', 'sideways', 'halfVertical'], 0.6)),
   enter: Object.assign(
-    W(['cut', 'knWordSlam'], 1.5),
+    W(['knWordSlam'], 1.5), W(['cut'], 0.8),
     W(['zoom', 'stretch', 'slice', 'whip', 'knTypeToSlam', 'riseMask', 'dropMask', 'wipe', 'trackIn', 'blurStagger', 'tyKeyFirst', 'zoomOut', 'splitJoin'], 0.9),
     W(['fadeStagger', 'type', 'tyLineWipe', 'blur', 'slideL', 'slideR', 'slideWhole', 'vSlice', 'outlineFill', 'skewIn', 'stamp',
       'knReplaceIn', 'knPushIn', 'knInertia', 'knDiveIn', 'knStretchOut', 'tyUnderLift', 'tyRetype'], 0.5)),
   exit: Object.assign(
-    W(['cut'], 2),
+    W(['cut'], 1.1),
     W(['zoomThrough', 'knJumpCutOut', 'knLaunch', 'whipOut', 'slice', 'riseOut', 'wipe', 'trackOutWide'], 0.9),
     W(['sinkMask', 'blur', 'blurOutStagger', 'tyLineFeed', 'slideOutL', 'slideOutR', 'zoomFar', 'splitApart', 'backspace', 'shrink', 'stretch',
       'knWordKick', 'knPushOut', 'knCloseGap', 'knWordBlink', 'tyStrike', 'tyUnderSink', 'tyKeyLast'], 0.5)),
@@ -36755,7 +36813,7 @@ J.textPool = (st) => {
 if (J.BG && J.BG.bigChar) J.BG.bigChar.lyricType = true;
 /* a song's own vocabulary: from the style's pool, a handful per group — drawn by weight, leaning towards the parts
    whose mood tags match the style's moods — so a song reads as one piece and two styles (or two seeds) differ */
-const VOCAB = { layout: 7, enter: 5, exit: 4, hold: 3, cam: 4, trans: 3, fx: 3, treat: 3 };
+const VOCAB = { layout: 7, enter: 7, exit: 6, hold: 4, cam: 5, trans: 3, fx: 3, treat: 3 };
 const KEEP = { enter: 'cut', exit: 'cut', treat: 'none' };
 J.songVocab = (st, seed, styleKey) => {
   if (!st || !st.pool) return st;
@@ -37192,7 +37250,7 @@ const trail = (vx, vy, k) => (k > 0.02 ? { n: 4, dx: -vx / 5, dy: -vy / 5, a: 0.
 const ANGLES = [0, -24, 18, 90, -90, 32, -12, 0];
 reg('mpPile', {
   name: '回転の山', tags: ['pop', 'graphic'], w: 1, ae: 'scatter', fits: n => n >= 1 && n <= 40,
-  plan(rng, cut, st) { return { font: font(st, 'display'), spin: rng.pick([1, -1]) * rng.range(5, 10), rot0: rng.range(-14, 14), a0: rng.int(0, 7), push: rng.range(0.03, 0.07) }; },
+  plan(rng, cut, st) { return { font: font(st, 'display'), spin: rng.pick([1, -1]) * rng.range(3, 6), rot0: rng.range(-12, 12), a0: rng.int(0, 7), push: rng.range(0.012, 0.025) }; },
   render(env) {
     const { W, H, sc } = env, c = env.cut, P = c.params, port = K.isPort(env);
     const words = K.unitsOf(c, 8).map(strip).filter(Boolean), n = words.length, ts = K.onsets(env, n);
@@ -37201,7 +37259,8 @@ reg('mpPile', {
     let lead = words.findIndex(w => KAN.test(w)); if (lead < 0) lead = words.reduce((b, w, i) => (K.gcount(w) > K.gcount(words[b]) ? i : b), 0);
     const sizes = words.map((w, i) => Math.min(J.fitSize(w, P.font, (port ? W : W * 0.62) * (i === lead ? 1 : 0.6), U * (i === lead ? 0.42 : 0.24), { track: -0.02 }), U * (i === lead ? 0.42 : 0.22)));
     // angles: sideways (±90°) only for short words, which still read that way
-    const angOf = i => { let a = ANGLES[(i + P.a0) % ANGLES.length]; if (Math.abs(a) === 90 && K.gcount(words[i]) > 4) a = a > 0 ? 24 : -24; return a; };
+    // (the lead word is never set sideways: it is sized for the width)
+    const angOf = i => { let a = ANGLES[(i + P.a0) % ANGLES.length]; if (Math.abs(a) === 90 && (K.gcount(words[i]) > 4 || i === lead)) a = a > 0 ? 24 : -24; return a; };
     // positions: the lead word at the centre, the others placed around it where they do not cover each other
     // (each word as a circle the size of its longer side; tried in rings around the centre)
     const rad = words.map((w, i) => { const m = J.measure({ text: w, font: P.font, size: sizes[i], track: -0.02 }); return Math.max(m.w, m.h) * 0.46; });
@@ -37214,7 +37273,9 @@ reg('mpPile', {
         const x = Math.cos(a) * r * (port ? 0.85 : 1.5), y = Math.sin(a) * r;
         let hit = 0; pos.forEach((p2, j) => { if (!p2) return; const d = Math.hypot(x - p2[0], y - p2[1]); hit += Math.max(0, rad[i] + rad[j] - d); });
         // and inside the frame (with room for the turn): a word past the edge counts as covered
-        hit += Math.max(0, Math.abs(x) + rad[i] * 0.8 - W * 0.47) + Math.max(0, Math.abs(y) + rad[i] * 0.6 - H * 0.47);
+        // and inside the frame however the picture has turned: within the ellipse the frame holds (its axes less the word)
+        const ex = W * 0.44 - rad[i], ey = H * 0.42 - rad[i];
+        hit += ex <= 0 || ey <= 0 ? 99 : Math.max(0, Math.hypot(x / ex, y / ey) - 1) * U;
         if (hit < 1e-6) { best = [x, y]; break; }
         if (hit < bestHit) { bestHit = hit; best = ring === 6 && k === 15 ? [x, y] : null; }
       }
@@ -37367,7 +37428,7 @@ reg('mpDisc', {
       const x = n > 1 ? x0 + span * i / (n - 1) : W / 2, y = H * 0.46 + (i - (n - 1) / 2) * H * P.tilt * 0.12 + Math.sin(i * 2.1 + P.seed) * H * 0.05;
       const fx = x + Math.sin(env.lt * 0.6 + i) * W * 0.004, fy = y + Math.cos(env.lt * 0.5 + i * 1.7) * H * 0.006;
       // a circle opens on the glyph (it is the mask, never drawn); some stay a little smaller than the glyph
-      const q = clamp(dt / 0.32), r = sz * (J.r(P.seed, i, 3) < 0.25 ? 0.5 : 0.78) * OUT(q);
+      const q = clamp(dt / 0.32), r = sz * (J.r(P.seed, i, 3) < 0.12 ? 0.55 : 0.8) * OUT(q);
       const off = (J.r(P.seed, i, 4) - 0.5) * sz * 0.3;
       bb = J.unionBB(bb, draw(env, { text: ch, font: P.font, size: sz, x: fx, y: fy, color: sc.fg,
         clipFn: (ctx) => { ctx.arc(fx + off, fy, Math.max(0.5, r), 0, TAU); } }));
@@ -37417,7 +37478,8 @@ reg('mpStripe', {
     const bands = [];
     for (let b = 0; b < P.bands; b++) {
       const q = OUT(clamp((env.lt - b * 0.035) / 0.38)); if (q <= 0) continue;
-      const w = (x1 - x0) * q; bands.push(P.dir > 0 ? [x0, top + b * bh, w, bh * 0.82] : [x1 - w, top + b * bh, w, bh * 0.82]);
+      const w = (x1 - x0) * q, hh = bh * (0.82 + 0.18 * OUT(clamp((env.lt - 0.5 - b * 0.03) / 0.3)));   // the gaps close once it is in
+      bands.push(P.dir > 0 ? [x0, top + b * bh, w, hh] : [x1 - w, top + b * bh, w, hh]);
     }
     let bb = null;
     if (bands.length) bb = draw(env, { text: word, font: P.font, size, x: W / 2, y: H * 0.46, track: -0.02, color: sc.fg, clipFn: (ctx) => { for (const r of bands) ctx.rect(r[0], r[1], r[2], r[3]); } });

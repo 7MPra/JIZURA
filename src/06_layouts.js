@@ -133,6 +133,11 @@ J.splitLines = (text, maxPer) => {
       if (J.isHira(a) && !J.isHira(b)) s += 3;
       if (J.isPunct(a) || a === ' ' || a === '　') s += 5;
       if (J.isSmallKana(b) || 'ーっ、。'.includes(b)) s -= 6;
+      // a word is not broken: never inside a katakana word (コー｜ヒー), rarely inside a kanji compound; before a particle is good
+      const kata = c => /[\u30a0-\u30ff]/.test(c), kan = c => /[\u3400-\u9fff々]/.test(c);
+      if (kata(a) && kata(b)) s -= 8;
+      if (kan(a) && kan(b)) s -= 2;
+      if (/^(は|が|を|に|で|の|も|と|へ|や|だけ|まで|から)/.test(arr.slice(k, k + 2).join('')) && !J.isHira(a)) s += 2;
       if (s > bestScore) { bestScore = s; best = k; }
     }
     out.push(arr.slice(start, best).join('').trim()); start = best;
@@ -216,8 +221,9 @@ J.LAYOUTS = {
       const { W, H, sc } = env, P = env.cut.params, text = env.cut.text.replace(/\s+/g, '');
       const n = glyphCount(text);
       if (P.variant === 'repeat' && n <= 9) {
-        const cols = P.cols;
-        const size = Math.min(H * 0.8 / (n * 1.04), W * 0.86 / (cols * 1.75));
+        // テキストのみ: one column, larger — the same word side by side read as filler copies
+        const cols = env.st && env.st.textOnly ? 1 : P.cols;
+        const size = Math.min(H * 0.8 / (n * 1.04), W * 0.86 / (cols * 1.75), cols === 1 ? H * 0.3 : Infinity);
         let bb = null; const mid = (cols - 1) / 2;
         for (let i = 0; i < cols; i++) {
           const side = i !== Math.round(mid);
@@ -229,11 +235,12 @@ J.LAYOUTS = {
         return bb;
       }
       const per = Math.max(2, Math.min(P.perCol + 1, Math.ceil(n / Math.ceil(n / 7))));
-      const colsArr = []; const arr = [...text];
-      for (let i = 0; i < arr.length; i += per) colsArr.push(arr.slice(i, i + per).join(''));
-      const t2 = colsArr.join('\n');
-      const size = Math.min(H * 0.78 / (per * 1.03), W * 0.8 / (colsArr.length * 1.4));
-      const colH = per * size * 1.03;
+      // columns break between words (English: a word a column, its spaces kept; Japanese: at the boundaries J.splitLines prefers)
+      const latin = J.isLatinText && J.isLatinText(env.cut.text);
+      const colsArr = latin ? String(env.cut.text).trim().split(/\s+/) : J.splitLines(text, per).split('\n');
+      const t2 = colsArr.join('\n'), longest = Math.max(...colsArr.map(c => [...c].length));
+      const size = Math.min(H * 0.78 / (longest * (latin ? 0.62 : 1.03)), W * 0.8 / (colsArr.length * 1.4));
+      const colH = longest * size * (latin ? 0.62 : 1.03);
       return J.mainDraw(env, { text: t2, font: P.font, size, x: W / 2, y: H / 2 - colH / 2, vertical: true, lead: 1.4, align: 'left', track: 0.03, color: sc.fg });
     },
   },
@@ -395,9 +402,12 @@ J.LAYOUTS = {
       const n = glyphCount(text0);
       const text = n >= 5 ? J.splitLines(text0, Math.ceil(n / 2)) : text0;
       const lines = text.split('\n').length;
-      const size = lines > 1 ? Math.min(H * 0.56, W * 1.2 / (Math.ceil(n / 2) * 0.98)) : Math.min(H * 0.98, W * 1.3 / (n * 0.96));
+      let size = lines > 1 ? Math.min(H * 0.56, W * 1.2 / (Math.ceil(n / 2) * 0.98)) : Math.min(H * 0.98, W * 1.3 / (n * 0.96));
+      // テキストのみ: as big as the frame allows, but the whole word stays in it (a word cut off by accident reads as a mistake)
+      if (env.st && env.st.textOnly) { const m = J.measure({ text, font: P.font, size, lead: 0.98, track: -0.02 }); if (m.w > W * 0.92) size *= W * 0.92 / m.w; }
       const u = env.lt / env.cut.dur;
-      const bb = J.mainDraw(env, { text, font: P.font, size, x: W / 2 + (0.5 - u) * W * 0.16 * P.dir, y: H / 2 + H * 0.02, lead: 0.98, track: -0.02, color: sc.fg, gradient: P.grad && sc.grad ? sc.grad : null });
+      const drift = env.st && env.st.textOnly ? 0.04 : 0.16;
+      const bb = J.mainDraw(env, { text, font: P.font, size, x: W / 2 + (0.5 - u) * W * drift * P.dir, y: H / 2 + H * 0.02, lead: 0.98, track: -0.02, color: sc.fg, gradient: P.grad && sc.grad ? sc.grad : null });
       if (P.label) {
         const ls = J.clamp(H * 0.028, 16, 30);
         const a = E.outCubic(J.clamp((env.lt - env.cut.inDur * 0.5) / 0.2)) * (1 - env.pOut);

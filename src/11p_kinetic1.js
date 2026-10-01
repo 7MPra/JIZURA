@@ -45,10 +45,33 @@ function splitUnit(s) {
     for (let i = 0; i < t.length; i++) if (t[i] === ' ' && Math.abs(i - mid) < bd) { bd = Math.abs(i - mid); bi = i; }
     return [t.slice(0, bi).trim(), t.slice(bi + 1).trim()];
   }
-  const n = [...t].length;
-  const parts = J.splitLines(t, Math.ceil(n / 2)).split('\n');
-  return parts.length >= 2 ? [parts[0], parts.slice(1).join('')] : [t];
+  // Japanese: the boundary that reads best, nearest the middle — before a particle (影｜だけ, ポケットの → ポケット｜の),
+  // between words, then between a kanji and its kana; never before a small kana / ー / ん, never inside a katakana word
+  const a = [...t], n = a.length;
+  if (n < 2) return [t];
+  let bi = -1, bs = Infinity, bp = 0;
+  for (let i = 1; i < n; i++) {
+    const s2 = joinRun(a, i), p = a[i - 1], q = a[i];
+    let pen;
+    if (/[ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮーんン、。，．！？!?…・」』）)]/.test(q) || /[「『（(]/.test(p)) pen = 100;
+    else if (p === 'っ' || p === 'ッ') pen = 50;
+    else if (PARTICLE.test(s2) && !isKata(p)) pen = 0;
+    else if (isKata(p) && isKata(q)) pen = 20;
+    else if (isKan(p) && isKan(q)) pen = 6;
+    else if (isHira(p) && isHira(q)) pen = 8;
+    else if (isKan(p) && isHira(q)) pen = 4;
+    else pen = 1;                                         // a change of script: kana → kanji, kana → katakana …
+    const sc = pen + Math.abs(i - n / 2) * 0.7;
+    if (sc < bs) { bs = sc; bi = i; bp = pen; }
+  }
+  // no boundary that reads (ほど｜けた, さよ｜なら): the word stays whole
+  if (bp >= 8) return [t];
+  return [a.slice(0, bi).join(''), a.slice(bi).join('')];
 }
+const PARTICLE = /^(だけ|まで|から|より|ので|のに|ない|ながら|は|が|を|に|で|の|も|と|へ|や)/;
+const joinRun = (a, i) => a.slice(i, i + 4).join('');
+J.splitWord = (t) => splitUnit(t);               // (also for the tests)
+const isKan = ch => /[\u3400-\u9fff\uf900-\ufaff々〆]/.test(ch), isHira = ch => /[\u3041-\u309f]/.test(ch), isKata = ch => /[\u30a0-\u30ff]/.test(ch);
 function unitsOf(cut, maxU = 6, minU = 1) {
   const text = String(cut.text || '');
   const key = text + '\u0002' + (cut.words || []).join('\u0001') + '\u0002' + maxU + ':' + minU;
@@ -606,6 +629,13 @@ reg('knRhythmCuts', {
       const punch = 1 + 0.1 * Math.exp(-dt * 14);
       const it = { text: t, font: Pm.font, x: W / 2, y: H / 2, color: sc.fg, track: 0.02, mi: miAt(env, ts[k]) };
       const vtxt = hasLatin(t) ? t : strip(t);
+      // テキストのみ: the shapes (corner brackets, the band) are not drawn — the small shot without its brackets read as an empty
+      // frame, the band's text kept the band's colour: both become a plain, mid-size word
+      const plain = env.st && env.st.textOnly && (shot === 'small' || shot === 'band');
+      if (plain) {
+        it.size = Math.min(J.fitSize(t, Pm.fontB, W * 0.6, H * 0.22, { track: 0.1 }), H * 0.2) * punch; it.font = Pm.fontB; it.track = 0.1;
+        return J.mainDraw(env, it);
+      }
       if (shot === 'huge') it.size = Math.min(J.fitSize(t, Pm.font, W * 0.82, H * 0.6, { track: 0.02 }), H * 0.54);
       else if (shot === 'vert' && !hasLatin(t)) {
         Object.assign(it, { text: vtxt, vertical: true, x: W / 2 + Pm.side * W * (port ? 0.18 : 0.22) });

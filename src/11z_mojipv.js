@@ -32,7 +32,7 @@ const trail = (vx, vy, k) => (k > 0.02 ? { n: 4, dx: -vx / 5, dy: -vy / 5, a: 0.
 const ANGLES = [0, -24, 18, 90, -90, 32, -12, 0];
 reg('mpPile', {
   name: '回転の山', tags: ['pop', 'graphic'], w: 1, ae: 'scatter', fits: n => n >= 1 && n <= 40,
-  plan(rng, cut, st) { return { font: font(st, 'display'), spin: rng.pick([1, -1]) * rng.range(5, 10), rot0: rng.range(-14, 14), a0: rng.int(0, 7), push: rng.range(0.03, 0.07) }; },
+  plan(rng, cut, st) { return { font: font(st, 'display'), spin: rng.pick([1, -1]) * rng.range(3, 6), rot0: rng.range(-12, 12), a0: rng.int(0, 7), push: rng.range(0.012, 0.025) }; },
   render(env) {
     const { W, H, sc } = env, c = env.cut, P = c.params, port = K.isPort(env);
     const words = K.unitsOf(c, 8).map(strip).filter(Boolean), n = words.length, ts = K.onsets(env, n);
@@ -41,7 +41,8 @@ reg('mpPile', {
     let lead = words.findIndex(w => KAN.test(w)); if (lead < 0) lead = words.reduce((b, w, i) => (K.gcount(w) > K.gcount(words[b]) ? i : b), 0);
     const sizes = words.map((w, i) => Math.min(J.fitSize(w, P.font, (port ? W : W * 0.62) * (i === lead ? 1 : 0.6), U * (i === lead ? 0.42 : 0.24), { track: -0.02 }), U * (i === lead ? 0.42 : 0.22)));
     // angles: sideways (±90°) only for short words, which still read that way
-    const angOf = i => { let a = ANGLES[(i + P.a0) % ANGLES.length]; if (Math.abs(a) === 90 && K.gcount(words[i]) > 4) a = a > 0 ? 24 : -24; return a; };
+    // (the lead word is never set sideways: it is sized for the width)
+    const angOf = i => { let a = ANGLES[(i + P.a0) % ANGLES.length]; if (Math.abs(a) === 90 && (K.gcount(words[i]) > 4 || i === lead)) a = a > 0 ? 24 : -24; return a; };
     // positions: the lead word at the centre, the others placed around it where they do not cover each other
     // (each word as a circle the size of its longer side; tried in rings around the centre)
     const rad = words.map((w, i) => { const m = J.measure({ text: w, font: P.font, size: sizes[i], track: -0.02 }); return Math.max(m.w, m.h) * 0.46; });
@@ -54,7 +55,9 @@ reg('mpPile', {
         const x = Math.cos(a) * r * (port ? 0.85 : 1.5), y = Math.sin(a) * r;
         let hit = 0; pos.forEach((p2, j) => { if (!p2) return; const d = Math.hypot(x - p2[0], y - p2[1]); hit += Math.max(0, rad[i] + rad[j] - d); });
         // and inside the frame (with room for the turn): a word past the edge counts as covered
-        hit += Math.max(0, Math.abs(x) + rad[i] * 0.8 - W * 0.47) + Math.max(0, Math.abs(y) + rad[i] * 0.6 - H * 0.47);
+        // and inside the frame however the picture has turned: within the ellipse the frame holds (its axes less the word)
+        const ex = W * 0.44 - rad[i], ey = H * 0.42 - rad[i];
+        hit += ex <= 0 || ey <= 0 ? 99 : Math.max(0, Math.hypot(x / ex, y / ey) - 1) * U;
         if (hit < 1e-6) { best = [x, y]; break; }
         if (hit < bestHit) { bestHit = hit; best = ring === 6 && k === 15 ? [x, y] : null; }
       }
@@ -207,7 +210,7 @@ reg('mpDisc', {
       const x = n > 1 ? x0 + span * i / (n - 1) : W / 2, y = H * 0.46 + (i - (n - 1) / 2) * H * P.tilt * 0.12 + Math.sin(i * 2.1 + P.seed) * H * 0.05;
       const fx = x + Math.sin(env.lt * 0.6 + i) * W * 0.004, fy = y + Math.cos(env.lt * 0.5 + i * 1.7) * H * 0.006;
       // a circle opens on the glyph (it is the mask, never drawn); some stay a little smaller than the glyph
-      const q = clamp(dt / 0.32), r = sz * (J.r(P.seed, i, 3) < 0.25 ? 0.5 : 0.78) * OUT(q);
+      const q = clamp(dt / 0.32), r = sz * (J.r(P.seed, i, 3) < 0.12 ? 0.55 : 0.8) * OUT(q);
       const off = (J.r(P.seed, i, 4) - 0.5) * sz * 0.3;
       bb = J.unionBB(bb, draw(env, { text: ch, font: P.font, size: sz, x: fx, y: fy, color: sc.fg,
         clipFn: (ctx) => { ctx.arc(fx + off, fy, Math.max(0.5, r), 0, TAU); } }));
@@ -257,7 +260,8 @@ reg('mpStripe', {
     const bands = [];
     for (let b = 0; b < P.bands; b++) {
       const q = OUT(clamp((env.lt - b * 0.035) / 0.38)); if (q <= 0) continue;
-      const w = (x1 - x0) * q; bands.push(P.dir > 0 ? [x0, top + b * bh, w, bh * 0.82] : [x1 - w, top + b * bh, w, bh * 0.82]);
+      const w = (x1 - x0) * q, hh = bh * (0.82 + 0.18 * OUT(clamp((env.lt - 0.5 - b * 0.03) / 0.3)));   // the gaps close once it is in
+      bands.push(P.dir > 0 ? [x0, top + b * bh, w, hh] : [x1 - w, top + b * bh, w, hh]);
     }
     let bb = null;
     if (bands.length) bb = draw(env, { text: word, font: P.font, size, x: W / 2, y: H * 0.46, track: -0.02, color: sc.fg, clipFn: (ctx) => { for (const r of bands) ctx.rect(r[0], r[1], r[2], r[3]); } });
