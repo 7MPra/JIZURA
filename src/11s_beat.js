@@ -142,7 +142,8 @@ reg('layout', 'bsScaleLine', {
   },
   render(env) {
     const { W, H, sc } = env, c = env.cut, Pm = c.params, port = isPort(env);
-    const units = unitsOf(c, 8), n = units.length, ts = onsets(env, n), k = curIdx(ts, env.lt);
+    // no more big words than the cut has time for (≈0.38 s each)
+    const units = unitsOf(c, clamp(1 + Math.floor((c.dur - Math.max(0.28, c.outDur || 0) - 0.2) / 0.38), 1, 8)), n = units.length, ts = onsets(env, n), k = curIdx(ts, env.lt);
     if (k < 0) return null;
     const lat = hasLatin(c.text), gap = lat ? 0.55 : 0.12;
     // the small line: one item per word so the current one can be lit

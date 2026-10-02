@@ -965,12 +965,13 @@ H.beatHop = {
   name: '拍で跳ねる', tags: ['pop'], w: 0.5,
   apply(env, it, amt) {
     const k = amt * motionK(env); if (k < 0.01) return;
-    const len = beatLen(env, 0.45), u = beatSince(env, 0.45) / (len * 0.85); if (u >= 1) return;
+    // a quick hop that lands and rests for the rest of the beat (in the air all beat long, the line never sat still to be read)
+    const len = beatLen(env, 0.45), u = beatSince(env, 0.45) / Math.min(len * 0.5, 0.28); if (u >= 1) return;
     const N = cutN(env), idx = beatIdx(env, 0.45), cur = ((idx % N) + N) % N, mi = +it.mi || 0, sz = it.size;
     const h = Math.pow(Math.sin(Math.PI * u), 0.7);
     addC(it, (i, g, n) => {
       const d = Math.abs((n > 1 ? i : mi) - cur), w = d === 0 ? 1 : d === 1 ? 0.3 : 0;   // the neighbours ripple a little
-      return w ? { dy: -h * w * sz * 0.2 * k, sy: 1 + 0.08 * h * w * k, sx: 1 - 0.05 * h * w * k } : null;
+      return w ? { dy: -h * w * sz * 0.16 * k, sy: 1 + 0.08 * h * w * k, sx: 1 - 0.05 * h * w * k } : null;
     });
   },
 };

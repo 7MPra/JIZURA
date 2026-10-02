@@ -2,7 +2,7 @@
    projected, its size follows the depth, its baseline turns with the plane and is foreshortened along it.
      sp3Plane     傾いた面    the line set on a plane tilted away in space, turning slowly; glyphs drop onto it on the beat
      sp3Depth     奥行きの道  each word further into the frame; the camera travels forward and each word arrives as it is sung
-     sp3Cylinder  回る筒      the glyphs round a vertical cylinder that turns; the sung part comes round to the front
+     sp3Cylinder  回る筒      the glyphs round a vertical cylinder that swings round and settles with the line at the front
    Text only (no shapes). Text-only styles draw from these (J.TEXT_POOL); every other style plans as before. */
 (() => {
 'use strict';
@@ -92,17 +92,21 @@ reg('sp3Depth', {
   plan(rng, cut, st) { return { font: font(st, ['display']), side: rng.pick([1, -1]), gap: rng.range(0.9, 1.3), tilt: rng.range(-8, 8) }; },
   render(env) {
     const { W, H, sc } = env, c = env.cut, P = c.params, port = K.isPort(env);
-    const words = K.unitsOf(c, 6).map(strip).filter(Boolean), n = words.length, ts = K.onsets(env, n);
+    // as many words as the cut has time for (≈0.42 s each): faster, the camera flew past words nobody could read
+    const nMax = clamp(1 + Math.floor((c.dur - Math.max(0.28, c.outDur || 0) - 0.5) / 0.42), 1, 6);
+    const words = K.unitsOf(c, nMax).map(strip).filter(Boolean), n = words.length, ts = K.onsets(env, n);
     const f = Math.max(W, H) * 1.1, C = cam(W, H, f), gap = f * P.gap;
     // each word i sits at depth i*gap; the camera reaches it when it is sung (eased between onsets), then keeps drifting
     let k = 0; for (let i = 0; i < n; i++) if (env.lt >= ts[i]) k = i;
     // a quick move forward on each word (the previous word slides past the camera), then a slow drift
-    const camZs = k * gap - gap * (1 - out3((env.lt - ts[k]) / 0.35)) + Math.max(0, env.lt - ts[k] - 0.35) * gap * 0.08;
+    // (the move takes at most half the word's time, so each word then holds still to be read)
+    const mT = k > 0 ? clamp((ts[k] - ts[k - 1]) * 0.5, 0.26, 0.35) : 0.35;
+    const camZs = k * gap - gap * (1 - inOut((env.lt - ts[k]) / mT)) + Math.max(0, env.lt - ts[k] - mT) * gap * 0.05;
     const base = Math.min(H * (port ? 0.2 : 0.34), W * 0.84 / Math.max(2, Math.max(...words.map(w => [...w].length)) * 0.95));
     let bb = null;
     // the camera also slides sideways onto the word being sung, so that word is always centred and whole
     const posOf = i => [(i % 2 ? 1 : -1) * P.side * W * (port ? 0.1 : 0.26), (i % 2 ? -1 : 1) * H * (port ? 0.14 : 0.1)];
-    const mv = out3((env.lt - ts[k]) / 0.35), pa = posOf(Math.max(0, k - 1)), pb = posOf(k);
+    const mv = inOut((env.lt - ts[k]) / mT), pa = posOf(Math.max(0, k - 1)), pb = posOf(k);
     const cx = k > 0 ? pa[0] + (pb[0] - pa[0]) * mv : pb[0], cy = k > 0 ? pa[1] + (pb[1] - pa[1]) * mv : pb[1];
     for (let i = n - 1; i >= 0; i--) {
       const z = i * gap - camZs;
@@ -120,24 +124,25 @@ reg('sp3Depth', {
 
 /* ================================================================== sp3Cylinder — 回る筒 */
 reg('sp3Cylinder', {
-  name: '回る筒', tags: ['pop', 'graphic', 'emotional'], w: 0.8, ae: 'circle', fits: n => n >= 3 && n <= 18,
+  name: '回る筒', tags: ['pop', 'graphic', 'emotional'], w: 0.8, ae: 'circle', fits: n => n >= 3 && n <= 18, minDur: 0.9,
   plan(rng, cut, st) { return { font: font(st, ['display']), tilt: rng.range(-10, 10) }; },
   render(env) {
     const { W, H, sc } = env, c = env.cut, P = c.params, port = K.isPort(env);
     const chars = [...strip(c.text)].filter(ch => !/\s/.test(ch)), n = chars.length;
     if (!n) return null;
-    const step = 360 / Math.max(9, n + 3), R = Math.min(W * (port ? 0.46 : 0.36), H * 0.6), f = Math.max(W, H) * 1.2, C = cam(W, H, f);
+    // the whole word fits the front of the drum (±50°): readable at once once it has come round
+    const step = Math.min(360 / Math.max(9, n + 3), 100 / Math.max(1, n - 1)), R = Math.min(W * (port ? 0.46 : 0.36), H * 0.6), f = Math.max(W, H) * 1.2, C = cam(W, H, f);
     const size = Math.min(2 * Math.PI * R * step / 360 * 1.0, H * (port ? 0.2 : 0.34));
-    // read left to right across the front; the drum turns as the line goes on, so the sung part comes round to the front
-    const prog = clamp(env.lt / Math.max(0.3, c.dur * 0.75)), spin = (prog - 0.5) * (n - 1) * step * 0.7;
+    // the drum swings round into place (eased, not a constant spin that stops dead), then only drifts
+    const Ts = clamp(c.dur * 0.45, 0.35, 0.9), sg = (c.seed | 0) % 2 ? 1 : -1;
+    const spin = sg * (70 * (1 - out3(env.lt / Ts)) + 2.5 * env.lt);
     const items = [];
     chars.forEach((ch, i) => {
       const a = ((i - (n - 1) / 2) * step - spin) * DEG;
       const x = Math.sin(a) * R, z = R - Math.cos(a) * R, cosA = Math.cos(a);
       if (cosA < 0.05) return;                                       // the back of the drum
       const p = C.P(x, (i - (n - 1) / 2) * size * P.tilt * 0.012, z);
-      const shown = env.lt >= (i / n) * c.dur * 0.6 - 0.05;
-      items.push({ z, it: own({ text: ch, font: P.font, size: size * p.s, x: p.x, y: p.y, sx: Math.max(0.1, cosA), color: sc.fg, alpha: (shown ? 1 : 0.22) * clamp(0.15 + cosA) }) });
+      items.push({ z, it: own({ text: ch, font: P.font, size: size * p.s, x: p.x, y: p.y, sx: Math.max(0.1, cosA), color: sc.fg, alpha: clamp(0.15 + cosA) }) });
     });
     let bb = null;
     items.sort((a, b) => b.z - a.z).forEach(g => { bb = J.unionBB(bb, J.mainDraw(env, g.it)); });

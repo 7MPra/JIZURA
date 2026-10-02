@@ -944,6 +944,7 @@ function pickLayout(rng, st, en, n, dur, history, emph, recap, portrait, text) {
     if (emph && L.emph) w *= L.emph;
     if (emph && ['huge', 'center', 'tile', 'marquee', 'condensed'].includes(k)) w *= 2;
     if (recap && ['center', 'stack', 'marquee', 'tile', 'mixed', 'type', 'gloss'].includes(k)) w *= 1.8;
+    if (L.minDur && dur < L.minDur) w *= 0.2;                 // word-by-word / travelling layouts need time to be read
     if (dur < 0.5 && ['wave', 'ring', 'labels', 'gloss', 'type', 'tile'].includes(k)) w *= 0.3;
     if (dur < 0.5 && ['center', 'huge', 'condensed', 'vcols'].includes(k)) w *= 1.4;
     cands.push([k, w]);

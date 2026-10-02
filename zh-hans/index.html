@@ -4638,6 +4638,7 @@ function pickLayout(rng, st, en, n, dur, history, emph, recap, portrait, text) {
     if (emph && L.emph) w *= L.emph;
     if (emph && ['huge', 'center', 'tile', 'marquee', 'condensed'].includes(k)) w *= 2;
     if (recap && ['center', 'stack', 'marquee', 'tile', 'mixed', 'type', 'gloss'].includes(k)) w *= 1.8;
+    if (L.minDur && dur < L.minDur) w *= 0.2;                 // word-by-word / travelling layouts need time to be read
     if (dur < 0.5 && ['wave', 'ring', 'labels', 'gloss', 'type', 'tile'].includes(k)) w *= 0.3;
     if (dur < 0.5 && ['center', 'huge', 'condensed', 'vcols'].includes(k)) w *= 1.4;
     cands.push([k, w]);
@@ -14866,12 +14867,13 @@ H.beatHop = {
   name: '拍で跳ねる', tags: ['pop'], w: 0.5,
   apply(env, it, amt) {
     const k = amt * motionK(env); if (k < 0.01) return;
-    const len = beatLen(env, 0.45), u = beatSince(env, 0.45) / (len * 0.85); if (u >= 1) return;
+    // a quick hop that lands and rests for the rest of the beat (in the air all beat long, the line never sat still to be read)
+    const len = beatLen(env, 0.45), u = beatSince(env, 0.45) / Math.min(len * 0.5, 0.28); if (u >= 1) return;
     const N = cutN(env), idx = beatIdx(env, 0.45), cur = ((idx % N) + N) % N, mi = +it.mi || 0, sz = it.size;
     const h = Math.pow(Math.sin(Math.PI * u), 0.7);
     addC(it, (i, g, n) => {
       const d = Math.abs((n > 1 ? i : mi) - cur), w = d === 0 ? 1 : d === 1 ? 0.3 : 0;   // the neighbours ripple a little
-      return w ? { dy: -h * w * sz * 0.2 * k, sy: 1 + 0.08 * h * w * k, sx: 1 - 0.05 * h * w * k } : null;
+      return w ? { dy: -h * w * sz * 0.16 * k, sy: 1 + 0.08 * h * w * k, sx: 1 - 0.05 * h * w * k } : null;
     });
   },
 };
@@ -19680,7 +19682,10 @@ const PARTICLE = /^(だけ|まで|から|より|ので|のに|ない|ながら|�
 const joinRun = (a, i) => a.slice(i, i + 4).join('');
 J.splitWord = (t) => splitUnit(t);               // (also for the tests)
 const isKan = ch => /[\u3400-\u9fff\uf900-\ufaff々〆]/.test(ch), isHira = ch => /[\u3041-\u309f]/.test(ch), isKata = ch => /[\u30a0-\u30ff]/.test(ch);
-function unitsOf(cut, maxU = 6, minU = 1) {
+function unitsOf(cut, maxU = 6, minU = 1, per = 0, tail = 0) {
+  // per: the seconds one word needs on screen (tail: what the layout keeps after the last word) — a short cut gets
+  // fewer, longer words instead of shots too quick to read
+  if (per > 0) { maxU = Math.min(maxU, Math.max(1, 1 + Math.floor((cut.dur - (cut.outDur || 0) - tail) / per))); minU = Math.min(minU, maxU); }
   const text = String(cut.text || '');
   const key = text + '\u0002' + (cut.words || []).join('\u0001') + '\u0002' + maxU + ':' + minU;
   let w = unitCache.get(key);
@@ -19846,14 +19851,14 @@ reg('knSlamStack', {
 
 /* ================================================================== 2 knQuarterTurn — 直角ターン */
 reg('knQuarterTurn', {
-  name: '直角ターン', tags: ['pop', 'graphic', 'editorial'], w: 0.9, ae: 'sideways', portrait: 0.9, fits: n => n >= 2 && n <= 16,
+  name: '直角ターン', tags: ['pop', 'graphic', 'editorial'], w: 0.9, ae: 'sideways', portrait: 0.9, fits: n => n >= 2 && n <= 16, minDur: 1.2,
   enterBias: { cut: 3, pop: 0.8, blur: 0.8, slice: 0.2, wipe: 0.3 },
   plan(rng, cut, st) {
     return { font: rng.pick(fontsOf(st, ['display', 'serif'])), sgn: rng.pick([1, -1]), end: 'all', acc: rng.int(0, 3), joint: rng.chance(0.6) };
   },
   render(env) {
     const { W, H, sc } = env, c = env.cut, Pm = c.params, lt = env.lt, u = U(env);
-    const units = unitsOf(c, 4, 2), n = units.length;
+    const units = unitsOf(c, 4, 2, 0.5, 0.6), n = units.length;
     const ts = onsets(env, n, { frac: 0.46, gap: 0.5 });
     // chain in em units: word i runs along direction a_i, turning 90° at each joint (staircase: turns alternate)
     const L = units.map(t => em(t, Pm.font, { track: 0.03 }));
@@ -19880,8 +19885,10 @@ reg('knQuarterTurn', {
     const k = curIdx(ts, lt);
     if (k < 0) return null;
     const tOv = Math.min(ts[n - 1] + 0.62, Math.max(ts[n - 1] + 0.3, c.dur - c.outDur - 0.55)), useOv = Pm.end !== 'last';
-    let A = cams[Math.max(0, k - 1)], B = cams[k], e = k > 0 ? E.inOutCubic(clamp((lt - ts[k]) / 0.36)) : 1;
-    if (useOv && lt >= tOv) { A = cams[n - 1]; B = ov; e = E.inOutCubic(clamp((lt - tOv) / 0.5)); }
+    // the turn takes at most half the time the word has, so every word gets a level, still moment to be read
+    const tTurn = k > 0 ? clamp((ts[k] - ts[k - 1]) * 0.5, 0.2, 0.36) : 0.36, tOvD = clamp((c.dur - c.outDur - tOv) * 0.5, 0.25, 0.5);
+    let A = cams[Math.max(0, k - 1)], B = cams[k], e = k > 0 ? E.inOutCubic(clamp((lt - ts[k]) / tTurn)) : 1;
+    if (useOv && lt >= tOv) { A = cams[n - 1]; B = ov; e = E.inOutCubic(clamp((lt - tOv) / tOvD)); }
     const dip = 1 - 0.22 * bellK(e) * (A === B ? 0 : 1);
     const cam = { r: lerp(A.r, B.r, e), x: lerp(A.x, B.x, e), y: lerp(A.y, B.y, e), z: Math.exp(lerp(Math.log(A.z), Math.log(B.z), e)) * dip };
     let bb = null;
@@ -19909,14 +19916,14 @@ reg('knQuarterTurn', {
 
 /* ================================================================== 3 knSwapCenter — 入れ替わり */
 reg('knSwapCenter', {
-  name: '入れ替わり', tags: ['pop', 'graphic', 'glitch'], w: 1, ae: 'slotMachine', fits: n => n >= 2 && n <= 18,
+  name: '入れ替わり', tags: ['pop', 'graphic', 'glitch'], w: 1, ae: 'slotMachine', fits: n => n >= 2 && n <= 18, minDur: 1.3,
   enterBias: { cut: 3, pop: 0.7, blur: 0.8, slice: 0.3, wipe: 0.3 },
   plan(rng, cut, st) {
     return { font: rng.pick(fontsOf(st, ['display'])), fontL: rng.pick(fontsOf(st, ['display', 'serif'])), mode: rng.pick(['roll', 'punch', 'slide', 'roll']), ticks: rng.chance(0.7), acc: rng.chance(0.5) };
   },
   render(env) {
     const { W, H, sc } = env, c = env.cut, Pm = c.params, lt = env.lt, u = U(env), port = isPort(env);
-    const units = unitsOf(c, 6, 2), n = units.length;
+    const units = unitsOf(c, 6, 2, 0.4, 0.55), n = units.length;
     const ts = onsets(env, n, { frac: 0.4, gap: 0.36 });
     const big = units.map(t => Math.min(J.fitSize(t, Pm.font, W * 0.8, H * 0.4, { track: 0.02 }), H * 0.34, W * 0.6));
     const F = flowUnits(units, Pm.fontL, W * 0.84, H * (port ? 0.46 : 0.34), { maxSize: H * (port ? 0.13 : 0.2), track: 0.03 });
@@ -20018,7 +20025,7 @@ reg('knZoomDive', {
 
 /* ================================================================== 5 knFlowSnap — 流れて整列 */
 reg('knFlowSnap', {
-  name: '流れて整列', tags: ['graphic', 'pop', 'editorial'], w: 0.9, ae: 'gridCells', fits: n => n >= 3 && n <= 16,
+  name: '流れて整列', tags: ['graphic', 'pop', 'editorial'], w: 0.9, ae: 'gridCells', fits: n => n >= 3 && n <= 16, minDur: 1.6,
   enterBias: { cut: 3, blur: 0.6, pop: 0.6, slice: 0.2, wipe: 0.2 },
   plan(rng, cut, st) {
     return { font: rng.pick(fontsOf(st, ['display', 'body'])), amp: rng.range(0.1, 0.16), lam: rng.range(0.45, 0.7), grid: rng.pick(['cells', 'cells', 'rules']), acc: rng.int(0, 15) };
@@ -20217,7 +20224,7 @@ reg('knTypeSlam', {
 /* ================================================================== 8 knRhythmCuts — 語のカット割り */
 const SHOTS = ['huge', 'vert', 'small', 'crop', 'band', 'tilt'];
 reg('knRhythmCuts', {
-  name: '語のカット割り', tags: ['pop', 'graphic', 'glitch'], w: 0.9, ae: 'panels', fits: n => n >= 2 && n <= 18,
+  name: '語のカット割り', tags: ['pop', 'graphic', 'glitch'], w: 0.9, ae: 'panels', fits: n => n >= 2 && n <= 18, minDur: 1.1,
   enterBias: { cut: 3.5, pop: 0.4, blur: 0.4, slice: 0.2, wipe: 0.2 },
   plan(rng, cut, st) {
     const sh = SHOTS.slice(); for (let i = sh.length - 1; i > 0; i--) { const j = rng.int(0, i); const t = sh[i]; sh[i] = sh[j]; sh[j] = t; }
@@ -20225,17 +20232,20 @@ reg('knRhythmCuts', {
   },
   render(env) {
     const { W, H, sc, ctx } = env, c = env.cut, Pm = c.params, lt = env.lt, u = U(env), port = isPort(env);
-    const units = unitsOf(c, 5, 2), n = units.length;
+    const units = unitsOf(c, 5, 2, 0.42, 0.55), n = units.length;
     const ts = onsets(env, n, { frac: 0.5, gap: 0.46 });
     let tF = Math.min(ts[n - 1] + 0.55, c.dur - c.outDur - 0.45);
     tF = Math.max(tF, ts[n - 1] + 0.28);
+    if (n < 2) tF = 0;                                     // no time for word shots: the clean line from the start
     const k = curIdx(ts, lt);
     if (k < 0) return null;
     const out = tout(env), accC = accOn(sc);
     if (lt < tF) {
       const t = units[k], shot = (Pm.shots || SHOTS)[k % 6], dt = lt - ts[k];
       const punch = 1 + 0.1 * Math.exp(-dt * 14);
-      const it = { text: t, font: Pm.font, x: W / 2, y: H / 2, color: sc.fg, track: 0.02, mi: miAt(env, ts[k]) };
+      // the later shots are hard cuts: the entrance does not play again on them (a drop / mask entrance left the frame
+      // empty between two words)
+      const it = { text: t, font: Pm.font, x: W / 2, y: H / 2, color: sc.fg, track: 0.02, mi: k ? miAt(env, ts[k] - (c.inDur || 0)) : 0 };
       const vtxt = hasLatin(t) ? t : strip(t);
       // テキストのみ: the shapes (corner brackets, the band) are not drawn — the small shot without its brackets read as an empty
       // frame, the band's text kept the band's colour: both become a plain, mid-size word
@@ -36564,7 +36574,8 @@ reg('layout', 'bsScaleLine', {
   },
   render(env) {
     const { W, H, sc } = env, c = env.cut, Pm = c.params, port = isPort(env);
-    const units = unitsOf(c, 8), n = units.length, ts = onsets(env, n), k = curIdx(ts, env.lt);
+    // no more big words than the cut has time for (≈0.38 s each)
+    const units = unitsOf(c, clamp(1 + Math.floor((c.dur - Math.max(0.28, c.outDur || 0) - 0.2) / 0.38), 1, 8)), n = units.length, ts = onsets(env, n), k = curIdx(ts, env.lt);
     if (k < 0) return null;
     const lat = hasLatin(c.text), gap = lat ? 0.55 : 0.12;
     // the small line: one item per word so the current one can be lit
@@ -37250,7 +37261,7 @@ J.calmPass = (plan, project, st) => {
    projected, its size follows the depth, its baseline turns with the plane and is foreshortened along it.
      sp3Plane     傾いた面    the line set on a plane tilted away in space, turning slowly; glyphs drop onto it on the beat
      sp3Depth     奥行きの道  each word further into the frame; the camera travels forward and each word arrives as it is sung
-     sp3Cylinder  回る筒      the glyphs round a vertical cylinder that turns; the sung part comes round to the front
+     sp3Cylinder  回る筒      the glyphs round a vertical cylinder that swings round and settles with the line at the front
    Text only (no shapes). Text-only styles draw from these (J.TEXT_POOL); every other style plans as before. */
 (() => {
 'use strict';
@@ -37340,17 +37351,21 @@ reg('sp3Depth', {
   plan(rng, cut, st) { return { font: font(st, ['display']), side: rng.pick([1, -1]), gap: rng.range(0.9, 1.3), tilt: rng.range(-8, 8) }; },
   render(env) {
     const { W, H, sc } = env, c = env.cut, P = c.params, port = K.isPort(env);
-    const words = K.unitsOf(c, 6).map(strip).filter(Boolean), n = words.length, ts = K.onsets(env, n);
+    // as many words as the cut has time for (≈0.42 s each): faster, the camera flew past words nobody could read
+    const nMax = clamp(1 + Math.floor((c.dur - Math.max(0.28, c.outDur || 0) - 0.5) / 0.42), 1, 6);
+    const words = K.unitsOf(c, nMax).map(strip).filter(Boolean), n = words.length, ts = K.onsets(env, n);
     const f = Math.max(W, H) * 1.1, C = cam(W, H, f), gap = f * P.gap;
     // each word i sits at depth i*gap; the camera reaches it when it is sung (eased between onsets), then keeps drifting
     let k = 0; for (let i = 0; i < n; i++) if (env.lt >= ts[i]) k = i;
     // a quick move forward on each word (the previous word slides past the camera), then a slow drift
-    const camZs = k * gap - gap * (1 - out3((env.lt - ts[k]) / 0.35)) + Math.max(0, env.lt - ts[k] - 0.35) * gap * 0.08;
+    // (the move takes at most half the word's time, so each word then holds still to be read)
+    const mT = k > 0 ? clamp((ts[k] - ts[k - 1]) * 0.5, 0.26, 0.35) : 0.35;
+    const camZs = k * gap - gap * (1 - inOut((env.lt - ts[k]) / mT)) + Math.max(0, env.lt - ts[k] - mT) * gap * 0.05;
     const base = Math.min(H * (port ? 0.2 : 0.34), W * 0.84 / Math.max(2, Math.max(...words.map(w => [...w].length)) * 0.95));
     let bb = null;
     // the camera also slides sideways onto the word being sung, so that word is always centred and whole
     const posOf = i => [(i % 2 ? 1 : -1) * P.side * W * (port ? 0.1 : 0.26), (i % 2 ? -1 : 1) * H * (port ? 0.14 : 0.1)];
-    const mv = out3((env.lt - ts[k]) / 0.35), pa = posOf(Math.max(0, k - 1)), pb = posOf(k);
+    const mv = inOut((env.lt - ts[k]) / mT), pa = posOf(Math.max(0, k - 1)), pb = posOf(k);
     const cx = k > 0 ? pa[0] + (pb[0] - pa[0]) * mv : pb[0], cy = k > 0 ? pa[1] + (pb[1] - pa[1]) * mv : pb[1];
     for (let i = n - 1; i >= 0; i--) {
       const z = i * gap - camZs;
@@ -37368,24 +37383,25 @@ reg('sp3Depth', {
 
 /* ================================================================== sp3Cylinder — 回る筒 */
 reg('sp3Cylinder', {
-  name: '回る筒', tags: ['pop', 'graphic', 'emotional'], w: 0.8, ae: 'circle', fits: n => n >= 3 && n <= 18,
+  name: '回る筒', tags: ['pop', 'graphic', 'emotional'], w: 0.8, ae: 'circle', fits: n => n >= 3 && n <= 18, minDur: 0.9,
   plan(rng, cut, st) { return { font: font(st, ['display']), tilt: rng.range(-10, 10) }; },
   render(env) {
     const { W, H, sc } = env, c = env.cut, P = c.params, port = K.isPort(env);
     const chars = [...strip(c.text)].filter(ch => !/\s/.test(ch)), n = chars.length;
     if (!n) return null;
-    const step = 360 / Math.max(9, n + 3), R = Math.min(W * (port ? 0.46 : 0.36), H * 0.6), f = Math.max(W, H) * 1.2, C = cam(W, H, f);
+    // the whole word fits the front of the drum (±50°): readable at once once it has come round
+    const step = Math.min(360 / Math.max(9, n + 3), 100 / Math.max(1, n - 1)), R = Math.min(W * (port ? 0.46 : 0.36), H * 0.6), f = Math.max(W, H) * 1.2, C = cam(W, H, f);
     const size = Math.min(2 * Math.PI * R * step / 360 * 1.0, H * (port ? 0.2 : 0.34));
-    // read left to right across the front; the drum turns as the line goes on, so the sung part comes round to the front
-    const prog = clamp(env.lt / Math.max(0.3, c.dur * 0.75)), spin = (prog - 0.5) * (n - 1) * step * 0.7;
+    // the drum swings round into place (eased, not a constant spin that stops dead), then only drifts
+    const Ts = clamp(c.dur * 0.45, 0.35, 0.9), sg = (c.seed | 0) % 2 ? 1 : -1;
+    const spin = sg * (70 * (1 - out3(env.lt / Ts)) + 2.5 * env.lt);
     const items = [];
     chars.forEach((ch, i) => {
       const a = ((i - (n - 1) / 2) * step - spin) * DEG;
       const x = Math.sin(a) * R, z = R - Math.cos(a) * R, cosA = Math.cos(a);
       if (cosA < 0.05) return;                                       // the back of the drum
       const p = C.P(x, (i - (n - 1) / 2) * size * P.tilt * 0.012, z);
-      const shown = env.lt >= (i / n) * c.dur * 0.6 - 0.05;
-      items.push({ z, it: own({ text: ch, font: P.font, size: size * p.s, x: p.x, y: p.y, sx: Math.max(0.1, cosA), color: sc.fg, alpha: (shown ? 1 : 0.22) * clamp(0.15 + cosA) }) });
+      items.push({ z, it: own({ text: ch, font: P.font, size: size * p.s, x: p.x, y: p.y, sx: Math.max(0.1, cosA), color: sc.fg, alpha: clamp(0.15 + cosA) }) });
     });
     let bb = null;
     items.sort((a, b) => b.z - a.z).forEach(g => { bb = J.unionBB(bb, J.mainDraw(env, g.it)); });
