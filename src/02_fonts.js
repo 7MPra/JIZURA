@@ -54,11 +54,73 @@ J.loadFontFile = async (file) => {
   if (J.saveFontData) J.saveFontData(key, buf);        // kept in this browser, so a reload keeps the face
   return { key, label, family: fam, weight: 400 };
 };
+/* ---------- Adobe Fonts (a web project / kit) ----------
+   The kit's families become user fonts (key user_adobe_…). Japanese kits send only the characters the page uses
+   (dynamic subsetting), and the lyrics are drawn on a canvas, so the characters to draw are also set — invisibly — in
+   each kit family (J.adobeGlyphs). The web project must list the page's domain. */
+J.adobeKit = { id: null, families: [] };
+J.adobeKey = fam => 'user_adobe_' + J.safeFamily(fam).replace(/ /g, '_');
+J.loadAdobeKit = async (id) => {
+  id = String(id || '').trim().toLowerCase();
+  if (!/^[a-z0-9]{5,16}$/.test(id)) throw new Error('kit id');
+  if (J.adobeKit.id !== id && typeof document !== 'undefined') {
+    J.adobeKit.id = id;
+    await new Promise(res => {
+      const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://use.typekit.net/' + id + '.css';
+      l.onload = res; l.onerror = res; setTimeout(res, 4000); document.head.appendChild(l);
+    });
+    // the JavaScript kit does the dynamic subsetting of Japanese faces (a CSS-only project simply has no .js)
+    await new Promise(res => {
+      const sc = document.createElement('script'); sc.src = 'https://use.typekit.net/' + id + '.js';
+      sc.onload = () => { try { window.Typekit && window.Typekit.load({ async: true, active: res, inactive: res }); } catch (e) { res(); } setTimeout(res, 4000); };
+      sc.onerror = res; document.head.appendChild(sc);
+    });
+  }
+  // the families of the kit, from its stylesheet when the browser lets us read it
+  const fams = [];
+  try {
+    const css = await (await fetch('https://use.typekit.net/' + id + '.css')).text();
+    for (const m of css.matchAll(/@font-face\s*{([^}]*)}/g)) {
+      const fam = (m[1].match(/font-family:\s*["']?([^;"']+)["']?/) || [])[1], w = +((m[1].match(/font-weight:\s*(\d+)/) || [])[1] || 400);
+      const it = /font-style:\s*italic/.test(m[1]);
+      if (fam && !it && !fams.some(f => f.family === fam && f.weight === w)) fams.push({ family: fam.trim(), weight: w });
+    }
+  } catch (e) {}
+  J.adobeKit.families = fams;
+  return fams;
+};
+J.addAdobeFont = (family, weight = 400) => {
+  const fam = J.safeFamily(family).trim(); if (!fam) return null;
+  const key = J.adobeKey(fam + (weight !== 400 ? '_' + weight : ''));
+  J.addUserFont(key, fam + (weight !== 400 ? ' ' + weight : '') + '（Adobe）', fam, weight, 'adobe');
+  J.FONTS[key].loaded = true;
+  return { key, label: J.FONTS[key].label, family: fam, weight, adobe: true };
+};
+let adobeBox = null;
+J.adobeGlyphs = (text) => {
+  if (!J.adobeKit.id || typeof document === 'undefined' || !document.body) return false;
+  const fams = [...new Set(Object.values(J.FONTS).filter(f => f.kind === 'adobe').map(f => f.family + '|' + f.weight))];
+  if (!fams.length) return false;
+  if (!adobeBox) {
+    adobeBox = document.createElement('div'); adobeBox.setAttribute('aria-hidden', 'true');
+    adobeBox.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;opacity:0.01;pointer-events:none;z-index:-1;font-size:16px;white-space:nowrap';
+    document.body.appendChild(adobeBox);
+  }
+  const chars = [...new Set([...String(text || '')])].join('');
+  const html = fams.map(f => { const [fam, w] = f.split('|'); const s = document.createElement('span'); s.style.fontFamily = fam; s.style.fontWeight = w; s.textContent = chars; return s.outerHTML; }).join('');
+  if (adobeBox.innerHTML === html) return false;
+  adobeBox.innerHTML = html;
+  // dynamic subsetting: ask the kit to look at the page again, so the new characters are sent
+  try { if (window.Typekit && window.Typekit.load) window.Typekit.load({ async: true }); } catch (e) {}
+  return true;
+};
+
 /* uploaded faces of a project: register them from this browser's copy; returns the labels that are not available */
 J.restoreUserFonts = async (list) => {
   const missing = [];
   for (const uf of list || []) {
     const f = J.FONTS[uf.key];
+    if (uf.adobe) { if (f) { f.kind = 'adobe'; f.loaded = true; } continue; }      // Adobe Fonts: served by the kit
     if (f && f.loaded) continue;
     let ok = false;
     try {
@@ -73,9 +135,14 @@ J.restoreUserFonts = async (list) => {
 /* uploaded faces the plan draws with but this page does not have */
 J.missingUserFonts = (keys) => (keys || []).filter(k => J.FONTS[k] && J.FONTS[k].user && !J.FONTS[k].loaded).map(k => J.FONTS[k].label);
 
+/* a Latin face in front of the Japanese one (Adobe kit styles): the browser takes Latin letters, digits and ASCII
+   punctuation from it and everything else from the Japanese face — for measuring and drawing alike */
+J.LATIN = null;
+J.setLatin = fam => { J.LATIN = fam || null; };
 J.fontCSS = (key, px) => {
   const f = J.faceOf ? J.faceOf(key) : (J.FONTS[key] || J.FONTS.gothic_bold);   // per-language face (02b_lang.js)
-  return `${f.weight} ${px.toFixed(2)}px ${f.family},${f.fb}`;
+  const lat = J.LATIN && f.kind === 'adobe' ? `"${J.LATIN}",` : '';
+  return `${f.weight} ${px.toFixed(2)}px ${lat}${f.family},${f.fb}`;
 };
 
 /* Google Fonts stylesheets are attached lazily, one family at a time, only for the faces a plan actually uses —
@@ -110,6 +177,8 @@ J.fontsOfPlan = (plan) => {
 J.ensureFonts = async (text, keys) => {
   if (!document.fonts || !document.fonts.load) return;
   const uniq = [...new Set([...text])].join('') || 'あ';
+  // Adobe Fonts: put the characters on the page so the kit sends them, then give it a moment
+  if (J.adobeGlyphs && J.adobeGlyphs(uniq)) await new Promise(r => setTimeout(r, 400));
   if (keys && keys.includes('@var')) {
     await Promise.all(['Noto+Sans+JP:wght@100..900', 'Noto+Serif+JP:wght@200..900'].map(attachFamily));
     await Promise.all(['100 64px "Noto Sans JP"', '900 64px "Noto Sans JP"', '200 64px "Noto Serif JP"', '900 64px "Noto Serif JP"'].map(f => document.fonts.load(f, uniq).catch(() => null)));
@@ -137,7 +206,7 @@ J.metrics = {
   m: new Map(),
   clear() { this.m.clear(); },
   adv(fontKey, ch) {               // advance in em
-    const k = fontKey + '\u0000' + ch;
+    const k = (J.LATIN || '') + '\u0001' + fontKey + '\u0000' + ch;
     let v = this.m.get(k);
     if (v === undefined) {
       _mc.font = J.fontCSS(fontKey, 100);
@@ -160,7 +229,7 @@ class GlyphCache {
   bucket(px) { let r = 64; while (r < px && r < this.maxRes) r *= 2; return r; }
   get(fontKey, ch, px) {
     const res = this.bucket(px);
-    const key = fontKey + '|' + ch + '|' + res;
+    const key = (J.LATIN || '') + '|' + fontKey + '|' + ch + '|' + res;
     let g = this.map.get(key);
     if (!g) { g = decompose(fontKey, ch, res); this.map.set(key, g); if (this.map.size > 1800) this.evict(); }
     return g;

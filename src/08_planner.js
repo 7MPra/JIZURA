@@ -31,7 +31,7 @@ J.defaultProject = () => ({
   aspect: '16:9', res: 1080, fps: 24,
   fx: { motion: 0.7, glitch: 0.55, chroma: 0.7, decor: 0.5, density: 0.55, texture: 0.6, flash: true, onTwos: true, koma: 12, hud: 'auto', bgSwitch: 0.35, hideNo: false, hideTime: false },
   enabled: Object.fromEntries(J.GROUP_KEYS.map(g => [g, Object.fromEntries(J.order(g).map(k => [k, true]))])),
-  timing: { bpm: 0, offset: 0.4, snap: true, tail: 0.9, lineTimes: {}, lineScale: 1 },
+  timing: { bpm: 0, offset: 0.4, snap: true, tail: 0.9, lineTimes: {}, lineScale: 1, tempo: [] },   // tempo: BPM グラフ (src/10b_tempo.js)
   overrides: {},
   locks: { tech: {}, params: {} },   // groups and values Randomize / Shuffle must not change (UI side only)
   colors: { enabled: false },
@@ -72,6 +72,15 @@ J.parseLyrics = (raw) => {
     let note = null;
     const bar = s.indexOf('|');
     if (bar >= 0) { note = s.slice(bar + 1).trim() || null; s = s.slice(0, bar).trim(); }
+    // ルビ (振り仮名): 漢字《かんじ》 or ｜base《reading》 (青空文庫 notation) — the reading is kept aside, the line keeps the base.
+    // Only a line with 《…》 is touched, so lyrics written without it read exactly as before.
+    let ruby = null;
+    if (s.includes('《')) {
+      ruby = [];
+      s = s.replace(/｜([^｜《》]+)《([^《》]+)》/g, (_, b, r) => { ruby.push({ base: b, ruby: r.trim() }); return b; })
+        .replace(/([\u3400-\u9fff\uf900-\ufaff々〆ヵヶ]+)《([^《》]+)》/g, (_, b, r) => { ruby.push({ base: b, ruby: r.trim() }); return b; });
+      if (!ruby.length) ruby = null;
+    }
     let impact = false;
     if (/[!！]$/.test(s) && s.length > 1 && /!$/.test(s)) { impact = true; s = s.slice(0, -1).trim(); }
     const emph = [];
@@ -84,6 +93,7 @@ J.parseLyrics = (raw) => {
     }
     if (!s) continue;
     const base = { text: s, note, impact, emph, manual, gapBefore: pendingGap, src: ri };
+    if (ruby) base.ruby = ruby;
     pendingGap = false;
     if (times.length) times.forEach(t => lines.push(Object.assign({}, base, { lrc: t })));
     else lines.push(Object.assign({}, base, { lrc: null }));
@@ -202,11 +212,59 @@ J.phraseChunks = (words) => {
   return out.length ? out : words;
 };
 
+/* ---------------- line numbers across a lyric edit ----------------
+   Hand-set times (timing.lineTimes), per-line settings (overrides) and the export range are kept by line number.
+   When the lyrics are edited so lines come or go, every number after the edit pointed at another line, and that line's
+   lyric played at the old line's time. J.lineIndexMap(oldText, newText) → map[oldIndex] = newIndex (or -1: removed):
+   lines are matched by their text in order (longest common subsequence); between two matched lines, lines that were
+   changed in place (a typo fixed) are paired in order, so they keep their settings. null when nothing moved. */
+J.lineIndexMap = (oldText, newText) => {
+  const key = l => (l.interlude ? '\u0000inter:' + (l.secs || '') : String(l.text).replace(/\s+/g, ' ').trim());
+  const A = J.parseLyrics(oldText || '').lines.map(key), B = J.parseLyrics(newText || '').lines.map(key);
+  const n = A.length, m = B.length;
+  if (n === m && A.every((k, i) => k === B[i])) return null;
+  if (n * m > 4e6) return null;                                  // a huge paste: leave it
+  const L = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const map = new Array(n).fill(-1), pairs = [];
+  for (let i = 0, j = 0; i < n && j < m;) {
+    if (A[i] === B[j]) { pairs.push([i, j]); i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) i++; else j++;
+  }
+  pairs.forEach(([i, j]) => { map[i] = j; });
+  // the unmatched runs between anchors: lines changed in place keep their number, one for one, in order
+  const anchors = [[-1, -1]].concat(pairs, [[n, m]]);
+  for (let k = 0; k + 1 < anchors.length; k++) {
+    const [i0, j0] = anchors[k], [i1, j1] = anchors[k + 1];
+    const olds = [], news = [];
+    for (let i = i0 + 1; i < i1; i++) olds.push(i);
+    for (let j = j0 + 1; j < j1; j++) news.push(j);
+    const kk = Math.min(olds.length, news.length);
+    // the same count: changed in place; otherwise lines were added or removed too — pair only what lines up from the start
+    for (let q = 0; q < kk; q++) if (olds.length === news.length || A[olds[q]].length && B[news[q]].length && (A[olds[q]][0] === B[news[q]][0] || olds.length === 1 && news.length === 1)) map[olds[q]] = news[q];
+  }
+  return map;
+};
+/* move an object keyed by line number along a lineIndexMap (entries of removed lines are dropped) */
+J.remapByLine = (obj, map) => {
+  if (!obj || !map) return obj;
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    const i = +k;
+    if (!Number.isInteger(i) || i < 0) { out[k] = v; continue; }
+    if (i >= map.length) continue;                               // a line that is not in the lyrics any more
+    if (map[i] >= 0) out[map[i]] = v;
+  }
+  return out;
+};
+
 /* ---------------- timing ---------------- */
 J.computeTiming = (project, parsed, audio) => {
   const T = project.timing || {};
   const lines = parsed.lines;
   const beat = T.bpm > 0 ? 60 / T.bpm : 0;
+  // BPM グラフ (tempo map): the beat length follows the tempo at each line; without one it is the single BPM
+  const tmap = J.tempoPoints ? J.tempoPoints(T) : null;
+  const beatAt = t => (tmap ? 60 / J.tempoBpmAt(tmap, t || 0) : beat);
   // fixed times: a hand-set time (typed, tapped, dragged) wins over the LRC tag; the rest is estimated
   const fixed = lines.map((l, i) => {
     const man = T.lineTimes && T.lineTimes[i] != null ? +T.lineTimes[i] : null;
@@ -217,12 +275,12 @@ J.computeTiming = (project, parsed, audio) => {
   let lastFix = -Infinity;
   for (let i = 0; i < fixed.length; i++) if (fixed[i] != null) { if (fixed[i] < lastFix + 0.05) fixed[i] = lastFix + 0.05; lastFix = fixed[i]; }
   const natural = i => {         // estimated length of line i
-    const n = [...lines[i].text].length, L = lines[i];
+    const n = [...lines[i].text].length, L = lines[i], b = beatAt(starts[i]);
     let d = L.interlude ? (L.secs > 0 ? L.secs : 4) : J.clamp(0.8 + n * 0.17, 1.3, 5.2) * (T.lineScale || 1);
-    if (beat && !(L.interlude && L.secs > 0)) d = Math.max(2, Math.round(d / beat)) * beat;
+    if (b && !(L.interlude && L.secs > 0)) d = Math.max(2, Math.round(d / b)) * b;
     return d;
   };
-  const gapOf = i => (i > 0 && i < lines.length && lines[i].gapBefore ? (beat ? beat * 2 : 0.8) : 0);
+  const gapOf = i => { const b = i > 0 ? beatAt(starts[i - 1]) : beat; return i > 0 && i < lines.length && lines[i].gapBefore ? (b ? b * 2 : 0.8) : 0; };
   const starts = new Array(lines.length);
   let i = 0, t = T.offset ?? 0.4;
   if (fixed.length && fixed[0] != null) t = fixed[0];
@@ -246,9 +304,9 @@ J.computeTiming = (project, parsed, audio) => {
   }
   const ends = starts.map((s, i) => {
     if (i < starts.length - 1) return Math.max(s + 0.35, starts[i + 1]);
-    const n = [...lines[i].text].length, L = lines[i];
+    const n = [...lines[i].text].length, L = lines[i], b = beatAt(s);
     let d = L.interlude ? (L.secs > 0 ? L.secs : 4) : J.clamp(0.8 + n * 0.17, 1.5, 5.2) * (T.lineScale || 1);
-    if (beat && !(L.interlude && L.secs > 0)) d = Math.max(2, Math.round(d / beat)) * beat;
+    if (b && !(L.interlude && L.secs > 0)) d = Math.max(2, Math.round(d / b)) * b;
     return s + d;
   });
   let duration = (ends.length ? ends[ends.length - 1] : 3) + (T.tail ?? 0.9);
@@ -267,6 +325,7 @@ function cutTechOf(ov, k) {
 
 J.plan = (project, audio) => {
   const st = J.resolveStyle(project);
+  if (st.textOnly && J.songVocab) J.songVocab(st, project.seed, project.style);   // テキストのみ: this song's own handful of parts
   const fx = Object.assign({}, J.defaultProject().fx, project.fx || {});
   const parsed = J.parseLyrics(project.lyrics);
   const title = project.title || parsed.meta.ti || '';
@@ -283,6 +342,18 @@ J.plan = (project, audio) => {
   // then the 追加分 / 和風 switches decide what random picks may use (a per-line override still works)
   const en = {};
   for (const g of J.GROUP_KEYS) { en[g] = {}; const src = (project.enabled || {})[g] || {}; for (const k of J.order(g)) en[g][k] = src[k] !== false && (!J.randomOk || J.randomOk(project, g, k)); }
+  // テキストのみ: the song's own layouts (its pool) need room to vary. おまかせ switches parts on and off by mood, and could
+  // leave one or two of them — a whole song in one layout. Fewer than 4 left: the pool's heaviest come back on.
+  // The same for the motions (entrance / exit / hold / camera): a song moving only by plain cuts looks bare.
+  if (st.textOnly && st.pool) {
+    const FLOOR = { layout: 4, enter: 4, exit: 3, hold: 2, cam: 3 }, NONE = { enter: 'cut', exit: 'cut', hold: 'still', cam: 'push' };
+    for (const [g, need] of Object.entries(FLOOR)) {
+      const P = st.pool[g]; if (!P || !en[g]) continue;
+      const reg = J.registry(g) || {}, keys = Object.keys(P).filter(k => reg[k] && k !== NONE[g]), want = Math.min(need, keys.length);
+      const on = keys.filter(k => en[g][k]).length;
+      if (on < want) for (const k of keys.filter(k => !en[g][k]).sort((a, b) => P[b] - P[a]).slice(0, want - on)) en[g][k] = true;
+    }
+  }
   // 中央を空ける (キャラクター用): every cut is laid out in a side band — left / right on wide frames, top / bottom on tall
   // ones — alternating line by line; the centre keeps only the full-frame background and screen effects
   const zones = project.centerFree ? J.sideZones(W, H, project.centerDir) : null;
@@ -300,7 +371,8 @@ J.plan = (project, audio) => {
     lang: J.resolveLang ? J.resolveLang(project) : 'ja',   // 歌詞の言語 (auto → detected)
   };
   if (J.setLang) J.setLang(plan.lang);                     // chunking + measuring below use this language
-  if (J.setTypeset) J.setTypeset(plan.typeset);
+  if (J.setTypeset) J.setTypeset(plan.typeset || !!st.textOnly);   // テキストのみ: the glyph rules of 文字整列 (kana set tighter, particles smaller) always
+  if (J.setLatin) J.setLatin(st.latin);                   // Adobe kit: the style's Latin face for English words
   const beats = plan.beats;
   const snap = (t) => {
     if (!beats.length || !(project.timing && project.timing.snap)) return t;
@@ -325,6 +397,24 @@ J.plan = (project, audio) => {
 
   // 統一感: sections, repeated lines, キメ lines and the per-section palettes (see makeUnify below)
   const U = plan.unify ? makeUnify(parsed.lines, { st, en, fx, history, lang: plan.lang, seed: project.seed }) : null;
+  // サビ頭 (style.chorusHit): the first line of a block whose text comes back later in the song — the screen flips
+  // (difference invert) for one beat where it starts
+  const chorusHead = new Set();
+  if (st.chorusHit) {
+    const cnt = new Map(), key = t => String(t || '').replace(/[\s\p{P}]/gu, '').toLowerCase();
+    for (const l of parsed.lines) if (!l.interlude && l.text) cnt.set(key(l.text), (cnt.get(key(l.text)) || 0) + 1);
+    parsed.lines.forEach((l, i) => {
+      if (l.interlude || !l.text || (cnt.get(key(l.text)) || 0) < 2) return;
+      const prev = parsed.lines[i - 1];
+      if (i === 0 || l.gapBefore || (prev && prev.interlude)) chorusHead.add(i);
+    });
+  }
+  const beatLenAt = t => {
+    const bs = plan.beats;
+    if (bs.length > 1) { let i = 0; while (i < bs.length - 2 && bs[i + 1] <= t) i++; return J.clamp(bs[i + 1] - bs[i], 0.2, 0.8); }
+    const bpm = project.timing && project.timing.bpm;
+    return bpm > 0 ? J.clamp(60 / bpm, 0.2, 0.8) : 0.4;
+  };
   parsed.lines.forEach((ln, li) => {
     const s = tm.starts[li], e = tm.ends[li];
     const ov = (project.overrides || {})[li] || {};
@@ -347,8 +437,11 @@ J.plan = (project, audio) => {
     const n = [...ln.text.replace(/\s+/g, '')].length;
     const visEnd = Math.min(e, s + Math.max(3.6, n * 0.5 + 1.2));
     const D = visEnd - s;
-    plan.lines.push({ index: li, src: ln.src, lrc: ln.lrc, text: ln.text, start: s, end: e, visEnd, note: ln.note, impact: ln.impact, emph: ln.emph, chunks: null, seed: lineSeed });
-    const chunks = ln.manual || (plan.lang === 'en' ? J.phraseChunks(J.chunkText(ln.text)) : J.chunkText(ln.text));
+    plan.lines.push({ index: li, src: ln.src, lrc: ln.lrc, text: ln.text, start: s, end: e, visEnd, note: ln.note, impact: ln.impact, emph: ln.emph, chunks: null, seed: lineSeed, gapBefore: !!ln.gapBefore, ruby: ln.ruby || null });
+    // an English line is cut into phrases ("Hello, can you" / "hear me now"), also inside a Japanese song — word by word,
+    // every "can" / "me" became a cut of its own
+    const latinLine = /[A-Za-z]/.test(ln.text) && !/[\u3040-\u30ff\u3400-\u9fff]/.test(ln.text);
+    const chunks = ln.manual || (plan.lang === 'en' || latinLine ? J.phraseChunks(J.chunkText(ln.text)) : J.chunkText(ln.text));
     plan.lines[li].chunks = chunks;
     const L = J.lerp(1.3, 0.5, fx.density);
     let nC = Math.round(D / L);
@@ -357,6 +450,8 @@ J.plan = (project, audio) => {
     const ovAny = Object.keys(ov).some(k2 => !['lock', 'lockedSeed', 'seed', 'cutTech', 'cutLayouts', 'cutQuiet', 'cutTime'].includes(k2));
     const kime = !!(U && U.kime.has(li) && !ov.cuts);
     if (ov.single || kime) nC = 1;
+    // a style whose layouts time the words themselves (one word per beat) keeps a whole line in one cut this often
+    if (st.oneCut && !(ov.cuts > 0) && J.rng(J.h(lineSeed, 71))() < st.oneCut) nC = 1;
     if (zones) nC = Math.max(1, Math.min(nC, Math.floor(chunks.length / 2)));   // 中央を空ける: each cut is split in two, so keep ≥ 2 words per cut
     // カット数の指定 (per line): exactly that many cuts — chunks are split further when the line has fewer
     const fixedN = ov.cuts > 0 ? Math.min(12, ov.cuts | 0) : 0;
@@ -404,11 +499,11 @@ J.plan = (project, audio) => {
       const Z = zoneOf(li), LW = Z ? Z.w : W, LH = Z ? Z.h : H;       // the frame this cut is laid out in
       const UU = U && !ovAny ? U : null;                              // per-line settings always win over 統一感
       const tech = cutTechOf(ov, k);                                  // このカットだけの指定
-      let layout = ov.layout && J.LAYOUTS[ov.layout] ? ov.layout : pickLayout(rng, st, en, nn, dur, history, emph, u.recap, LH > LW);
+      let layout = ov.layout && J.LAYOUTS[ov.layout] ? ov.layout : pickLayout(rng, st, en, nn, dur, history, emph, u.recap, LH > LW, txt);
       if (UU) layout = UU.layout(li, layout, { nn, dur, emph, kime, rng, portrait: LH > LW, recap: u.recap });
       let enter = ov.enter && J.ENTER[ov.enter] ? ov.enter : pickEnter(rng, st, en, layout, dur, history, emph, nn);
       let exit = ov.exit && J.EXIT[ov.exit] ? ov.exit : pickExit(rng, st, en, layout, dur, k === units.length - 1, history);
-      let hold = ov.hold && J.HOLD[ov.hold] ? ov.hold : pickHold(rng, en, fx, history);
+      let hold = ov.hold && J.HOLD[ov.hold] ? ov.hold : pickHold(rng, en, fx, history, st);
       let weightGrow = false;
       if (UU) {
         enter = UU.enter(li, enter, { layout, dur, emph, kime, rng, nn });
@@ -432,6 +527,8 @@ J.plan = (project, audio) => {
       let [inDur, outDur] = durs(enter, exit);
       let sch = schemeIdx;
       if (!U && nSchemes > 1 && k > 0 && rng.chance(0.12 * fx.bgSwitch)) sch = (schemeIdx + 1) % nSchemes;
+      // テキストのみ: the colour field itself is the accent — an emphasised cut flips to another of the style's schemes
+      if (st.textOnly && nSchemes > 1 && (emph || kime) && J.rng(J.h(lineSeed, k, 73))() < 0.7) sch = (schemeIdx + 1 + (J.h(lineSeed, k, 74) % (nSchemes - 1))) % nSchemes;
       let LD = J.LAYOUTS[layout];
       let params = LD.plan(rng, { text: txt, n: nn, W: LW, H: LH, dur }, st);
       let decor = Array.isArray(ov.decor) ? ov.decor.filter(id => J.DECOR[id]).map(id => decorParams(rng, id)) : pickDecor(rng, st, en, fx, layout, history);
@@ -545,6 +642,7 @@ J.plan = (project, audio) => {
       if (weightGrow) cut.weightGrow = true;
       if (morph) cut.morph = morph;
       if (UU) UU.remember(li, k, txt, cut);
+      if (ovAny || lockSpecs || Object.keys(tech).length) cut.manual = true;          // set by hand: 落ち着いた演出 (src/11y_calm.js) leaves it alone
       if (zones) splitCut(cut, halves, zones, st, dur, LS);
       // 文字整列: effects don't pile up — one decoration, no text treatment on top of it
       if (plan.typeset) { cut.decor = cut.decor.slice(0, 1); if (cut.decor.length && cut.treat !== 'none') { cut.treat = 'none'; cut.treatP = {}; } }
@@ -569,6 +667,7 @@ J.plan = (project, audio) => {
         if (fxOn('shake')) addEvent(cs + 0.04, 'shake', 1.1 * Math.max(0.5, fx.motion), 0.35);
       }
       if (fxOn('invert') && rng.chance(0.035 * g)) addEvent(cs, 'invert', 1, 2 * F);
+      if (k === 0 && chorusHead.has(li) && fxOn('invert')) { addEvent(cs, 'invert', 1, beatLenAt(cs)); plan.events[plan.events.length - 1].chorus = true; }
       if (fxOn('zoom') && (emph && rng.chance(0.6) || rng.chance(0.06 * fx.motion))) addEvent(cs, 'zoom', 0.7 + 0.5 * fx.motion, 0.22);
       if (fxOn('mosaic') && rng.chance(0.04 * g)) addEvent(cs, 'mosaic', 1, 3 * F);
       if (fxOn('slice') && dur > 0.8 && rng.chance(g * 0.4)) addEvent(cs + rng.range(0.35, 0.8) * dur, 'slice', 0.4 + g * 0.4, 2 * F);
@@ -601,9 +700,13 @@ J.plan = (project, audio) => {
     if (c.layout === 'interlude') { c.params = Object.assign({}, c.params, { showTitle: false }); return; }   // no lyric: the whole frame
     c.zone = zoneOf(c.line);
   });
+  // テキストのみ: no colour-split / glitch hits and no random inverts (src/11u_restraint.js) — drawn and dropped, so the draw order stays
+  if (st.textOnly && J.TEXT_EVENT_DROP) plan.events = plan.events.filter(e => !J.TEXT_EVENT_DROP.includes(e.type) && !(e.type === 'invert' && !e.chorus));
   plan.events.sort((a, b) => a.t - b.t);
   plan.energy = audio && audio.energy ? audio.energy : null;
   plan.energyRate = audio && audio.energyRate ? audio.energyRate : 0;
+  // 落ち着いた演出: one gentle motion for every line, no effects (src/11y_calm.js) — only when the project turns it on
+  if (J.calmPass) J.calmPass(plan, project, st);
   return plan;
 };
 
@@ -815,28 +918,45 @@ function partition(chunks, k) {
   if (cur.length) groups.push(cur);
   return groups;
 }
+/* a style may name the only parts it uses per group (style.pool = { layout: { key: weight }, … }); parts that are
+   switched off or missing are skipped, and when none is left the usual choice applies */
+function inPool(st, g, cands) {
+  const P = st && st.pool && st.pool[g];
+  if (!P) return cands;
+  const c2 = cands.filter(c => P[c[0]] != null).map(c => [c[0], c[1] * P[c[0]]]);
+  return c2.length ? c2 : cands;
+}
 function novelty(history, key, val) {
   let w = 1;
   for (let i = history.length - 1, d = 0; i >= 0 && d < 6; i--, d++) if (history[i][key] === val) w *= d < 2 ? 0.2 : 0.6;
   return w;
 }
 const PORTRAIT_W = { vcols: 1.9, condensed: 1.3, huge: 1.3, center: 1.2, stack: 1.1, mixed: 0.7, marquee: 0.6, wave: 0.6, diag: 0.8, type: 0.8, gloss: 0.5 };
-function pickLayout(rng, st, en, n, dur, history, emph, recap, portrait) {
-  const cands = [];
+function pickLayout(rng, st, en, n, dur, history, emph, recap, portrait, text) {
+  const cands = [], latinCut = !!(text && J.isLatinText && J.isLatinText(text));
   for (const k of J.LAYOUT_ORDER) {
     const L = J.LAYOUTS[k];
     if (!en.layout[k] || !L.fits(n)) continue;
+    if (L.noLatin && latinCut) continue;
+    if (L.poolOnly && !(st.pool && st.pool.layout && st.pool.layout[k] != null)) continue;   // only for the styles that name it
     let w = wkey(st.bias.layout, k, L.w ?? 1) * novelty(history, 'layout', k);
     if (portrait) w *= L.portrait != null ? L.portrait : wkey(PORTRAIT_W, k, 1);
     if (emph && L.emph) w *= L.emph;
     if (emph && ['huge', 'center', 'tile', 'marquee', 'condensed'].includes(k)) w *= 2;
     if (recap && ['center', 'stack', 'marquee', 'tile', 'mixed', 'type', 'gloss'].includes(k)) w *= 1.8;
+    if (L.minDur && dur < L.minDur) w *= 0.2;                 // word-by-word / travelling layouts need time to be read
     if (dur < 0.5 && ['wave', 'ring', 'labels', 'gloss', 'type', 'tile'].includes(k)) w *= 0.3;
     if (dur < 0.5 && ['center', 'huge', 'condensed', 'vcols'].includes(k)) w *= 1.4;
     cands.push([k, w]);
   }
   if (!cands.length) return 'center';
-  return rng.wpick(cands);
+  // テキストのみ with its own pool: when none of the pool fits this cut (a long English line …), a plain setting —
+  // not any layout at all (chat bubbles, labels … would come in)
+  if (st.textOnly && st.pool && st.pool.layout && !cands.some(c => st.pool.layout[c[0]] != null)) {
+    const plain = cands.filter(c => ['center', 'vcols', 'huge', 'tyStackJustify', 'stack'].includes(c[0]));
+    if (plain.length) return rng.wpick(plain);
+  }
+  return rng.wpick(inPool(st, 'layout', cands));
 }
 const LAYOUT_ENTER = {
   type: { type: 4, scramble: 1.5 }, ring: { pop: 2, spin: 2, cut: 1, assemble: 0.4, slice: 0.2, wipe: 0.2 }, labels: { cut: 3, pop: 1 },
@@ -859,7 +979,7 @@ function pickEnter(rng, st, en, layout, dur, history, emph, n) {
     if (emph && ['zoom', 'assemble', 'slice'].includes(k)) w *= 1.8;
     cands.push([k, w]);
   }
-  return cands.length ? rng.wpick(cands) : 'cut';
+  return cands.length ? rng.wpick(inPool(st, 'enter', cands)) : 'cut';
 }
 function pickExit(rng, st, en, layout, dur, lastOfLine, history) {
   const cands = [];
@@ -873,10 +993,10 @@ function pickExit(rng, st, en, layout, dur, lastOfLine, history) {
     if (['labels', 'ring', 'tile'].includes(layout) && ['explode', 'fall', 'drift'].includes(k)) w *= 0.3;
     cands.push([k, w]);
   }
-  return cands.length ? rng.wpick(cands) : 'cut';
+  return cands.length ? rng.wpick(inPool(st, 'exit', cands)) : 'cut';
 }
 const HOLD_W = { still: 1, jitter: 1.2, drift: 1, breathe: 0.7, wave: 0.4, glitchtick: 0.9 };
-function pickHold(rng, en, fx, history) {
+function pickHold(rng, en, fx, history, st) {
   const cands = J.HOLD_ORDER.filter(k => en.hold[k] !== false && J.HOLD[k]).map(k => {
     const D = J.HOLD[k];
     let w = HOLD_W[k] != null ? HOLD_W[k] : (D.w ?? 0.8);
@@ -884,12 +1004,13 @@ function pickHold(rng, en, fx, history) {
     if (k === 'glitchtick') w *= fx.glitch;
     return [k, w * novelty(history, 'hold', k)];
   });
-  return cands.length ? rng.wpick(cands) : 'still';
+  return cands.length ? rng.wpick(inPool(st, 'hold', cands)) : 'still';
 }
 function decorParams(rng, k) {
   return { id: k, seed: rng.int(1, 1e9), n: rng.int(1, 3) + (k === 'shapes' ? 3 : 0) + (k === 'sparks' ? 4 : 0), right: rng.chance(0.5), low: rng.chance(0.5), accent: rng.chance(0.4), corner: rng.chance(0.5), big: rng.chance(0.4), mode: rng.pick(['count', 'index']), from: rng.int(0, 20), to: rng.int(30, 999), v: rng.int(0, 5), r: rng() };
 }
 function pickDecor(rng, st, en, fx, layout, history = []) {
+  if (st.pool && st.pool.decor && !Object.keys(st.pool.decor).length) return [];
   const count = Math.round(fx.decor * 2.8 * rng.range(0.45, 1.15));
   const recent = new Set(history.slice(-2).flatMap(h => h.decor || []));
   const LD = J.LAYOUTS[layout] || {};
@@ -906,13 +1027,16 @@ function pickDecor(rng, st, en, fx, layout, history = []) {
 // text treatment: plain most of the time; the "decor" slider raises how often a treatment is used
 function pickTreat(rng, st, en, fx, LD, emph, history) {
   if (LD.treat === false) return 'none';
+  const TP = st.pool && st.pool.treat;                    // a style's own list ('none' included) replaces the usual draw
+  if (TP) { const c = Object.keys(TP).filter(k => k === 'none' || (J.TREAT[k] && en.treat && en.treat[k] !== false && (LD.treat !== 'safe' || J.TREAT[k].safe))).map(k => [k, TP[k]]); return c.length ? rng.wpick(c) : 'none'; }
   if (!rng.chance(0.18 + 0.42 * (fx.decor ?? 0.5) + (emph ? 0.15 : 0))) return 'none';
   const cands = J.TREAT_ORDER.filter(k => k !== 'none' && en.treat && en.treat[k] !== false && J.TREAT[k] && (LD.treat !== 'safe' || J.TREAT[k].safe))
     .map(k => [k, wkey(st.bias && st.bias.treat, k, J.TREAT[k].w ?? 1) * novelty(history, 'treat', k)]);
-  return cands.length ? rng.wpick(cands) : 'none';
+  return cands.length ? rng.wpick(inPool(st, 'treat', cands)) : 'none';
 }
 function pickBg(rng, st, en, fx, bgHist) {
-  if (!rng.chance(0.2 + 0.35 * (fx.decor ?? 0.5) + 0.2 * (fx.bgSwitch ?? 0.35))) return 'none';
+  if (st.pool && st.pool.bg && !Object.keys(st.pool.bg).length) return 'none';
+  if (!rng.chance((0.2 + 0.35 * (fx.decor ?? 0.5) + 0.2 * (fx.bgSwitch ?? 0.35)) * (st.textOnly ? 0.55 : 1))) return 'none';   // テキストのみ: the huge lyric behind is an accent, not a habit
   const last = bgHist.slice(-3);
   const cands = J.BG_ORDER.filter(k => k !== 'none' && en.bg && en.bg[k] !== false && J.BG[k])
     .map(k => [k, wkey(st.bias && st.bias.bg, k, J.BG[k].w ?? 1) * (last.includes(k) ? 0.25 : 1)]);
@@ -926,24 +1050,26 @@ function pickCam(rng, st, en, fx, LD, emph, history) {
     if (LD.cam === false && k !== 'push') w *= 0.05;
     return [k, w];
   });
-  return cands.length ? rng.wpick(cands) : 'push';
+  return cands.length ? rng.wpick(inPool(st, 'cam', cands)) : 'push';
 }
 function pickTrans(rng, st, en, fx, emph, history) {
   if (!J.TRANS_ORDER.length) return null;
+  if (st.pool && st.pool.trans && !Object.keys(st.pool.trans).length) return null;   // the style uses no transitions
   if (!rng.chance(0.1 + 0.22 * (fx.motion ?? 0.7) + (emph ? 0.08 : 0))) return null;
   const cands = J.TRANS_ORDER.filter(k => en.trans && en.trans[k] !== false && J.TRANS[k])
     .map(k => [k, wkey(st.bias && st.bias.trans, k, J.TRANS[k].w ?? 1) * novelty(history, 'trans', k)]);
-  return cands.length ? rng.wpick(cands) : null;
+  return cands.length ? rng.wpick(inPool(st, 'trans', cands)) : null;
 }
 // kind 'edge' = transition at a cut boundary, 'mid' = accent in the middle of a cut
 function pickFx(rng, st, en, fx, emph, fxHist, kind) {
+  if (st.pool && st.pool.fx && !Object.keys(st.pool.fx).length) return null;         // the style uses no screen effects
   const g = fx.glitch ?? 0.55;
   const p = kind === 'edge' ? 0.12 + 0.38 * g + 0.12 * (fx.motion ?? 0.7) + (emph ? 0.15 : 0) : 0.05 + 0.2 * g;
   if (!rng.chance(p)) return null;
   const last = fxHist.slice(-3);
   const cands = J.FXE_ORDER.filter(k => { const D = J.FXE[k]; return D && !D.builtin && en.fx && en.fx[k] !== false && (kind === 'edge' ? D.edge !== false : D.mid); })
     .map(k => { const D = J.FXE[k]; let w = wkey(st.bias && st.bias.fx, k, D.w ?? 1) * (last.includes(k) ? 0.2 : 1); if (D.glitchy) w *= 0.3 + g * 1.4; return [k, w]; });
-  return cands.length ? rng.wpick(cands) : null;
+  return cands.length ? rng.wpick(inPool(st, 'fx', cands)) : null;
 }
 
 /* one-cut (or two-cut, for transitions) plan used by the 手法 tab thumbnails */

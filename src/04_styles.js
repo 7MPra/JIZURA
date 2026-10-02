@@ -23,7 +23,7 @@ J.STYLES = {
     name: 'クリムゾン・シグナル', desc: '深紅地・白と黒の二段組み・データ破損',
     schemes: [
       { bg: '#C8103F', fg: '#FFFFFF', sub: '#FFD9E2', accent: '#140509', accent2: '#39F2C8', ink: '#140509', dim: '#B00D37', ghostA: '#FFFFFF', ghostB: '#39F2C8' },
-      { bg: '#FF6F98', fg: '#FFFFFF', sub: '#FFE3EB', accent: '#1A0710', accent2: '#39F2C8', ink: '#1A0710', dim: '#F25C87', ghostA: '#FFFFFF', ghostB: '#1A0710' },
+      { bg: '#E5376C', fg: '#FFFFFF', sub: '#FFE3EB', accent: '#1A0710', accent2: '#39F2C8', ink: '#1A0710', dim: '#D62E61', ghostA: '#FFFFFF', ghostB: '#1A0710' },
       { bg: '#150509', fg: '#FF3D6E', sub: '#FF9DB6', accent: '#FFFFFF', accent2: '#39F2C8', ink: '#FF3D6E', dim: '#2A0B14', ghostA: '#FF3D6E', ghostB: '#39F2C8' },
     ],
     fonts: { display: ['gothic_black', 'zenkaku'], serif: ['mincho'], body: ['gothic_med', 'sansui'], mono: ['mono'] },
@@ -107,7 +107,7 @@ J.STYLES = {
     schemes: [
       { bg: '#5B582B', fg: '#FFFFFF', sub: '#E6E2BC', accent: '#E8C21A', accent2: '#1A1A1A', ink: '#E8C21A', dim: '#67633A', ghostA: '#E8C21A', ghostB: '#1A1A1A' },
       { bg: '#1A1A1A', fg: '#FFFFFF', sub: '#B8B5A0', accent: '#E8C21A', accent2: '#FFFFFF', ink: '#E8C21A', dim: '#242424', ghostA: '#E8C21A', ghostB: '#7C7A55' },
-      { bg: '#9C9A94', fg: '#FFFFFF', sub: '#F0EEE6', accent: '#E8C21A', accent2: '#1A1A1A', ink: '#1A1A1A', dim: '#A6A49E', ghostA: '#E8C21A', ghostB: '#1A1A1A' },
+      { bg: '#74726C', fg: '#FFFFFF', sub: '#E6E4DC', accent: '#E8C21A', accent2: '#1A1A1A', ink: '#1A1A1A', dim: '#7E7C76', ghostA: '#E8C21A', ghostB: '#1A1A1A' },
     ],
     fonts: { display: ['zenkaku', 'gothic_black'], serif: ['mincho_bold'], body: ['gothic_bold'], mono: ['mono'] },
     texture: { grain: 0.8, paper: 0.2, scan: 0 }, ghost: 0.5,
@@ -155,6 +155,7 @@ J.STYLE_ORDER = ['noir', 'crimson', 'caution', 'magenta', 'paper', 'hud', 'mint'
 J.resolveStyle = (project) => {
   const base = J.STYLES[project.style] || J.STYLES.noir;
   const st = JSON.parse(JSON.stringify(base));
+  if (J.adobeReady && st.adobeFonts) { st.fonts = Object.assign({}, st.fonts, st.adobeFonts); st.latin = st.adobeFonts.latin || null; delete st.fonts.latin; }   // the built-in Adobe Fonts kit is active (src/11w_adobe.js)
   const ov = project.colors || {};
   // base colours (background / text) replace the main scheme only
   if (ov.enabled) st.schemes[0] = Object.assign({}, st.schemes[0], pickDefined(ov, ['bg', 'fg', 'sub']));
@@ -172,6 +173,8 @@ J.resolveStyle = (project) => {
   }
   const fo = project.fonts || {};
   for (const role of ['display', 'serif', 'body']) if (fo[role] && J.FONTS[fo[role]]) st.fonts[role] = [fo[role]];
+  if (st.textOnly) { st.hud = false; st.glow = 0; st.texture = { grain: 0, paper: 0, scan: 0 }; }   // テキストのみ: the renderer also skips everything that is not lyric text
+  if (st.textOnly && J.restrainStyle) J.restrainStyle(st);                                          // …and picks with restraint (src/11u_restraint.js)
   if (J.keyMode(project)) keyStyle(st);
   return st;
 };
@@ -182,9 +185,14 @@ J.resolveStyle = (project) => {
 J.KEY_BG = { green: '#00FF00', black: '#000000' };
 J.keyMode = project => (project && J.KEY_BG[project.keyBg] ? project.keyBg : null);
 function keyStyle(st) {
+  // a scheme whose ground is on the other side of light / dark from the first one (a colour-field flip) becomes a white
+  // plate with black text — keyed, the plate stays white and the text shows the key colour (see-through)
+  const light = s => J.lum(s.bg) > J.lum(s.fg), base = st.schemes[0] ? light(st.schemes[0]) : false;
   st.schemes = st.schemes.map(s => {
-    const o = { bg: '#000000', fg: '#FFFFFF', sub: '#D2D2D2', accent: '#FFFFFF', accent2: '#BDBDBD', ink: '#FFFFFF', dim: '#1E1E1E', ghostA: '#9A9A9A', ghostB: '#5E5E5E' };
-    if (s.grad) o.grad = ['#FFFFFF', '#A8A8A8'];
+    const o = light(s) !== base
+      ? { bg: '#FFFFFF', fg: '#000000', sub: '#2D2D2D', accent: '#000000', accent2: '#424242', ink: '#000000', dim: '#E1E1E1', ghostA: '#656565', ghostB: '#A1A1A1', flip: true }
+      : { bg: '#000000', fg: '#FFFFFF', sub: '#D2D2D2', accent: '#FFFFFF', accent2: '#BDBDBD', ink: '#FFFFFF', dim: '#1E1E1E', ghostA: '#9A9A9A', ghostB: '#5E5E5E' };
+    if (s.grad) o.grad = o.flip ? ['#000000', '#575757'] : ['#FFFFFF', '#A8A8A8'];
     return o;
   });
   st.texture = { grain: 0, paper: 0, scan: 0 };

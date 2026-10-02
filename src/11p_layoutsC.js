@@ -228,7 +228,7 @@ const rowW = (text, font, size) => { let w = 0; for (const ch of text) w += J.me
 function fastRow(env, text, font, size, x, y, sp, color, alpha, align = 'left') {
   if (env.pass !== 'main' || alpha <= 0.01 || !text || J.hideDecoText(env, text)) return;
   const ctx = env.ctx;
-  if (!('letterSpacing' in ctx)) { env.draw({ text, font, size, x, y, align, track: sp / size, color, alpha, ghost: false }); return; }
+  if (!('letterSpacing' in ctx) || ctx.jzPlain) { env.draw({ text, font, size, x, y, align, track: sp / size, color, alpha, ghost: false }); return; }
   ctx.save();
   ctx.font = J.fontCSS(font, size); ctx.letterSpacing = sp.toFixed(2) + 'px';
   ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillStyle = color; ctx.globalAlpha = alpha;
@@ -1127,7 +1127,8 @@ reg('poster', {
       });
     } else {
       const w1 = lines.map(l => meas(l, p.font, 100, { track: -0.02 }).w / 100);
-      let sz = w1.map(w => aw / Math.max(0.5, w));
+      // (テキストのみ: a little inside the margin — the camera's push and the type's own overhang crop it otherwise)
+      let sz = w1.map(w => aw * (env.st && env.st.textOnly ? 0.92 : 1) / Math.max(0.5, w));
       const tot = sz.reduce((a, b) => a + b * 0.98, 0);
       const f = Math.min(1, avH / tot);
       sz = sz.map(v => v * f);

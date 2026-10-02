@@ -69,5 +69,5 @@ J.register = (group, key, def, pack) => {
 J.registerAll = (group, defs, pack) => { for (const k of Object.keys(defs)) J.register(group, k, defs[k], pack); };
 
 /* items whose tags include a mood key (used by おまかせ) */
-J.taggedWith = (group, mood) => J.order(group).filter(k => { const d = J.registry(group)[k]; return d && d.tags && d.tags.includes(mood); });
+J.taggedWith = (group, mood) => J.order(group).filter(k => { const d = J.registry(group)[k]; return d && !d.poolOnly && d.tags && d.tags.includes(mood); });
 })();

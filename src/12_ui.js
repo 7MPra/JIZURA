@@ -35,6 +35,13 @@ function cutAround(t) {
 function loopRange(t) {
   const T = t != null ? t : S.t;
   const endAll = S.plan.duration;
+  // the playhead in a gap between cuts (before the first line, a pause, after the last): the gap itself — taking the
+  // cut before it sent playback back to the previous line, so the playhead could not be left in a pause
+  if ((S.loop === 'cut' || S.loop === 'line') && !J.cutAt(S.plan, T)) {
+    const cs = S.plan.cuts; let a = 0, b = endAll;
+    for (const c of cs) { if (c.end <= T + 1e-6) a = Math.max(a, c.end); else if (c.start > T) { b = Math.min(b, c.start); break; } }
+    return { start: a, end: Math.max(a + 0.05, b) };
+  }
   if (S.loop === 'cut') {
     const cut = cutAround(T);
     return cut ? { start: cut.start, end: cut.end } : { start: 0, end: endAll };
@@ -53,7 +60,75 @@ function refreshLoopHold(t) {
 }
 function activeLoopRange() {
   if ((S.loop === 'line' || S.loop === 'cut') && S.loopHold) return S.loopHold;
-  return loopRange(S.t);
+  return previewRange() || loopRange(S.t);
+}
+// preview range: project.preview = { start, end } in seconds (end null = the end of the song). Preview playback only —
+// the export range is separate. Checked against the current length every time it is used (the song can get shorter).
+const PV_MIN = 0.1;
+function previewRange() {
+  const P = S.project && S.project.preview, D = S.plan ? S.plan.duration : 0;
+  if (!P || !(D > 0)) return null;
+  const a = J.clamp(+P.start || 0, 0, Math.max(0, D - PV_MIN)), b = P.end != null && isFinite(+P.end) ? J.clamp(+P.end, a + PV_MIN, D) : D;
+  return b - a >= PV_MIN - 1e-9 ? { start: a, end: b } : null;
+}
+/* set one end of the range (seconds, or null to clear that end); false + a message when it does not fit */
+function setPreview(which, t) {
+  const D = S.plan.duration, cur = S.project.preview || { start: 0, end: null };
+  const next = { start: +cur.start || 0, end: cur.end != null ? +cur.end : null };
+  if (which === 'start') next.start = t == null ? 0 : t;
+  else next.end = t;
+  const end = next.end == null ? D : next.end;
+  if (!(next.start >= 0) || next.start >= D) { toast(`開始は 00:00.00〜${J.fmtTime(D)} の間で指定してください`); return false; }
+  if (next.end != null && (next.end > D + 1e-6 || next.end <= 0)) { toast(`終了は曲の長さ（${J.fmtTime(D)}）までで指定してください`); return false; }
+  if (end - next.start < PV_MIN) { toast('終了は開始より後にしてください'); return false; }
+  S.project.preview = next.start <= 0 && next.end == null ? null : { start: +next.start.toFixed(3), end: next.end == null ? null : +next.end.toFixed(3) };
+  flushSave(); syncPreviewUI(); drawTimeline(); S.need = true;
+  return true;
+}
+function syncPreviewUI() {
+  const a = $('pvIn'), b = $('pvOut'); if (!a) return;
+  const R = previewRange(), P = S.project.preview;
+  if (document.activeElement !== a) a.value = P ? J.fmtClock(R ? R.start : 0) : '';
+  if (document.activeElement !== b) b.value = P && P.end != null && R ? J.fmtClock(R.end) : '';
+  a.closest('.pv-bar').classList.toggle('on', !!P);
+}
+/* 落ち着いた演出 (src/11y_calm.js): project.calm = { on, motion, layouts } */
+function syncCalm() {
+  const on = $('calmOn'); if (!on) return;
+  const C = S.project.calm || {};
+  on.checked = C.on === true; $('calmMotion').value = J.CALM_MOTIONS[C.motion] ? C.motion : 'fade'; $('calmLayouts').checked = C.layouts !== false;
+  $('calmMotion').disabled = $('calmLayouts').disabled = !on.checked;
+  on.closest('.calm-box').classList.toggle('on', on.checked);
+}
+function bindCalm() {
+  if (!$('calmOn')) return;
+  const apply = () => {
+    remember();
+    const on = $('calmOn').checked;
+    S.project.calm = { on, motion: $('calmMotion').value, layouts: $('calmLayouts').checked };
+    syncCalm(); replan(); commit(); flushSave();
+    return on;
+  };
+  $('calmOn').addEventListener('change', () => toast(apply() ? '落ち着いた演出：オン（効果を切り、全部の行を同じ動きにします）' : '落ち着いた演出：オフ（元の演出に戻しました）'));
+  $('calmMotion').addEventListener('change', apply);
+  $('calmLayouts').addEventListener('change', apply);
+  syncCalm();
+}
+function bindPreview() {
+  if (!$('pvIn')) return;
+  const read = (el, which) => {
+    const raw = String(el.value || '').trim();
+    if (!raw) { setPreview(which, null); return; }
+    const t = J.parseTime(raw);
+    if (!isFinite(t)) { toast('時刻を読み取れませんでした（例：3:22.44 / 3.22.44 / 202.44）'); syncPreviewUI(); return; }
+    if (!setPreview(which, t)) syncPreviewUI();
+  };
+  $('pvIn').addEventListener('change', e => read(e.target, 'start'));
+  $('pvOut').addEventListener('change', e => read(e.target, 'end'));
+  $('pvInHere').addEventListener('click', () => setPreview('start', S.t));
+  $('pvOutHere').addEventListener('click', () => setPreview('end', S.t));
+  $('pvClear').addEventListener('click', () => { S.project.preview = null; flushSave(); syncPreviewUI(); drawTimeline(); toast('プレビュー範囲：曲全体'); });
+  syncPreviewUI();
 }
 function syncLoopBtn() {
   const b = $('btnLoop'); if (!b) return;
@@ -122,12 +197,19 @@ function mergeProject(p) {
     else if (typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v)) o.colors[k] = v;
   }
   o.userFonts = (Array.isArray(p && p.userFonts) ? p.userFonts : []).filter(uf => uf && J.SAFE_FONT_KEY.test(uf.key))
-    .map(uf => ({ key: uf.key, label: String(uf.label || uf.key).slice(0, 80), family: J.safeFamily(uf.family || uf.key.slice(5)), weight: J.clamp(parseInt(uf.weight, 10) || 400, 100, 900) }));
-  for (const uf of o.userFonts) if (!J.FONTS[uf.key]) J.addUserFont(uf.key, uf.label, uf.family, uf.weight);
+    .map(uf => Object.assign({ key: uf.key, label: String(uf.label || uf.key).slice(0, 80), family: J.safeFamily(uf.family || uf.key.slice(5)), weight: J.clamp(parseInt(uf.weight, 10) || 400, 100, 900) }, uf.adobe ? { adobe: true } : null));
+  for (const uf of o.userFonts) if (!J.FONTS[uf.key]) { J.addUserFont(uf.key, uf.label, uf.family, uf.weight, uf.adobe ? 'adobe' : 'custom'); if (uf.adobe) J.FONTS[uf.key].loaded = true; }
+  o.adobeKit = p && typeof p.adobeKit === 'string' && /^[a-z0-9]{5,16}$/.test(p.adobeKit) ? p.adobeKit : null;   // Adobe Fonts web project
   migrateOrder(o, p);
   o.themeId = p && typeof p.themeId === 'string' && J.THEMES && J.THEMES[p.themeId] ? p.themeId : null;
   o.fonts = {};
   for (const [role, k] of Object.entries((p && p.fonts) || {})) if (typeof k === 'string' && J.FONTS[k] && /^[\w-]+$/.test(role)) o.fonts[role] = k;
+  // calm (older projects have none = off): plain values only
+  const cm = p && p.calm;
+  o.calm = cm && typeof cm === 'object' && cm.on === true ? { on: true, motion: J.CALM_MOTIONS[cm.motion] ? cm.motion : 'fade', layouts: cm.layouts !== false } : null;
+  // preview range (older projects have none): numbers only, end after start
+  const pv = p && p.preview;
+  o.preview = pv && isFinite(+pv.start) && +pv.start >= 0 && (pv.end == null || (isFinite(+pv.end) && +pv.end > +pv.start)) ? { start: +pv.start, end: pv.end == null ? null : +pv.end } : null;
   return o;
 }
 /* v0.10: untagged lines of an LRC text now stay where they are written — move per-line settings of older projects along */
@@ -156,12 +238,14 @@ window.addEventListener('pagehide', () => { if (S.project) flushSave(); });
 
 /* ---------------- planning ---------------- */
 function audioLike() {
-  const T = S.project.timing;
+  const T = S.project.timing, tm = J.tempoPoints(T);         // BPM グラフ wins over the single BPM and the detected beats
   if (S.audio) {
     const a = Object.assign({}, S.audio);
-    if (T.bpm > 0) a.beats = J.beatGrid(T.bpm, T.beatOffset || 0, S.audio.duration);
+    if (tm) a.beats = J.tempoBeats(tm, S.audio.duration);
+    else if (T.bpm > 0) a.beats = J.beatGrid(T.bpm, T.beatOffset || 0, S.audio.duration);
     return a;
   }
+  if (tm) return { beats: J.tempoBeats(tm, 600) };
   if (T.bpm > 0) return { beats: J.beatGrid(T.bpm, T.beatOffset || 0, 600) };
   return null;
 }
@@ -179,7 +263,7 @@ function replan() {
   langNote();
   if (S.t > S.plan.duration) S.t = 0;
   refreshLoopHold();
-  renderLines(); sizeViewport(); drawTimeline(); updateTimeUI();
+  renderLines(); sizeViewport(); drawTimeline(); updateTimeUI(); syncPreviewUI();
   lastCutIdx = -2;
   if (typeof cutPick !== 'undefined' && cutPick.g) fillCutPick();
   S.need = true; autosave(); ensureFonts(); drawSwatch(); showNow();
@@ -274,7 +358,7 @@ function tick(now) {
     const range = activeLoopRange();
     if (t >= range.end - 1e-3) {
       if (S.loop && !S.tap) { seek(range.start); t = range.start; }
-      else { pause(); t = Math.min(t, S.plan.duration - 1e-3); if (S.tap) stopTap(); }
+      else { pause(); t = Math.min(t, range.end, S.plan.duration - 1e-3); seek(t); if (S.tap) stopTap(); }
     }
     S.t = t; S.need = true;
     followTlPlayhead();
@@ -289,6 +373,8 @@ function updateTimeUI() {
 // タップ同期の速さ (0.5× / 0.75×): only while tapping — the song's own time is what gets stored
 const playRate = () => (S.tap && S.tap.rate > 0 ? S.tap.rate : 1);
 function play() {
+  const PR = !S.tap ? previewRange() : null;              // outside the preview range (or at its end): from its start
+  if (PR && (S.t < PR.start - 1e-3 || S.t >= PR.end - 0.02) && !(S.loop === 'line' || S.loop === 'cut')) S.t = PR.start;
   refreshLoopHold();
   if (S.audio) AP.play(S.audio.buffer, S.t, playRate());
   else S.t0 = performance.now() - S.t * 1000 / playRate();
@@ -347,6 +433,11 @@ function drawTimeline() {
   const top = h * 0.3, bot = h - 8 * dpr;
   const R = exportRange();
   if (R) { x.fillStyle = 'rgba(245,165,12,0.10)'; x.fillRect(X(R.t0), 0, X(R.t1) - X(R.t0), h); }
+  const PR = previewRange();
+  if (PR) {                                                // プレビュー範囲: the outside dimmed, the ends marked
+    x.fillStyle = 'rgba(0,0,0,0.45)'; x.fillRect(0, 0, Math.max(0, X(PR.start)), h); x.fillRect(X(PR.end), 0, Math.max(0, w - X(PR.end)), h);
+    x.fillStyle = '#6fb7c8'; x.fillRect(Math.round(X(PR.start)), 0, 2 * dpr, h); x.fillRect(Math.round(X(PR.end)) - 2 * dpr, 0, 2 * dpr, h);
+  }
   for (const cut of S.plan.cuts) {
     const x0 = X(cut.start), x1 = X(cut.end);
     if (x1 < 0 || x0 > w) continue;
@@ -381,6 +472,158 @@ function drawTimeline() {
   }
   const px = X(S.t);
   x.fillStyle = '#f5a50c'; x.fillRect(Math.round(px) - dpr, 0, 2 * dpr, h);
+  drawTempo();
+}
+
+/* ---------------- BPM グラフ (tempo map lane under the timeline, same time axis) ---------------- */
+const TP = { on: false, sel: -1, drag: -1, moved: false };
+const tempoArr = () => { const T = S.project.timing; if (!Array.isArray(T.tempo)) T.tempo = []; return T.tempo; };
+const tempoSort = () => { const a = tempoArr(), cur = a[TP.sel]; a.sort((p, q) => p.t - q.t); TP.sel = cur ? a.indexOf(cur) : -1; };
+function tempoRange() {
+  const a = tempoArr(), T = S.project.timing;
+  const vals = a.map(p => +p.bpm).concat(a.length ? [] : [T.bpm > 0 ? T.bpm : S.audio && S.audio.bpm ? S.audio.bpm : 128]);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = Math.max(6, (hi - lo) * 0.25);
+  lo = Math.floor((lo - pad) / 5) * 5; hi = Math.ceil((hi + pad) / 5) * 5;
+  return { lo: Math.max(20, lo), hi: Math.min(400, Math.max(hi, lo + 10)) };
+}
+function tempoGeo() {
+  const c = $('tempoLane'), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.max(10, Math.round(c.clientWidth * dpr)), h = Math.max(10, Math.round(c.clientHeight * dpr));
+  const { vd, off } = tlView(), R = tempoRange(), pad = 8 * dpr;
+  return { c, dpr, w, h, vd, off, R, pad, X: t => (t - off) / vd * w, Y: b => h - pad - (b - R.lo) / (R.hi - R.lo) * (h - pad * 2), T: px => off + px / w * vd, B: py => R.lo + (h - pad - py) / (h - pad * 2) * (R.hi - R.lo) };
+}
+function drawTempo() {
+  const wrap = $('tempoWrap'); if (!wrap || wrap.hidden) return;
+  const G = tempoGeo(), { c, dpr, w, h, X, Y, R } = G;
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const x = c.getContext('2d');
+  x.fillStyle = '#101013'; x.fillRect(0, 0, w, h);
+  x.font = `${9 * dpr}px monospace`; x.textBaseline = 'middle';
+  const step = R.hi - R.lo > 60 ? 20 : R.hi - R.lo > 25 ? 10 : 5;
+  for (let b = Math.ceil(R.lo / step) * step; b <= R.hi; b += step) {
+    x.fillStyle = '#24242b'; x.fillRect(0, Math.round(Y(b)), w, 1);
+    x.fillStyle = '#5d5a63'; x.fillText(String(b), 3 * dpr, Y(b) - 6 * dpr);
+  }
+  const beats = S.plan.beats || [];
+  x.fillStyle = '#2e2e36';
+  for (const b of beats) { const bx = X(b); if (bx < 0) continue; if (bx > w) break; x.fillRect(Math.round(bx), h - 5 * dpr, 1, 5 * dpr); }
+  const pts = J.tempoPoints(S.project.timing), a = tempoArr();
+  if (!pts) {
+    x.fillStyle = '#8e8a94'; x.fillText('クリックで BPM の点を追加（DJ ミックスなど、途中でテンポが変わる曲に）', 10 * dpr, h / 2);
+  } else {
+    // the tempo curve: steps, or straight slides into ramped points
+    x.strokeStyle = '#6fb7c8'; x.lineWidth = 2 * dpr; x.beginPath();
+    x.moveTo(0, Y(pts[0].bpm));
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      if (i > 0 && !p.ramp) x.lineTo(X(p.t), Y(pts[i - 1].bpm));
+      x.lineTo(X(p.t), Y(p.bpm));
+    }
+    x.lineTo(w, Y(pts[pts.length - 1].bpm)); x.stroke();
+  }
+  a.forEach((p, i) => {
+    const px = X(+p.t), py = Y(+p.bpm), on = i === TP.sel;
+    if (px < -20 || px > w + 20) return;
+    if (p.anchor !== false) { x.fillStyle = on ? 'rgba(245,165,12,0.5)' : 'rgba(111,183,200,0.35)'; x.fillRect(Math.round(px), 0, 1, h); }
+    x.fillStyle = on ? '#f5a50c' : '#6fb7c8';
+    x.beginPath(); x.arc(px, py, (on ? 5 : 4) * dpr, 0, J.TAU); x.fill();
+    x.fillStyle = on ? '#f5a50c' : '#c9c5cf'; x.fillText((+p.bpm).toFixed(+p.bpm % 1 ? 2 : 0).replace(/0$/, ''), px + 6 * dpr, Math.max(8 * dpr, py - 9 * dpr));
+  });
+  const ph = X(S.t);
+  x.fillStyle = '#f5a50c'; x.fillRect(Math.round(ph) - dpr, 0, 2 * dpr, h);
+  syncTempoSel();
+}
+function syncTempoSel() {
+  const p = tempoArr()[TP.sel], box = $('tempoSel'); if (!box) return;
+  box.hidden = !p; if (!p) return;
+  const set = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
+  set('tpT', (+p.t).toFixed(2)); set('tpB', String(+(+p.bpm).toFixed(2)));
+  $('tpRamp').checked = !!p.ramp; $('tpAnchor').checked = p.anchor !== false;
+  $('tpRamp').disabled = TP.sel === 0;
+}
+function tempoChanged() { tempoSort(); replan(); }
+function tempoHit(ev) {
+  const G = tempoGeo(), r = G.c.getBoundingClientRect(), mx = (ev.clientX - r.left) * G.dpr, my = (ev.clientY - r.top) * G.dpr;
+  let best = -1, bd = 10 * G.dpr;
+  tempoArr().forEach((p, i) => { const d = Math.hypot(G.X(+p.t) - mx, G.Y(+p.bpm) - my); if (d < bd) { bd = d; best = i; } });
+  return { i: best, t: G.T(mx), bpm: G.B(my), G };
+}
+// a new point's time lands on a beat of the grid so far (Shift: free)
+function tempoSnapT(t, ev) {
+  if (ev && ev.shiftKey) return t;
+  let bt = t, bd = 0.1; for (const b of S.plan.beats || []) { const d = Math.abs(b - t); if (d < bd) { bd = d; bt = b; } if (b > t + 0.2) break; }
+  return bt;
+}
+function tempoAdd(t, bpm) {
+  pushEdit();
+  const pts = J.tempoPoints(S.project.timing);
+  const b = bpm != null ? bpm : pts ? J.tempoBpmAt(pts, t) : (S.project.timing.bpm > 0 ? S.project.timing.bpm : S.audio && S.audio.bpm ? S.audio.bpm : 128);
+  const p = { t: +Math.max(0, t).toFixed(3), bpm: +J.clamp(b, 20, 400).toFixed(2), ramp: false, anchor: true };
+  tempoArr().push(p); TP.sel = tempoArr().indexOf(p); tempoChanged();
+  return p;
+}
+function bindTempo() {
+  const lane = $('tempoLane'); if (!lane) return;
+  $('tlTempo').addEventListener('click', () => {
+    TP.on = !TP.on; $('tempoWrap').hidden = !TP.on; $('tlTempo').setAttribute('aria-pressed', String(TP.on)); drawTimeline();
+  });
+  if (S.project && tempoArr().length) $('tlTempo').click();   // a project with a tempo map opens with its graph shown
+  lane.addEventListener('pointerdown', e => {
+    if (S.exporting) return;
+    lane.setPointerCapture(e.pointerId);
+    const hit = tempoHit(e);
+    if (e.button === 2) return;
+    if (hit.i >= 0) { pushEdit(); TP.sel = hit.i; TP.drag = hit.i; TP.moved = false; drawTempo(); return; }
+    // empty space: a new point where you clicked (its BPM follows the height)
+    const p = tempoAdd(tempoSnapT(hit.t, e), Math.round(hit.bpm * 2) / 2);
+    TP.drag = tempoArr().indexOf(p); TP.moved = false;
+  });
+  lane.addEventListener('pointermove', e => {
+    if (TP.drag < 0) { lane.style.cursor = tempoHit(e).i >= 0 ? 'grab' : 'crosshair'; return; }
+    const hit = tempoHit(e), p = tempoArr()[TP.drag]; if (!p) return;
+    TP.moved = true;
+    p.t = +Math.max(0, tempoSnapT(hit.t, e)).toFixed(3);
+    p.bpm = +J.clamp(e.altKey ? hit.bpm : Math.round(hit.bpm * 2) / 2, 20, 400).toFixed(2);   // 0.5 BPM steps (Alt: free)
+    TP.sel = TP.drag; tempoSort(); TP.drag = TP.sel;
+    S.plan = J.plan(S.project, audioLike()); drawTimeline();
+  });
+  const end = () => { if (TP.drag >= 0) { TP.drag = -1; replan(); flushSave(); } };
+  lane.addEventListener('pointerup', end); lane.addEventListener('pointercancel', end);
+  lane.addEventListener('contextmenu', e => {                // right click: remove a point
+    e.preventDefault();
+    const hit = tempoHit(e); if (hit.i < 0) return;
+    pushEdit(); tempoArr().splice(hit.i, 1); TP.sel = -1; tempoChanged();
+  });
+  lane.addEventListener('wheel', e => { e.preventDefault(); tlZoom(Math.exp(-e.deltaY * 0.0025), tempoHit(e).t); }, { passive: false });
+  const edit = (fn) => () => { const p = tempoArr()[TP.sel]; if (!p) return; pushEdit(); fn(p); tempoChanged(); };
+  $('tpT').addEventListener('change', edit(p => { p.t = Math.max(0, parseFloat($('tpT').value) || 0); }));
+  $('tpB').addEventListener('change', edit(p => { p.bpm = J.clamp(parseFloat($('tpB').value) || p.bpm, 20, 400); }));
+  $('tpRamp').addEventListener('change', edit(p => { p.ramp = $('tpRamp').checked; }));
+  $('tpAnchor').addEventListener('change', edit(p => { p.anchor = $('tpAnchor').checked; }));
+  $('tpDel').addEventListener('click', edit(p => { tempoArr().splice(tempoArr().indexOf(p), 1); TP.sel = -1; }));
+  // with a song: the BPM of the next ~16 s is detected, and the point goes on its first beat (a DJ mix: one track at a time)
+  $('tpAddHere').addEventListener('click', () => {
+    const pts = J.tempoPoints(S.project.timing), near = pts ? J.tempoBpmAt(pts, S.t) : 0;
+    const d = J.localTempo(S.audio, S.t, 16, near);
+    if (d) { tempoAdd(d.beat, d.bpm); toast('検出：' + d.bpm + ' BPM'); }
+    else tempoAdd(tempoSnapT(S.t, null));
+  });
+  $('tpAuto').addEventListener('click', () => {
+    if (!S.audio) { toast('曲を読み込むと検出できます'); return; }
+    const pts = J.autoTempoMap(S.audio);
+    if (!pts.length) { toast('この区間の拍を検出できませんでした'); return; }
+    pushEdit(); S.project.timing.tempo = pts; TP.sel = -1; replan();
+    toast('BPM グラフを作りました：' + pts.length);
+  });
+  $('tpDetect').addEventListener('click', () => {
+    const a = tempoArr(), p = a[TP.sel]; if (!p) return;
+    const prev = a[TP.sel - 1], d = J.localTempo(S.audio, Math.max(0, +p.t - 0.05), 16, prev ? +prev.bpm : +p.bpm);
+    if (!d) { toast(S.audio ? 'この区間の拍を検出できませんでした' : '曲を読み込むと検出できます'); return; }
+    pushEdit(); p.bpm = d.bpm; if (p.anchor !== false && Math.abs(d.beat - p.t) < 60 / d.bpm) p.t = d.beat;
+    tempoChanged(); toast('検出：' + d.bpm + ' BPM');
+  });
+  $('tpClear').addEventListener('click', () => { if (!tempoArr().length) return; pushEdit(); S.project.timing.tempo = []; TP.sel = -1; replan(); });
 }
 function tlTime(ev) {
   const r = $('timeline').getBoundingClientRect(), { vd, off } = tlView();
@@ -395,19 +638,42 @@ function tlHandleAt(ev) {
   for (const ln of S.plan.lines) { const d = Math.abs((ln.start - off) / vd * r.width - (ev.clientX - r.left)); if (d < bd) { bd = d; best = ln.index; } }
   return best;
 }
+/* set line i (a lyric line or an interlude) to start at t, keeping the lines in order.
+   The fixed times around it (typed, tapped, dragged, LRC) are not a wall: a fixed line that t crosses is pushed along,
+   0.2 s apart, so a line can be moved past an interlude or its neighbours. Lines left on automatic simply follow.
+   pin: also fix every other line where it is now (dragging on the timeline: moving one boundary never shifts the rest).
+   Returns how many other lines were pushed. */
+const LINE_GAP = 0.2;
+function placeLineTime(i, t, pin) {
+  const L = S.plan.lines, T = S.project.timing;
+  if (!T.lineTimes) T.lineTimes = {};
+  // with a song loaded a line must start inside it; without one the lyrics set the length, so there is no end to hit
+  const lt = T.lineTimes, D = S.audio && S.audio.duration > 0 ? Math.max(S.plan.duration, S.audio.duration) : Infinity;
+  const fixedAt = j => (lt[j] != null && isFinite(+lt[j]) ? +lt[j] : L[j] && L[j].lrc != null && isFinite(L[j].lrc) ? L[j].lrc : null);
+  if (pin) L.forEach(ln => { if (fixedAt(ln.index) == null) lt[ln.index] = +ln.start.toFixed(3); });
+  // room for the lines before / after it at the minimum spacing
+  t = Math.max(i * LINE_GAP * 0.25, Math.min(t, D - (L.length - i) * LINE_GAP * 0.25));
+  lt[i] = +t.toFixed(3);
+  let pushed = 0, prev = t;
+  for (let j = i + 1; j < L.length; j++) {                // later fixed lines it ran into
+    const f = fixedAt(j); if (f == null) continue;
+    if (f < prev + LINE_GAP) { lt[j] = +(prev + LINE_GAP).toFixed(3); pushed++; prev = lt[j]; } else break;
+  }
+  prev = t;
+  for (let j = i - 1; j >= 0; j--) {                      // earlier fixed lines it ran into
+    const f = fixedAt(j); if (f == null) continue;
+    if (f > prev - LINE_GAP) { lt[j] = +Math.max(0, prev - LINE_GAP).toFixed(3); pushed++; prev = lt[j]; } else break;
+  }
+  return pushed;
+}
 function tlDragTo(i, ev) {
   let t = tlTime(ev);
   if (!ev.shiftKey && S.plan.beats && S.plan.beats.length) {       // snap to the nearest beat (Shift: free)
     let bt = null, bd = 0.12; for (const b of S.plan.beats) { const d = Math.abs(b - t); if (d < bd) { bd = d; bt = b; } if (b > t + 0.2) break; }
     if (bt != null) t = bt;
   }
-  const L = S.plan.lines, lo = i > 0 ? L[i - 1].start + 0.2 : 0, hi = i < L.length - 1 ? L[i + 1].start - 0.2 : S.plan.duration - 0.2;
-  t = +J.clamp(t, lo, Math.max(lo, hi)).toFixed(3);
-  if (!S.project.timing.lineTimes) S.project.timing.lineTimes = {};
-  // pin the neighbours too, so moving one boundary never shifts the lines after it
-  L.forEach(ln => { if (S.project.timing.lineTimes[ln.index] == null) S.project.timing.lineTimes[ln.index] = +ln.start.toFixed(3); });
-  S.project.timing.lineTimes[i] = t;
-  replan(); seek(t + 0.001);
+  placeLineTime(i, +t.toFixed(3), true);
+  replan(); seek(S.plan.lines[i] ? S.plan.lines[i].start + 0.001 : t);
 }
 
 /* ---------------- keep the playing line in view (the list scrolls inside its column) ---------------- */
@@ -647,7 +913,7 @@ function renderLines() {
     const manual = S.project.timing.lineTimes && S.project.timing.lineTimes[i] != null;
     const label = ln.interlude ? `〔間奏${ln.secs ? ' ' + ln.secs + '秒' : ''}〕` : ln.text;
     li.innerHTML = `<span class="no">${String(i + 1).padStart(2, '0')}</span>
-      <input class="time mono" type="number" step="0.01" min="0" value="${ln.start.toFixed(2)}" title="開始（秒）${manual ? '・手動' : '・自動'}" aria-label="${i + 1}行目の開始秒" style="${manual ? 'border-color:var(--cyan)' : ''}">
+      <input class="time mono" type="text" inputmode="decimal" spellcheck="false" value="${J.fmtClock(ln.start)}" title="開始時刻（分:秒.1/100）${manual ? '・手動' : '・自動'}　3:22.44 / 3.22.44 / 202.44（秒）で入力できます。空にすると自動に戻ります" aria-label="${i + 1}行目の開始時刻" style="${manual ? 'border-color:var(--cyan)' : ''}">
       <span class="txt" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
       <div class="meta"><span class="cuts"></span>
       <span class="tools">
@@ -663,19 +929,15 @@ function renderLines() {
     if (q('.lay')) q('.lay').value = o.layout || '';
     if (q('.ncut')) q('.ncut').value = o.cuts ? String(o.cuts) : '';
     q('.time').addEventListener('change', e => {
-      const v = parseFloat(e.target.value);
+      const raw = String(e.target.value || '').trim();
+      // empty: back to automatic. Unreadable: say so and keep the time it had — an unreadable entry ("3.22.44" in a
+      // seconds-only box) used to clear the hand-set time, and the line fell back before the interlude
+      if (raw && !isFinite(J.parseTime(raw))) { toast('時刻を読み取れませんでした（例：3:22.44 / 3.22.44 / 202.44）'); e.target.value = J.fmtClock(ln.start); return; }
       pushEdit();
       if (!S.project.timing.lineTimes) S.project.timing.lineTimes = {};
-      if (isFinite(v)) {
-        // keep the order: a typed time stays between the fixed times (typed or LRC) of the lines around it
-        const lt = S.project.timing.lineTimes, L = S.plan.lines;
-        const fix = j => (lt[j] != null && isFinite(+lt[j])) ? +lt[j] : (L[j] && L[j].lrc != null ? L[j].lrc : null);
-        let lo = 0, hi = Infinity;
-        for (let j = i - 1; j >= 0; j--) { const f = fix(j); if (f != null) { lo = f + 0.05; break; } }
-        for (let j = i + 1; j < L.length; j++) { const f = fix(j); if (f != null) { hi = f - 0.05; break; } }
-        let w = Math.max(0, v);
-        if (hi >= lo && (w < lo || w > hi)) { w = J.clamp(w, lo, hi); toast(`前後の行と順番が入れ替わらないよう ${w.toFixed(2)} 秒にしました`); }
-        lt[i] = +w.toFixed(3);
+      if (raw) {
+        const pushed = placeLineTime(i, Math.max(0, J.parseTime(raw)), false);
+        if (pushed) toast(`順番を保つため、前後の${pushed}行の開始時刻も動かしました`);
       } else delete S.project.timing.lineTimes[i];
       replan();
     });
@@ -741,6 +1003,19 @@ function renderLines() {
 /* ---------------- 行から歌詞を直す ---------------- */
 // the lyrics text is the source: a plan line knows the row it came from (ln.src); LRC time tags on that row are kept
 const LRC_PREFIX = /^\s*(?:\[\d+:\d+(?:[.:]\d+)?\])*/;
+/* the lyrics were edited: hand-set times, per-line settings and the export range follow their lines (J.lineIndexMap) —
+   kept by line number, a line added or removed above made every later line take the time of the line before it */
+function remapLines(prevText, nextText) {
+  const map = J.lineIndexMap(prevText, nextText); if (!map) return;
+  const P = S.project;
+  P.timing.lineTimes = J.remapByLine(P.timing.lineTimes || {}, map);
+  P.overrides = J.remapByLine(P.overrides || {}, map);
+  const R = P.exportRange;
+  if (R && Number.isInteger(R.from) && Number.isInteger(R.to)) {
+    const idx = []; for (let i = R.from; i <= R.to && i < map.length; i++) if (map[i] >= 0) idx.push(map[i]);
+    P.exportRange = idx.length ? { from: Math.min(...idx), to: Math.max(...idx) } : null;
+  }
+}
 function editLine(li, ln) {
   if (ln.src == null || li.querySelector('.txt-edit')) return;
   const rows = S.project.lyrics.replace(/\r/g, '').split('\n'), row = rows[ln.src] || '';
@@ -767,7 +1042,7 @@ function editLine(li, ln) {
 /* ---------------- 歌詞・タイミングの取り消し（Ctrl+Z） ---------------- */
 // separate from the ◀ ▶ history of looks: lyric edits, dragged / typed / tapped line times
 const ED = { undo: [], redo: [] };
-const edSnap = () => JSON.stringify({ lyrics: S.project.lyrics, lineTimes: S.project.timing.lineTimes || {} });
+const edSnap = () => JSON.stringify({ lyrics: S.project.lyrics, lineTimes: S.project.timing.lineTimes || {}, tempo: S.project.timing.tempo || [] });
 function pushEdit() { const s = edSnap(); if (ED.undo[ED.undo.length - 1] !== s) ED.undo.push(s); if (ED.undo.length > 60) ED.undo.shift(); ED.redo = []; updateEditBtns(); }
 function edGo(d) {
   const from = d < 0 ? ED.undo : ED.redo, to = d < 0 ? ED.redo : ED.undo;
@@ -776,6 +1051,7 @@ function edGo(d) {
   if ('ov' in o) { cur.ov = S.project.overrides; cur.range = S.project.exportRange || null; }   // clearLyrics() also cleared these
   to.push(JSON.stringify(cur));
   S.project.lyrics = o.lyrics; S.project.timing.lineTimes = o.lineTimes; $('lyrics').value = o.lyrics;
+  if (Array.isArray(o.tempo)) { S.project.timing.tempo = o.tempo; TP.sel = Math.min(TP.sel, o.tempo.length - 1); }
   if ('ov' in o) { S.project.overrides = o.ov || {}; S.project.exportRange = o.range || null; }
   replan(); flushSave(); updateEditBtns();
   toast(d < 0 ? '元に戻しました' : 'やり直しました');
@@ -1574,6 +1850,7 @@ function syncUI() {
   for (const set of J.SET_ORDER) document.querySelectorAll('.' + set + '-toggle').forEach(el => { el.checked = J.setOn(S.project, set); });
   document.querySelectorAll('.unify-toggle').forEach(el => { el.checked = S.project.unify === true; });
   document.querySelectorAll('.typeset-toggle').forEach(el => { el.checked = S.project.typeset === true; });
+  syncCalm();
   $('lyricLang').value = J.LANG_LABEL[S.project.lang] ? S.project.lang : 'auto'; langNote();
   document.querySelectorAll('.themeSel').forEach(el => { el.value = J.THEMES[S.project.themeId] ? S.project.themeId : ''; });
   renderFontRoles(); renderColors(); renderFx(); renderTech(); syncOut(); drawStyleGrid();
@@ -1581,7 +1858,7 @@ function syncUI() {
 
 /* ---------------- wiring ---------------- */
 function bind() {
-  $('lyrics').addEventListener('input', e => { S.project.lyrics = e.target.value; replanSoon(260); });
+  $('lyrics').addEventListener('input', e => { const prev = S.project.lyrics; S.project.lyrics = e.target.value; remapLines(prev, S.project.lyrics); replanSoon(260); });
   $('lyricLang').addEventListener('change', e => {
     remember();
     S.project.lang = e.target.value; replan(); renderFontRoles(); commit(); flushSave();
@@ -1650,6 +1927,8 @@ function bind() {
   $('tlIn').addEventListener('click', () => tlZoom(1.6));
   $('tlOut').addEventListener('click', () => tlZoom(1 / 1.6));
   $('tlFit').addEventListener('click', () => { TL.z = 1; TL.off = 0; drawTimeline(); });
+  bindTempo();
+  bindPreview();
   $('btnUndoEdit').addEventListener('click', () => edGo(-1));
   $('tapBack').addEventListener('click', tapBack);
   bindRangeUI();
@@ -1674,6 +1953,7 @@ function bind() {
   setSwitch('typo-toggle', 'typo', true, '文字PV系の部品：使う', '文字PV系の部品：使わない（おまかせ・シャッフルで選ばれません）');
   setSwitch('kinetic-toggle', 'kinetic', true, 'キネティックの部品：使う', 'キネティックの部品：使わない（おまかせ・シャッフルで選ばれません）');
   setSwitch('horror-toggle', 'horror', true, 'ホラーの演出：使う（おまかせの雰囲気に「ホラー」が加わります）', 'ホラーの演出：使わない');
+  bindCalm();
   setSwitch('unify-toggle', 'unify', true, '統一感：オン（パートごとにそろえ、キメ・モーフ・太さも使います）', '統一感：オフ');
   setSwitch('typeset-toggle', 'typeset', true, '文字整列：オン（字間・助詞・英字・0.2秒先・効果控えめ）', '文字整列：オフ');
   $('fxKoma').addEventListener('change', e => { const k = +e.target.value; S.project.fx.koma = k; S.project.fx.onTwos = k > 0; S.project.mood = null; replan(); });
@@ -1699,6 +1979,29 @@ function bind() {
     S.project.userFonts = (S.project.userFonts || []).filter(u => u.key !== key).concat([{ key, label: name + '（PC）', family: name, weight }]);
     S.project.fonts.display = key; $('localFont').value = '';
     fontKey = ''; renderFontRoles(); replan();
+  });
+  // Adobe Fonts: a web project (kit) id, then its families (read from the kit, or typed by their CSS name)
+  const addAdobe = (fams) => {
+    const ufs = fams.map(f => J.addAdobeFont(f.family, f.weight)).filter(Boolean);
+    if (!ufs.length) return 0;
+    S.project.userFonts = (S.project.userFonts || []).filter(x => !ufs.some(u => u.key === x.key)).concat(ufs);
+    S.project.fonts.display = ufs[0].key; fontKey = ''; renderFontRoles(); replan(); flushSave();
+    return ufs.length;
+  };
+  $('btnAdobeKit').addEventListener('click', async () => {
+    const id = $('adobeKit').value.trim(); if (!id) return;
+    try {
+      const fams = await J.loadAdobeKit(id);
+      S.project.adobeKit = J.adobeKit.id; flushSave();
+      const n = addAdobe(fams);
+      toast(n ? 'Adobe Fonts を読み込みました：' + fams.map(f => f.family).join('・') : 'Adobe Fonts のフォント名を「CSS で使うフォント名」に入れて追加してください');
+    } catch (err) { toast('Adobe Fonts を読み込めませんでした（ID とドメインの設定を確認してください）'); }
+  });
+  $('btnAdobeFamily').addEventListener('click', async () => {
+    const v = $('adobeFamily').value.trim(); if (!v) return;
+    if (!J.adobeKit.id && S.project.adobeKit) { try { await J.loadAdobeKit(S.project.adobeKit); } catch (e) {} }
+    const weight = /bold|black|heavy|w[6-9]|[6-9]00|-b\b|-eb\b|-h\b/i.test(v) ? 700 : 400;
+    if (addAdobe([{ family: v.replace(/["']/g, '').split(',')[0].trim(), weight }])) { $('adobeFamily').value = ''; }
   });
   $('fontFile').addEventListener('change', async e => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -1812,6 +2115,7 @@ function bind() {
     else if (e.code === 'ArrowRight') seek(S.t + (e.shiftKey ? 1 : 1 / S.plan.fps));
     else if (e.code === 'ArrowLeft') seek(S.t - (e.shiftKey ? 1 : 1 / S.plan.fps));
     else if (e.code === 'KeyR' && !e.metaKey && !e.ctrlKey && !e.altKey && !S.exporting) { e.preventDefault(); omakase(); }
+    else if ((e.code === 'KeyI' || e.code === 'KeyO') && !e.metaKey && !e.ctrlKey && !e.altKey && !S.exporting) { e.preventDefault(); setPreview(e.code === 'KeyI' ? 'start' : 'end', S.t); }
   });
   window.addEventListener('resize', () => { sizeViewport(); drawTimeline(); });
   if (window.ResizeObserver) new ResizeObserver(() => { sizeViewport(); drawTimeline(); }).observe($('viewport'));
@@ -1901,6 +2205,7 @@ function bindTour() {
 
 /* uploaded faces: bring them back from this browser; say so when a project uses one that is not here */
 async function restoreFonts() {
+  if (S.project.adobeKit) { $('adobeKit').value = S.project.adobeKit; try { await J.loadAdobeKit(S.project.adobeKit); } catch (e) {} }
   const list = S.project.userFonts || [];
   if (!list.length) return;
   const missing = await J.restoreUserFonts(list);
@@ -1913,6 +2218,8 @@ function boot() {
   S.project = loadLocal();
   bind(); initVolume(); syncUI(); syncLoopBtn(); replan();
   restoreFonts();
+  // the built-in Adobe Fonts kit serves only the domains of its web project (the Worker build)
+  if (J.useAdobeKit && /(^|\.)workers\.dev$|^localhost$|^127\./.test(location.hostname)) J.useAdobeKit().then(ok => { if (ok) { fontKey = ''; renderFontRoles(); replan(); toast('Adobe Fonts の書体で表示しています'); } });
   // first visit on a phone: スマホ mode
   let mode = window.matchMedia && window.matchMedia('(max-width: 760px)').matches ? 'mobile' : 'easy';
   try { mode = localStorage.getItem('jizura.mode') || mode; } catch (e) {}

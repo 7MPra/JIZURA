@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+dev/www/
+worker-assets/
+.wrangler/
+dev/review/

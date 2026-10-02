@@ -26,11 +26,13 @@ J.mainDraw = (env, it) => {
   // text treatment (outline, extrude, marker...) — layouts that paint their own plates opt out with it.plain
   if (cut.treat && !it.plain && J.TREAT && J.TREAT[cut.treat]) { try { J.TREAT[cut.treat].apply(env, it, cut.treatP || {}); } catch (e) { console.warn('treat', cut.treat, e); } }
   if (ltI < 0 && en === J.ENTER.cut) return null;
-  if (en !== J.ENTER.cut && (pIn < 1 || en.pieces)) { env.lt = ltI; en.apply(env, it, pIn, ctx); env.lt = lt0; }
+  // progress goes through the part's easing calibration (src/11t_easing.js) — a no-op for parts without one
+  if (en !== J.ENTER.cut && (pIn < 1 || en.pieces)) { env.lt = ltI; en.apply(env, it, J.warpIn ? J.warpIn(en, pIn) : pIn, ctx); env.lt = lt0; }
   if (ltI < 0 && !en.pieces) return null;
-  const amt = J.clamp((ltI - cut.inDur * 0.85) / 0.25) * (1 - pOut);
+  // the hold motion fades in (and out under the exit) on a smooth curve, so it does not kick in with a visible corner
+  const amt = J.E.inOutSine(J.clamp((ltI - cut.inDur * 0.85) / 0.3)) * (1 - J.E.inOutSine(pOut));
   if (amt > 0 && !it.noHold) ho.apply(env, it, amt, ctx);
-  if (pOut > 0 && ex !== J.EXIT.cut) ex.apply(env, it, pOut, ctx);
+  if (pOut > 0 && ex !== J.EXIT.cut) ex.apply(env, it, J.warpOut ? J.warpOut(ex, pOut) : pOut, ctx);
   it.charFn = J.combineChar(it.charFns);
   it.pieceFn = J.combinePiece(it.pieceFns);
   return J.drawFx(env, it);
@@ -47,7 +49,7 @@ J.drawFx = (env, it) => {
         J.drawItem(env, c);
       }
     }
-    if (it.echo && it.echo.n > 0) {            // stepped copies behind the item (outline or tinted)
+    if (it.echo && it.echo.n > 0 && !(env.st && env.st.textOnly)) {            // stepped copies behind the item (outline or tinted); not in テキストのみ
       const E0 = it.echo;
       for (let k = E0.n; k >= 1; k--) {
         const c = Object.assign({}, it, { x: it.x + (E0.dx || 0) * k, y: it.y + (E0.dy || 0) * k, size: it.size * Math.pow(E0.scale || 1, k), rot: (it.rot || 0) + (E0.rot || 0) * k,
@@ -131,6 +133,11 @@ J.splitLines = (text, maxPer) => {
       if (J.isHira(a) && !J.isHira(b)) s += 3;
       if (J.isPunct(a) || a === ' ' || a === '　') s += 5;
       if (J.isSmallKana(b) || 'ーっ、。'.includes(b)) s -= 6;
+      // a word is not broken: never inside a katakana word (コー｜ヒー), rarely inside a kanji compound; before a particle is good
+      const kata = c => /[\u30a0-\u30ff]/.test(c), kan = c => /[\u3400-\u9fff々]/.test(c);
+      if (kata(a) && kata(b)) s -= 8;
+      if (kan(a) && kan(b)) s -= 2;
+      if (/^(は|が|を|に|で|の|も|と|へ|や|だけ|まで|から)/.test(arr.slice(k, k + 2).join('')) && !J.isHira(a)) s += 2;
       if (s > bestScore) { bestScore = s; best = k; }
     }
     out.push(arr.slice(start, best).join('').trim()); start = best;
@@ -213,9 +220,10 @@ J.LAYOUTS = {
     render(env) {
       const { W, H, sc } = env, P = env.cut.params, text = env.cut.text.replace(/\s+/g, '');
       const n = glyphCount(text);
-      if (P.variant === 'repeat' && n <= 9) {
-        const cols = P.cols;
-        const size = Math.min(H * 0.8 / (n * 1.04), W * 0.86 / (cols * 1.75));
+      if (P.variant === 'repeat' && n <= 9 && !(J.isLatinText && J.isLatinText(env.cut.text) && /\s/.test(env.cut.text.trim()))) {   // (English phrases: a word a column, below)
+        // テキストのみ: one column, larger — the same word side by side read as filler copies
+        const cols = env.st && env.st.textOnly ? 1 : P.cols;
+        const size = Math.min(H * 0.8 / (n * 1.04), W * 0.86 / (cols * 1.75), cols === 1 ? H * 0.3 : Infinity);
         let bb = null; const mid = (cols - 1) / 2;
         for (let i = 0; i < cols; i++) {
           const side = i !== Math.round(mid);
@@ -227,11 +235,12 @@ J.LAYOUTS = {
         return bb;
       }
       const per = Math.max(2, Math.min(P.perCol + 1, Math.ceil(n / Math.ceil(n / 7))));
-      const colsArr = []; const arr = [...text];
-      for (let i = 0; i < arr.length; i += per) colsArr.push(arr.slice(i, i + per).join(''));
-      const t2 = colsArr.join('\n');
-      const size = Math.min(H * 0.78 / (per * 1.03), W * 0.8 / (colsArr.length * 1.4));
-      const colH = per * size * 1.03;
+      // columns break between words (English: a word a column, its spaces kept; Japanese: at the boundaries J.splitLines prefers)
+      const latin = J.isLatinText && J.isLatinText(env.cut.text);
+      const colsArr = latin ? String(env.cut.text).trim().split(/\s+/) : J.splitLines(text, per).split('\n');
+      const t2 = colsArr.join('\n'), longest = Math.max(...colsArr.map(c => [...c].length));
+      const size = Math.min(H * 0.78 / (longest * (latin ? 0.62 : 1.03)), W * 0.8 / (colsArr.length * 1.4));
+      const colH = longest * size * (latin ? 0.62 : 1.03);
       return J.mainDraw(env, { text: t2, font: P.font, size, x: W / 2, y: H / 2 - colH / 2, vertical: true, lead: 1.4, align: 'left', track: 0.03, color: sc.fg });
     },
   },
@@ -393,9 +402,12 @@ J.LAYOUTS = {
       const n = glyphCount(text0);
       const text = n >= 5 ? J.splitLines(text0, Math.ceil(n / 2)) : text0;
       const lines = text.split('\n').length;
-      const size = lines > 1 ? Math.min(H * 0.56, W * 1.2 / (Math.ceil(n / 2) * 0.98)) : Math.min(H * 0.98, W * 1.3 / (n * 0.96));
+      let size = lines > 1 ? Math.min(H * 0.56, W * 1.2 / (Math.ceil(n / 2) * 0.98)) : Math.min(H * 0.98, W * 1.3 / (n * 0.96));
+      // テキストのみ: as big as the frame allows, but the whole word stays in it (a word cut off by accident reads as a mistake)
+      if (env.st && env.st.textOnly) { const m = J.measure({ text, font: P.font, size, lead: 0.98, track: -0.02 }); if (m.w > W * 0.92) size *= W * 0.92 / m.w; }
       const u = env.lt / env.cut.dur;
-      const bb = J.mainDraw(env, { text, font: P.font, size, x: W / 2 + (0.5 - u) * W * 0.16 * P.dir, y: H / 2 + H * 0.02, lead: 0.98, track: -0.02, color: sc.fg, gradient: P.grad && sc.grad ? sc.grad : null });
+      const drift = env.st && env.st.textOnly ? 0.04 : 0.16;
+      const bb = J.mainDraw(env, { text, font: P.font, size, x: W / 2 + (0.5 - u) * W * drift * P.dir, y: H / 2 + H * 0.02, lead: 0.98, track: -0.02, color: sc.fg, gradient: P.grad && sc.grad ? sc.grad : null });
       if (P.label) {
         const ls = J.clamp(H * 0.028, 16, 30);
         const a = E.outCubic(J.clamp((env.lt - env.cut.inDur * 0.5) / 0.2)) * (1 - env.pOut);

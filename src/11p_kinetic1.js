@@ -45,11 +45,37 @@ function splitUnit(s) {
     for (let i = 0; i < t.length; i++) if (t[i] === ' ' && Math.abs(i - mid) < bd) { bd = Math.abs(i - mid); bi = i; }
     return [t.slice(0, bi).trim(), t.slice(bi + 1).trim()];
   }
-  const n = [...t].length;
-  const parts = J.splitLines(t, Math.ceil(n / 2)).split('\n');
-  return parts.length >= 2 ? [parts[0], parts.slice(1).join('')] : [t];
+  // Japanese: the boundary that reads best, nearest the middle — before a particle (影｜だけ, ポケットの → ポケット｜の),
+  // between words, then between a kanji and its kana; never before a small kana / ー / ん, never inside a katakana word
+  const a = [...t], n = a.length;
+  if (n < 2) return [t];
+  let bi = -1, bs = Infinity, bp = 0;
+  for (let i = 1; i < n; i++) {
+    const s2 = joinRun(a, i), p = a[i - 1], q = a[i];
+    let pen;
+    if (/[ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮーんン、。，．！？!?…・」』）)]/.test(q) || /[「『（(]/.test(p)) pen = 100;
+    else if (p === 'っ' || p === 'ッ') pen = 50;
+    else if (PARTICLE.test(s2) && !isKata(p)) pen = 0;
+    else if (isKata(p) && isKata(q)) pen = 20;
+    else if (isKan(p) && isKan(q)) pen = 6;
+    else if (isHira(p) && isHira(q)) pen = 8;
+    else if (isKan(p) && isHira(q)) pen = 4;
+    else pen = 1;                                         // a change of script: kana → kanji, kana → katakana …
+    const sc = pen + Math.abs(i - n / 2) * 0.7;
+    if (sc < bs) { bs = sc; bi = i; bp = pen; }
+  }
+  // no boundary that reads (ほど｜けた, さよ｜なら): the word stays whole
+  if (bp >= 8) return [t];
+  return [a.slice(0, bi).join(''), a.slice(bi).join('')];
 }
-function unitsOf(cut, maxU = 6, minU = 1) {
+const PARTICLE = /^(だけ|まで|から|より|ので|のに|ない|ながら|は|が|を|に|で|の|も|と|へ|や)/;
+const joinRun = (a, i) => a.slice(i, i + 4).join('');
+J.splitWord = (t) => splitUnit(t);               // (also for the tests)
+const isKan = ch => /[\u3400-\u9fff\uf900-\ufaff々〆]/.test(ch), isHira = ch => /[\u3041-\u309f]/.test(ch), isKata = ch => /[\u30a0-\u30ff]/.test(ch);
+function unitsOf(cut, maxU = 6, minU = 1, per = 0, tail = 0) {
+  // per: the seconds one word needs on screen (tail: what the layout keeps after the last word) — a short cut gets
+  // fewer, longer words instead of shots too quick to read
+  if (per > 0) { maxU = Math.min(maxU, Math.max(1, 1 + Math.floor((cut.dur - (cut.outDur || 0) - tail) / per))); minU = Math.min(minU, maxU); }
   const text = String(cut.text || '');
   const key = text + '\u0002' + (cut.words || []).join('\u0001') + '\u0002' + maxU + ':' + minU;
   let w = unitCache.get(key);
@@ -215,14 +241,14 @@ reg('knSlamStack', {
 
 /* ================================================================== 2 knQuarterTurn — 直角ターン */
 reg('knQuarterTurn', {
-  name: '直角ターン', tags: ['pop', 'graphic', 'editorial'], w: 0.9, ae: 'sideways', portrait: 0.9, fits: n => n >= 2 && n <= 16,
+  name: '直角ターン', tags: ['pop', 'graphic', 'editorial'], w: 0.9, ae: 'sideways', portrait: 0.9, fits: n => n >= 2 && n <= 16, minDur: 1.2,
   enterBias: { cut: 3, pop: 0.8, blur: 0.8, slice: 0.2, wipe: 0.3 },
   plan(rng, cut, st) {
     return { font: rng.pick(fontsOf(st, ['display', 'serif'])), sgn: rng.pick([1, -1]), end: 'all', acc: rng.int(0, 3), joint: rng.chance(0.6) };
   },
   render(env) {
     const { W, H, sc } = env, c = env.cut, Pm = c.params, lt = env.lt, u = U(env);
-    const units = unitsOf(c, 4, 2), n = units.length;
+    const units = unitsOf(c, 4, 2, 0.5, 0.6), n = units.length;
     const ts = onsets(env, n, { frac: 0.46, gap: 0.5 });
     // chain in em units: word i runs along direction a_i, turning 90° at each joint (staircase: turns alternate)
     const L = units.map(t => em(t, Pm.font, { track: 0.03 }));
@@ -249,8 +275,10 @@ reg('knQuarterTurn', {
     const k = curIdx(ts, lt);
     if (k < 0) return null;
     const tOv = Math.min(ts[n - 1] + 0.62, Math.max(ts[n - 1] + 0.3, c.dur - c.outDur - 0.55)), useOv = Pm.end !== 'last';
-    let A = cams[Math.max(0, k - 1)], B = cams[k], e = k > 0 ? E.inOutCubic(clamp((lt - ts[k]) / 0.36)) : 1;
-    if (useOv && lt >= tOv) { A = cams[n - 1]; B = ov; e = E.inOutCubic(clamp((lt - tOv) / 0.5)); }
+    // the turn takes at most half the time the word has, so every word gets a level, still moment to be read
+    const tTurn = k > 0 ? clamp((ts[k] - ts[k - 1]) * 0.5, 0.2, 0.36) : 0.36, tOvD = clamp((c.dur - c.outDur - tOv) * 0.5, 0.25, 0.5);
+    let A = cams[Math.max(0, k - 1)], B = cams[k], e = k > 0 ? E.inOutCubic(clamp((lt - ts[k]) / tTurn)) : 1;
+    if (useOv && lt >= tOv) { A = cams[n - 1]; B = ov; e = E.inOutCubic(clamp((lt - tOv) / tOvD)); }
     const dip = 1 - 0.22 * bellK(e) * (A === B ? 0 : 1);
     const cam = { r: lerp(A.r, B.r, e), x: lerp(A.x, B.x, e), y: lerp(A.y, B.y, e), z: Math.exp(lerp(Math.log(A.z), Math.log(B.z), e)) * dip };
     let bb = null;
@@ -278,14 +306,14 @@ reg('knQuarterTurn', {
 
 /* ================================================================== 3 knSwapCenter — 入れ替わり */
 reg('knSwapCenter', {
-  name: '入れ替わり', tags: ['pop', 'graphic', 'glitch'], w: 1, ae: 'slotMachine', fits: n => n >= 2 && n <= 18,
+  name: '入れ替わり', tags: ['pop', 'graphic', 'glitch'], w: 1, ae: 'slotMachine', fits: n => n >= 2 && n <= 18, minDur: 1.3,
   enterBias: { cut: 3, pop: 0.7, blur: 0.8, slice: 0.3, wipe: 0.3 },
   plan(rng, cut, st) {
     return { font: rng.pick(fontsOf(st, ['display'])), fontL: rng.pick(fontsOf(st, ['display', 'serif'])), mode: rng.pick(['roll', 'punch', 'slide', 'roll']), ticks: rng.chance(0.7), acc: rng.chance(0.5) };
   },
   render(env) {
     const { W, H, sc } = env, c = env.cut, Pm = c.params, lt = env.lt, u = U(env), port = isPort(env);
-    const units = unitsOf(c, 6, 2), n = units.length;
+    const units = unitsOf(c, 6, 2, 0.4, 0.55), n = units.length;
     const ts = onsets(env, n, { frac: 0.4, gap: 0.36 });
     const big = units.map(t => Math.min(J.fitSize(t, Pm.font, W * 0.8, H * 0.4, { track: 0.02 }), H * 0.34, W * 0.6));
     const F = flowUnits(units, Pm.fontL, W * 0.84, H * (port ? 0.46 : 0.34), { maxSize: H * (port ? 0.13 : 0.2), track: 0.03 });
@@ -387,7 +415,7 @@ reg('knZoomDive', {
 
 /* ================================================================== 5 knFlowSnap — 流れて整列 */
 reg('knFlowSnap', {
-  name: '流れて整列', tags: ['graphic', 'pop', 'editorial'], w: 0.9, ae: 'gridCells', fits: n => n >= 3 && n <= 16,
+  name: '流れて整列', tags: ['graphic', 'pop', 'editorial'], w: 0.9, ae: 'gridCells', fits: n => n >= 3 && n <= 16, minDur: 1.6,
   enterBias: { cut: 3, blur: 0.6, pop: 0.6, slice: 0.2, wipe: 0.2 },
   plan(rng, cut, st) {
     return { font: rng.pick(fontsOf(st, ['display', 'body'])), amp: rng.range(0.1, 0.16), lam: rng.range(0.45, 0.7), grid: rng.pick(['cells', 'cells', 'rules']), acc: rng.int(0, 15) };
@@ -534,13 +562,14 @@ reg('knTypeSlam', {
     if (Pm.key === 'long') { let bv = -1; units.forEach((t, i) => { const v = gcount(t) + (/[一-鿿]/.test(t) ? 0.5 : 0); if (v > bv) { bv = v; ki = i; } }); }
     const key = units[ki];
     const tf = monoF(env);
-    const ts = Math.min(J.fitSize(t0, tf, W * 0.86, H * 0.08, { track: 0.06 }), u * 0.065);
+    const big = !!(env.st && env.st.textOnly);             // テキストのみ: the typed line carries the frame until the slam
+    const ts = Math.min(J.fitSize(t0, tf, W * 0.86, H * (big ? 0.11 : 0.08), { track: 0.06 }), u * (big ? 0.09 : 0.065));
     const tm = J.measure({ text: t0, font: tf, size: ts, track: 0.06 });
     const ks = Math.min(J.fitSize(key, Pm.font, W * 0.84, H * (port ? 0.3 : 0.44), { track: 0.01 }), H * 0.34, W * 0.5);
     const above = Pm.side === 'above';
     const ky = H / 2 + (above ? ts * 1.2 : -ts * 1.2), ty = above ? ky - ks * 0.62 - ts * 1.5 : ky + ks * 0.62 + ts * 1.5;
     const nG = [...t0].length;
-    const tType = clamp(nG * 0.045, 0.25, Math.min(1.1, c.dur * 0.4)), tS = tType + 0.14;
+    const tType = clamp(nG * 0.04, Math.min(0.25, c.dur * 0.18), Math.min(1.1, c.dur * 0.25)), tS = tType + Math.min(0.14, c.dur * 0.08);   // short cuts: the slam still lands early
     const x0 = W / 2 - tm.w / 2;
     // typed line: revealed glyph by glyph (clip), cursor riding at the end
     const k = Math.floor(clamp(lt / tType) * nG + 1e-6);
@@ -585,7 +614,7 @@ reg('knTypeSlam', {
 /* ================================================================== 8 knRhythmCuts — 語のカット割り */
 const SHOTS = ['huge', 'vert', 'small', 'crop', 'band', 'tilt'];
 reg('knRhythmCuts', {
-  name: '語のカット割り', tags: ['pop', 'graphic', 'glitch'], w: 0.9, ae: 'panels', fits: n => n >= 2 && n <= 18,
+  name: '語のカット割り', tags: ['pop', 'graphic', 'glitch'], w: 0.9, ae: 'panels', fits: n => n >= 2 && n <= 18, minDur: 1.1,
   enterBias: { cut: 3.5, pop: 0.4, blur: 0.4, slice: 0.2, wipe: 0.2 },
   plan(rng, cut, st) {
     const sh = SHOTS.slice(); for (let i = sh.length - 1; i > 0; i--) { const j = rng.int(0, i); const t = sh[i]; sh[i] = sh[j]; sh[j] = t; }
@@ -593,18 +622,28 @@ reg('knRhythmCuts', {
   },
   render(env) {
     const { W, H, sc, ctx } = env, c = env.cut, Pm = c.params, lt = env.lt, u = U(env), port = isPort(env);
-    const units = unitsOf(c, 5, 2), n = units.length;
+    const units = unitsOf(c, 5, 2, 0.42, 0.55), n = units.length;
     const ts = onsets(env, n, { frac: 0.5, gap: 0.46 });
     let tF = Math.min(ts[n - 1] + 0.55, c.dur - c.outDur - 0.45);
     tF = Math.max(tF, ts[n - 1] + 0.28);
+    if (n < 2) tF = 0;                                     // no time for word shots: the clean line from the start
     const k = curIdx(ts, lt);
     if (k < 0) return null;
     const out = tout(env), accC = accOn(sc);
     if (lt < tF) {
       const t = units[k], shot = (Pm.shots || SHOTS)[k % 6], dt = lt - ts[k];
       const punch = 1 + 0.1 * Math.exp(-dt * 14);
-      const it = { text: t, font: Pm.font, x: W / 2, y: H / 2, color: sc.fg, track: 0.02, mi: miAt(env, ts[k]) };
+      // the later shots are hard cuts: the entrance does not play again on them (a drop / mask entrance left the frame
+      // empty between two words)
+      const it = { text: t, font: Pm.font, x: W / 2, y: H / 2, color: sc.fg, track: 0.02, mi: k ? miAt(env, ts[k] - (c.inDur || 0)) : 0 };
       const vtxt = hasLatin(t) ? t : strip(t);
+      // テキストのみ: the shapes (corner brackets, the band) are not drawn — the small shot without its brackets read as an empty
+      // frame, the band's text kept the band's colour: both become a plain, mid-size word
+      const plain = env.st && env.st.textOnly && !(J.simpleShapes && J.simpleShapes(env.st)) && (shot === 'small' || shot === 'band');
+      if (plain) {
+        it.size = Math.min(J.fitSize(t, Pm.fontB, W * 0.6, H * 0.22, { track: 0.1 }), H * 0.2) * punch; it.font = Pm.fontB; it.track = 0.1;
+        return J.mainDraw(env, it);
+      }
       if (shot === 'huge') it.size = Math.min(J.fitSize(t, Pm.font, W * 0.82, H * 0.6, { track: 0.02 }), H * 0.54);
       else if (shot === 'vert' && !hasLatin(t)) {
         Object.assign(it, { text: vtxt, vertical: true, x: W / 2 + Pm.side * W * (port ? 0.18 : 0.22) });

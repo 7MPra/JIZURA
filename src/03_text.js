@@ -156,15 +156,54 @@ J.decoTextKind = (t) => {
   if ((t.match(/[A-Za-z]/g) || []).length <= 5 && /^[A-Za-z#№.\s\d\/\-–—+×x%:,'°]+$/.test(t)) return 'no';
   return null;
 };
+/* テキストのみ: the small captions layouts add around the lyric (LIVE, SCENE, LYRIC  03, ▸16A …): no CJK, upper-case or numbered,
+   and not part of the cut's own lyric */
+const flat = s => String(s || '').toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '');
+J.ornamentText = (env, text) => {
+  const t = String(text || '').trim().replace(/^[▸▶◀►▪•◆■□●○▲△▼▽←→↑↓]+\s*|\s*[▸▶◀►▪•◆■□●○▲△▼▽←→↑↓]+$/g, '');
+  if (!t || CJK.test(t)) return false;
+  if (!(J.decoTextKind(t) || (/^[A-Z][A-Z0-9 .:\/_#№\-–—+]*$/.test(t) && (t.match(/[A-Z]/g) || []).length >= 3))) return false;
+  const c = env.cut || {}, k = flat(t);
+  return !k || !(flat(c.lineText) + '|' + flat(c.text) + '|' + flat(c.note)).includes(k);
+};
+/* テキストのみ: only the lyric itself is shown — any text that is not part of a lyric line (captions, labels, filler letters,
+   the song title) is left out. Case, spaces, punctuation and line breaks are ignored when comparing. */
+const lyricIndex = new WeakMap();
+J.isLyricText = (env, text) => {
+  const plan = env.plan;
+  if (!plan || !Array.isArray(plan.lines)) return true;
+  let ix = lyricIndex.get(plan);
+  if (!ix) {
+    const ls = plan.lines.filter(l => l && l.text);
+    // a line's own words, its note and its ルビ (the readings set beside the kanji)
+    const units = [...new Set(ls.flatMap(l => [flat(l.text), flat(l.note)].concat((l.ruby || []).map(r => flat(r.ruby)))).filter(Boolean))];
+    ix = { units, flat: units.join('\u0001'), raw: ls.map(l => l.text + '\u0001' + (l.note || '')).join('\u0001'), memo: new Map() };
+    lyricIndex.set(plan, ix);
+  }
+  const t = String(text || '').trim(), k = flat(t);
+  if (!t) return true;
+  if (!k) return ix.raw.includes(t);
+  if (ix.flat.includes(k)) return true;
+  // a line repeated round and round (marquee, ticker, justified fill …) — any stretch of that loop is still the lyric
+  let v = ix.memo.get(k);
+  if (v === undefined) {
+    v = ix.units.some(u => k.length > u.length && u.repeat(Math.ceil(k.length / u.length) + 1).includes(k));
+    if (ix.memo.size > 2000) ix.memo.clear();
+    ix.memo.set(k, v);
+  }
+  return v;
+};
 J.hideDecoText = (env, text) => {
-  const fx = env.fx || {};
-  if (!fx.hideNo && !fx.hideTime) return false;
+  const fx = env.fx || {}, textOnly = !!(env.st && env.st.textOnly);
+  if (textOnly && (J.ornamentText(env, text) || !J.isLyricText(env, text))) return true;
+  const hideNo = textOnly || fx.hideNo, hideTime = textOnly || fx.hideTime;
+  if (!hideNo && !hideTime) return false;
   const k = J.decoTextKind(text);
-  if (!k || !(k === 'no' ? fx.hideNo : fx.hideTime)) return false;
+  if (!k || !(k === 'no' ? hideNo : hideTime)) return false;
   const lyr = env.cut ? String(env.cut.lineText || env.cut.text || '') : '';
   return !lyr.includes(String(text).trim());
 };
-J.drawItem = (env, it) => {
+const drawItemCore = (env, it) => {
   const ctx = env.ctx;
   const ghostPass = env.pass !== 'main';
   if (ghostPass && it.ghost === false) return null;
@@ -274,6 +313,48 @@ J.drawItem = (env, it) => {
   let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
   for (const b of boxes) { x0 = Math.min(x0, b.x - b.w / 2); x1 = Math.max(x1, b.x + b.w / 2); y0 = Math.min(y0, b.y - b.h / 2); y1 = Math.max(y1, b.y + b.h / 2); }
   return { x0: it.x + x0, y0: it.y + y0, x1: it.x + x1, y1: it.y + y1, boxes, cx: it.x, cy: it.y };
+};
+
+/* テキストのみ (style.textOnly): while a layout renders, every shape it paints on the frame (fill / stroke / fillRect / strokeRect —
+   plates, rules, rings, frames, sparks …) is switched off; only text goes through J.drawItem, which switches painting back on for
+   the duration of the call. Planning is untouched, so layouts, motion and timing stay exactly what they were.
+   A lyric that was set on a plate in the plate's counter colour would vanish with the plate, so it takes the foreground colour. */
+const PAINT = ['fill', 'stroke', 'fillRect', 'strokeRect', 'fillText', 'strokeText'];
+const NOPAINT = function () {};
+J.plainOn = ctx => { if (ctx.jzPlain) return; ctx.jzPlain = true; for (const m of PAINT) ctx[m] = NOPAINT; };
+J.plainOff = ctx => { ctx.jzPlain = false; for (const m of PAINT) delete ctx[m]; };
+/* テキストのみ, cut-to-cut transitions: they composite the two frames (drawImage, clip, image patterns) and repaint the ground,
+   which stays; rules, frames and colour blocks they add on top do not (a solid fill is kept only in a background colour) */
+J.transPlainOn = (ctx, bgs) => {
+  const ok = new Set(bgs.filter(Boolean).map(c => String(c).toLowerCase()));
+  const proto = Object.getPrototypeOf(ctx);
+  const solidOk = c => typeof c !== 'string' || ok.has(c.toLowerCase());
+  ctx.fillRect = function (...a) { if (solidOk(this.fillStyle)) proto.fillRect.apply(this, a); };
+  ctx.fill = function (...a) { if (solidOk(this.fillStyle)) proto.fill.apply(this, a); };
+  for (const m of ['stroke', 'strokeRect', 'fillText', 'strokeText']) ctx[m] = NOPAINT;
+};
+function readable(env, it) {
+  const bg = env.sc && env.sc.bg, fg = env.sc && env.sc.fg;
+  if (!bg || !fg) return it;
+  if (env.shapePainted) return it;          // a plate is on screen (シンプルな図形): the counter text belongs on it
+  const bad = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) && J.contrast(c, bg) < 1.08;   // the ground colour itself (counter text of a plate) — faint on purpose (dim) stays faint
+  if (!bad(it.color) && !bad(it.strokeColor)) return it;
+  return Object.assign({}, it, bad(it.color) ? { color: fg } : null, bad(it.strokeColor) ? { strokeColor: fg } : null);
+}
+/* テキストのみでも使うシンプルな図形 (rules, bars, rectangles, circles): on unless the style says shapes: 'none' */
+J.simpleShapes = st => !!(st && st.textOnly && st.shapes !== 'none');
+J.drawItem = (env, it) => {
+  const ctx = env.ctx;
+  // テキストのみ: type under 3% of the frame is filler (sub-captions, repeated fine print), not the lyric being sung
+  if (env.st && env.st.textOnly && !env.inLayer) {
+    const m = Math.min(env.W || 1e9, env.H || 1e9);
+    if (it.size < 0.03 * m) return null;
+    // …and a small run of the line repeated over and over is a texture, not the lyric
+    if (it.size < 0.06 * m && env.cut && [...String(it.text).replace(/\s/g, '')].length > 1.8 * Math.max(4, [...String(env.cut.lineText || env.cut.text || '').replace(/\s/g, '')].length)) return null;
+  }
+  if (!ctx.jzPlain) return drawItemCore(env, it);
+  J.plainOff(ctx);
+  try { return drawItemCore(env, readable(env, it)); } finally { J.plainOn(ctx); }
 };
 
 /* 太さ: growth 0..1 of the current cut (never exactly 0, so it also means "on"); eased, over the first half of the cut */

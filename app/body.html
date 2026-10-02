@@ -53,6 +53,7 @@
             <li><code>*透明*</code> … 強調（大きく・インパクト寄りの演出）</li>
             <li>行末の <code>!</code> … フラッシュと揺れを入れる</li>
             <li><code>歌詞|ruby or note</code> … 注釈レイアウトの小さな文字</li>
+            <li><code>漢字《かんじ》</code> <code>｜夜明け《よあけ》</code> … ルビ（振り仮名）。「明朝とルビ」などで漢字の横・上に出ます</li>
             <li><code>[01:23.45]歌詞</code> … LRC のタイムスタンプをそのまま使用</li>
             <li><code>[間奏 8]</code> … 8秒の間奏（歌詞は出さず、背景と装飾だけ）。秒数を省くと4秒、タップ同期やマーカーで長さを合わせられます</li>
             <li><code>#</code> で始まる行 … コメント（無視）</li>
@@ -108,9 +109,35 @@
           <button id="tlOut" class="ghost small icon-txt" title="縮小" aria-label="タイムラインを縮小">−</button>
           <button id="tlIn" class="ghost small icon-txt" title="拡大（タイムライン上でホイールでも）" aria-label="タイムラインを拡大">＋</button>
           <button id="tlFit" class="ghost small" title="全体を表示">全体</button>
+          <button id="tlTempo" class="ghost small" aria-pressed="false" title="BPM の変化をグラフで描きます（DJ ミックスなど、途中でテンポが変わる曲に）">BPMグラフ</button>
         </span>
       </div>
+      <div class="pv-bar" role="group" aria-label="プレビュー範囲">
+        <span class="muted pv-label" title="再生をこの範囲だけにします（書き出しの範囲は変わりません）。キー I / O で現在位置を開始 / 終了に">プレビュー範囲</span>
+        <label class="field pv-field">開始<input id="pvIn" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="00:00.00" aria-label="プレビューの開始時刻"></label>
+        <button id="pvInHere" class="ghost small" title="現在位置を開始にする（キー I）">現在位置</button>
+        <label class="field pv-field">終了<input id="pvOut" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="曲の終わり" aria-label="プレビューの終了時刻"></label>
+        <button id="pvOutHere" class="ghost small" title="現在位置を終了にする（キー O）">現在位置</button>
+        <button id="pvClear" class="ghost small" title="範囲を解除して曲全体を再生">解除</button>
+      </div>
       <canvas id="timeline" aria-label="タイムライン（クリックで移動・行の区切りはドラッグで調整）"></canvas>
+      <div id="tempoWrap" class="tempo-wrap" hidden>
+        <canvas id="tempoLane" aria-label="BPM グラフ"></canvas>
+        <div class="tempo-bar">
+          <span class="muted tempo-hint">クリックで点を追加・ドラッグで移動（上下で BPM、左右で時刻）・右クリックで削除</span>
+          <span id="tempoSel" class="tempo-sel" hidden>
+            <label class="field">時刻（秒）<input id="tpT" type="number" min="0" step="0.01"></label>
+            <label class="field">BPM<input id="tpB" type="number" min="20" max="400" step="0.01"></label>
+            <label class="row"><input id="tpRamp" type="checkbox"> 前の点からなめらかに変化</label>
+            <label class="row"><input id="tpAnchor" type="checkbox"> ここを拍の頭にする</label>
+            <button id="tpDetect" class="ghost small" title="この点から先の約16秒の BPM を曲から検出します">曲から検出</button>
+            <button id="tpDel" class="ghost small">点を消す</button>
+          </span>
+          <button id="tpAddHere" class="ghost small">再生位置に点を追加</button>
+          <button id="tpAuto" class="ghost small" title="読み込んだ曲の BPM を 4 秒ごとに読み、変わるところに点を置きます（あとから直せます）">曲から自動で作る</button>
+          <button id="tpClear" class="ghost small">グラフを消す</button>
+        </div>
+      </div>
       <div class="cutinfo" id="cutInfo"></div>
       <div id="cutPick" class="cut-pick pro-only" hidden>
         <div class="cut-pick-h">
@@ -195,6 +222,16 @@
           <button id="btnAddFont">追加</button>
         </div>
         <div class="row" style="margin-top:8px"><label class="file">フォントファイル（.ttf/.otf）<input id="fontFile" type="file" accept=".ttf,.otf,.woff,.woff2"></label></div>
+        <h3>Adobe Fonts</h3>
+        <div class="row">
+          <input id="adobeKit" type="text" placeholder="Web プロジェクト ID（例: abc1def）" style="flex:1" autocomplete="off" spellcheck="false">
+          <button id="btnAdobeKit">キットを読み込む</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <input id="adobeFamily" type="text" placeholder="CSS で使うフォント名（例: a-otf-ryumin-pr6n）" style="flex:1" autocomplete="off" spellcheck="false">
+          <button id="btnAdobeFamily">書体を追加</button>
+        </div>
+        <small class="muted adobe-note">Adobe Fonts の Web プロジェクトに、このページのドメインを登録してから ID を入れてください。キットの書体はフォントの役割で選べます</small>
         <h3>アクセント・ズレ色</h3>
         <label class="check"><input id="accentOn" type="checkbox"><span>自分の色で上書き<small>全シーンに適用。背景に合わせて明るさを自動調整します</small></span></label>
         <div class="color-row" id="colorRowAccent"></div>
@@ -208,6 +245,12 @@
       </div>
 
       <div class="tabpane" data-pane="fx" hidden>
+        <div class="calm-box">
+          <label class="check" title="画面効果・つなぎ・カメラの動き・装飾・文字の加工をまとめて切り、全部の行を同じ動きにします"><input id="calmOn" type="checkbox"><span>落ち着いた演出</span></label>
+          <label class="field calm-field">動き<select id="calmMotion" aria-label="落ち着いた演出の動き"><option value="fade">フェード</option><option value="chars">一字ずつフェード</option><option value="wipe">ワイプ</option><option value="cut">動きなし</option></select></label>
+          <label class="check" title="文字を自分で動かすレイアウトを、中央・縦組・大きく・積み重ねのどれかに置き換えます"><input id="calmLayouts" type="checkbox" checked><span>レイアウトも控えめに</span></label>
+          <small class="muted calm-note">行ごと・カットごとに指定した設定とロックした行はそのまま使います。オフにすれば元の演出に戻ります。</small>
+        </div>
         <div class="unify-box">
           <label class="check"><input class="unify-toggle" type="checkbox"><span>統一感</span></label>
           <label class="check"><input class="typeset-toggle" type="checkbox"><span>文字整列</span></label>
