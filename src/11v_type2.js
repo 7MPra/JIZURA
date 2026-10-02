@@ -55,15 +55,28 @@ reg('tyCropSlide', {
   render(env) {
     const { W, H, sc } = env, c = env.cut, Pm = c.params, port = K.isPort(env);
     const text = upper(K.hasLatin(c.text) ? String(c.text).trim() : K.strip(c.text));
-    const size = H * (port ? 0.42 : 0.78);
-    const w = J.measure({ text, font: Pm.font, size, track: -0.02 }).w;
-    const travel = Math.max(W * 0.3, w - W * 0.6);                  // the word crosses at least a third of the frame
+    // bigger than the frame, but not so big that its ends never come into it: at most 1.5 frame widths, and the slide
+    // runs from the first glyph inside the left edge to the last inside the right (each glyph is whole at some point)
+    const size0 = H * (port ? 0.42 : 0.78), w0 = J.measure({ text, font: Pm.font, size: size0, track: -0.02 }).w;
+    const size = Math.min(size0, size0 * W * 1.5 / Math.max(1, w0)), w = w0 * size / size0;
+    const travel = Math.max(W * 0.3, w - W * 0.9);                  // the word crosses at least a third of the frame
     // progress: stepped on the beat (each beat a quick shove), or one continuous glide
+    // the slide runs between the entrance and the exit, so both ends of the word hold still in the frame for a moment
+    // (over the whole cut, the start was spent in the entrance and the end in the exit: the first / last glyph never read)
+    const t0 = c.inDur || 0, D = Math.max(0.3, c.dur - t0 - (c.outDur || 0)), lt = env.lt - t0;
     let p;
     if (Pm.steps) {
-      const bl = K.beatLen(env, c.start), nB = Math.max(1, Math.round(c.dur / bl)), i = Math.min(nB - 1, Math.floor(env.lt / bl));
-      p = (i + E.outExpo(clamp((env.lt - i * bl) / Math.min(0.2, bl * 0.6)))) / nB;
-    } else p = E.inOutSine(clamp(env.lt / c.dur));
+      // shoves on the beats nearest to even steps through the slide
+      const bl = K.beatLen(env, c.start), nS = clamp(Math.round(D / bl), 2, 6), seg = D / nS, bs = (env.plan && env.plan.beats) || [];
+      const at = [];
+      for (let j = 1; j < nS; j++) {
+        let tj = j * seg;
+        for (const b of bs) { const r = b - c.start - t0; if (Math.abs(r - j * seg) < seg * 0.4 && Math.abs(r - j * seg) < Math.abs(tj - j * seg) + 1e-9) tj = r; if (r > D) break; }
+        at.push(tj);
+      }
+      let j = 0; while (j < at.length && lt >= at[j]) j++;
+      p = j ? (j - 1 + E.outExpo(clamp((lt - at[j - 1]) / Math.min(0.2, seg * 0.6)))) / (nS - 1) : 0;
+    } else p = E.inOutSine(clamp((lt - D * 0.2) / (D * 0.6)));
     const x = W / 2 + Pm.dir * (travel / 2 - travel * p);
     return J.mainDraw(env, { text, font: Pm.font, size, x, y: H * (Pm.y || 0.5), track: -0.02, color: sc.fg, mi: 0 });
   },

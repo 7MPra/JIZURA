@@ -9,6 +9,7 @@ alpha become a track, and the tracks are judged:
   jitter      the direction of travel flips step after step (shaking that reads as noise, not as a hit)
   flicker     visible → gone → visible within a few steps, off the beat
   frozen      nothing at all moves, grows or fades for > 2.5 s (a slide, not a video)
+  cropped     > 15% of the lyric's characters are never inside the frame while still (a giant word sliding past its crop)
 Flags are counted per part (enter / exit / hold / cam / layout, by the phase of the cut they happen in), and the
 worst cuts get a strip: frames across the cut with the glyph paths drawn over them.
 usage: python3 dev/motion_review.py [runs=8] [first=1] [outdir=dev/review/motion]   (dev/www built and served on :8765)
@@ -172,7 +173,8 @@ def analyse(res):
         tEx, tIn = c['end'] - c['outDur'] - 0.06, c['start'] + c['inDur'] + 0.06
         msize = {k: sorted(T[k][t][2] for t in v[0])[len(v[0]) // 2] for k, v in G.items() if v[0]}
         big = max(msize.values(), default=0)
-        main = {k: v for k, v in G.items() if len(v[0]) >= 2 and v[0][0] < tEx and v[0][-1] > tIn and msize[k] >= 0.3 * big}
+        line = {k: v for k, v in G.items() if len(v[0]) >= 2 and v[0][0] < tEx and v[0][-1] > tIn}
+        main = {k: v for k, v in line.items() if msize[k] >= 0.3 * big}
         cov = {}
         for gv, _ in main.values():
             for t in gv: cov[t] = cov.get(t, 0) + 1
@@ -185,7 +187,18 @@ def analyse(res):
             settles.append((gs[0] - gv[0]) if gs else dur)
         readT = sorted(rts)[len(rts) // 2] if rts else 0
         tRead = sorted(settles)[len(settles) // 2] if settles else None
+        # cropped: characters of the lyric that are never inside the frame while still (a giant word sliding past its crop)
+        FW, FH = res['W'] / min(res['W'], res['H']), res['H'] / min(res['W'], res['H'])
+        seen = {}
+        for k, (gv, gs) in line.items():          # (any size: a small line next to a big key word counts)
+            ok = any(0 <= T[k][t][0] <= FW and 0 <= T[k][t][1] <= FH and T[k][t][0] - 0.3 * T[k][t][2] >= 0 and T[k][t][0] + 0.3 * T[k][t][2] <= FW for t in gs)
+            if ok: seen[k[0]] = seen.get(k[0], 0) + 1
+        want = {}
+        for ch in str(c['text']):
+            if ch.strip() and ch.isalnum(): want[ch] = want.get(ch, 0) + 1
+        missing = sum(max(0, v - seen.get(ch, 0)) for ch, v in want.items())
         flags = set(k for k, *_ in ev)
+        if want and missing >= 1 and missing > 0.15 * sum(want.values()): flags.add('cropped')
         if dur >= 0.8 and main and fails > 0.3 * len(main): flags.add('unreadable')
         if tRead is not None and tRead > max(0.5, 0.4 * dur): flags.add('slowsettle')
         # frozen: the longest stretch with nothing changing at all
@@ -199,7 +212,7 @@ def analyse(res):
     return out
 
 def parts_of(c, kind, ph):
-    if kind in ('unreadable', 'slowsettle', 'frozen', 'empty'): return ['layout:' + c['layout'], 'hold:' + c['hold'], 'cam:' + c['cam']] + (['enter:' + c['enter']] if kind == 'slowsettle' else [])
+    if kind in ('unreadable', 'slowsettle', 'frozen', 'empty', 'cropped'): return ['layout:' + c['layout'], 'hold:' + c['hold'], 'cam:' + c['cam']] + (['enter:' + c['enter']] if kind == 'slowsettle' else [])
     if ph == 'enter': return ['enter:' + c['enter'], 'layout:' + c['layout']]
     if ph == 'exit': return ['exit:' + c['exit'], 'layout:' + c['layout']]
     return ['hold:' + c['hold'], 'cam:' + c['cam'], 'layout:' + c['layout']]
