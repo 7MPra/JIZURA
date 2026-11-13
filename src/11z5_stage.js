@@ -64,8 +64,7 @@ function stackIn(c, box, units, u0, lead, side) {
   const n = units.length, out = [];
   const leadH = box.h * (n <= 1 ? 0.62 : n === 2 ? 0.5 : n === 3 ? 0.42 : 0.36);
   const sizes = units.map((w, i) => (i === lead ? fit(w, c.fd, box.w, leadH, { track: TRK.d }) : 0));
-  const lat = hasLatin(c.text) && !isJP(c.text);
-  const sub = clamp(sizes[lead] * (lat ? 0.5 : 0.4), c.U * 0.062, c.U * 0.16);
+  const sub = clamp(sizes[lead] * (n <= 2 ? 0.42 : n === 3 ? 0.36 : 0.3), c.U * 0.058, c.U * 0.16);
   units.forEach((w, i) => { if (i !== lead) sizes[i] = fit(w, c.fb, box.w * 0.92, sub, { track: TRK.b }); });
   const lh = i => sizes[i] * (i === lead ? 1.02 : 1.42);
   let tot = units.reduce((a, _, i) => a + lh(i), 0);
@@ -82,7 +81,7 @@ function stackIn(c, box, units, u0, lead, side) {
 const COMPOSE = {
   /* 組み: a flush stack */
   stStack(c) {
-    const n = Math.min(c.units.length, 5), units = c.merge(n), lead = leadOf(units, c.cut, c.plan);
+    const n = Math.min(c.units.length, isJP(c.text) ? 4 : 3), units = c.merge(n), lead = leadOf(units, c.cut, c.plan);
     const side = c.v.side;
     const blocks = stackIn(c, { x: 0, y: 0, w: c.W - 2 * c.m, h: c.H * (c.port ? 0.62 : 0.76) }, units, 0, lead, side);
     return { blocks, n: units.length, lead };
@@ -158,7 +157,7 @@ const COMPOSE = {
   },
   /* 分割: the page cut in two colour fields, the line set across both */
   stSplit(c) {
-    const units = c.merge(Math.min(c.units.length, 4)), n = units.length, cutAt = n <= 1 ? 0 : Math.max(1, Math.round(n / 2));
+    const units = c.merge(Math.min(c.units.length, 3)), n = units.length, cutAt = n <= 1 ? 0 : Math.max(1, Math.round(n / 2));
     // two sides only when both halves are short enough to be set large in their field; otherwise the line stays whole
     // and the edge between the fields runs through it
     const short = t => (hasLatin(t) && !isJP(t) ? t.length <= 7 : glyphs(t).length <= 4);
@@ -168,7 +167,7 @@ const COMPOSE = {
     const A = horiz ? { x: -c.W / 2 + c.W * k / 2, y: 0, w: c.W * k - c.m * 1.6, h: c.H * 0.7 } : { x: 0, y: -c.H / 2 + c.H * k / 2, w: c.W - 2 * c.m, h: c.H * k - c.m * 2.4 };
     const B = horiz ? { x: -c.W / 2 + c.W * k + c.W * (1 - k) / 2, y: 0, w: c.W * (1 - k) - c.m * 1.6, h: c.H * 0.7 } : { x: 0, y: -c.H / 2 + c.H * k + c.H * (1 - k) / 2, w: c.W - 2 * c.m, h: c.H * (1 - k) - c.m * 2.4 };
     let blocks;
-    if (!two) blocks = stackIn(c, { x: 0, y: 0, w: c.W - 2 * c.m, h: c.H * 0.6 }, units, 0, leadOf(units, c.cut, c.plan), 0);
+    if (!two) blocks = stackIn(c, { x: 0, y: 0, w: c.W - 2 * c.m, h: c.H * 0.72 }, units, 0, leadOf(units, c.cut, c.plan), 0);
     else {
       const ua = units.slice(0, cutAt), ub = units.slice(cutAt);
       blocks = stackIn(c, A, ua, 0, leadOf(ua, c.cut, c.plan), horiz ? 1 : -1).concat(stackIn(c, B, ub, cutAt, leadOf(ub, c.cut, c.plan), -1));
@@ -303,7 +302,9 @@ function compose(plan, sh) {
     if (b.solo && b.u > 0 && pool.slam) b.enter = 'slam';
   }
   for (const g of comp.geo) g.t0 = (g.tu != null ? comp.ts[Math.min(g.tu, comp.ts.length - 1)] || 0 : g.t || 0) + (g.lead || 0);
-  comp.ghost = !!P.ghost && comp.blocks.length > 1 && !comp.blocks.some(b => b.solo);
+  // words waiting to be sung: all of them as hairline outlines (true), only the lead as an outline ('lead') or as a
+  // faint fill ('dim') — so the page has its composition from the first moment and the lead is anticipated
+  comp.ghost = P.ghost && comp.blocks.length > 1 && !comp.blocks.some(b => b.solo) ? P.ghost : null;
   sh.comp = comp; sh.compGen = gen;
   return comp;
 }
@@ -352,9 +353,10 @@ function drawBlocks(env, comp, lt, pal, sh, U) {
     const n = Math.max(1, glyphs(b.text).length);
     // not sung yet: nothing, or (ghost presets) the word waiting as a hairline outline
     if (dt < 0) {
-      if (comp.ghost) {
-        const a = SOFT(clamp((lt + 0.02 - bi * 0.03) / 0.35)) * 0.5 * (exitAt != null ? 1 - clamp((lt - exitAt) / 0.2) : 1);
-        if (a > 0.01) J.drawItem(env, { text: b.text, font: b.font, size: b.size, x: b.x, y: b.y, track: b.track, vertical: b.vertical, lead: b.lh, fill: false, stroke: Math.max(1.2, b.size * 0.011), strokeColor: pal.fg, color: pal.fg, alpha: a });
+      if (comp.ghost === true || (comp.ghost && b.lead)) {
+        const a = SOFT(clamp((lt + 0.02 - bi * 0.03) / 0.35)) * (exitAt != null ? 1 - clamp((lt - exitAt) / 0.2) : 1);
+        const g = { text: b.text, font: b.font, size: b.size, x: b.x, y: b.y, track: b.track, vertical: b.vertical, lead: b.lh, color: pal.fg };
+        if (a > 0.01) J.drawItem(env, comp.ghost === 'dim' ? Object.assign(g, { alpha: a * 0.09 }) : Object.assign(g, { fill: false, stroke: Math.max(1.2, b.size * 0.011), strokeColor: pal.fg, alpha: a * (comp.ghost === true ? 0.5 : 0.38) }));
       }
       continue;
     }
@@ -410,7 +412,6 @@ function drawIdle(ctx, plan, sh, lt, pal, beat, U) {
   ctx.save(); ctx.globalAlpha = a; ctx.strokeStyle = pal.accent; ctx.fillStyle = pal.accent; ctx.lineWidth = Math.max(1.5, U * 0.003);
   if (kind === 'ring') {
     ctx.beginPath(); ctx.arc(0, 0, U * (0.12 + 0.02 * bk), 0, TAU); ctx.stroke();
-    ctx.beginPath(); ctx.arc(0, 0, U * 0.012, 0, TAU); ctx.fill();
   } else if (kind === 'disc') {
     ctx.beginPath(); ctx.arc(0, 0, U * (0.05 + 0.035 * bk), 0, TAU); ctx.fill();
   } else if (kind === 'bars') {
@@ -555,12 +556,13 @@ function stageFrame(R, ctx, plan, t, opt) {
   else {
     const A = R.stA || (R.stA = mk(2, 2)); if (A.width !== cw || A.height !== ch) { A.width = cw; A.height = ch; }
     const ax = A.getContext('2d'), shutter = 0.5 / 24 * mb;
-    ctx.globalCompositeOperation = 'lighter';
+    // a running mean (sample k over the mean so far at 1/(k+1)): adding N samples at 1/N each drifts in 8 bits
     for (let k = 0; k < N; k++) {
       ax.setTransform(1, 0, 0, 1, 0, 0); ax.globalAlpha = 1; ax.globalCompositeOperation = 'source-over'; ax.clearRect(0, 0, cw, ch);
       ax.setTransform(scale, 0, 0, scale, 0, 0);
       drawWorld(R, ax, plan, t - shutter * (k / (N - 1) - 0.5), o);
-      ctx.globalAlpha = 1 / N; ctx.drawImage(A, 0, 0);
+      if (k === 0) { ctx.globalCompositeOperation = 'copy'; ctx.globalAlpha = 1; } else { ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1 / (k + 1); }
+      ctx.drawImage(A, 0, 0);
     }
   }
   ctx.restore();
@@ -635,7 +637,7 @@ const STYLES = {
     fonts: { display: ['gothic_black'], serif: ['mincho_black'], body: ['gothic_med'], mono: ['mono'] },
     pool: pool({ stStack: 1.3, stMono: 1, stCross: 1, stSplit: 0.7 }), oneCut: 0.9,
     stage: { travel: { turn: 1.2, pan: 0.6, dolly: 0.35 }, dirs: [[1, 0], [0, 1], [1, 0], [0, -1]], scales: [1, 1, 0.72, 1.3], enter: { lead: { slam: 1, rise: 0.8 }, sub: { rise: 1, slide: 0.5 } },
-      geo: { plate: 1.2, disc: 1, bar: 0.5, none: 0.5 }, push: 0.04, pulse: 0.012, arc: 0.16, grain: 0.5, idle: 'bars', blur: 1 },
+      geo: { plate: 1.2, disc: 1, bar: 0.5, none: 0.5 }, ghost: 'lead', push: 0.04, pulse: 0.012, arc: 0.16, grain: 0.5, idle: 'bars', blur: 1 },
     adobeFonts: { display: ['ad_ryogo_ub'], body: ['ad_ryogo_m'] },
   },
   /* 余白 — warm paper and ink, Mincho, wide margins; hairlines and one small vermilion disc. Slow pans. */
@@ -645,7 +647,7 @@ const STYLES = {
     fonts: { display: ['shippori'], serif: ['mincho_bold'], body: ['mincho'], mono: ['mono'] },
     pool: pool({ stColumn: 1.5, stAxis: 1, stCross: 0.8, stStack: 0.6 }), oneCut: 1,
     stage: { travel: { pan: 1.4, dolly: 0.3 }, dirs: [[-1, 0], [-1, 0], [0, 1], [-1, 0], [0, -1]], scales: [1, 1, 0.8, 1.2], enter: { lead: { track: 1, focus: 0.7, drop: 1 }, sub: { track: 0.6, rise: 0.8, drop: 1 } },
-      geo: { rule: 1.4, ring: 1, disc: 0.5, none: 0.8 }, push: 0.05, pulse: 0, arc: 0.06, moveDur: 1.35, grain: 0.75, idle: 'ring', blur: 0.8 },
+      geo: { rule: 1.4, ring: 1, disc: 0.5, none: 0.8 }, ghost: 'dim', push: 0.05, pulse: 0, arc: 0.06, moveDur: 1.35, grain: 0.75, idle: 'ring', blur: 0.8 },
     adobeFonts: { display: ['ad_ryodisp_h'], body: ['ad_tsukua'] },
   },
   /* 色面 — colour fields. Every page has its own colour; the edge between two pages slides through the frame. */
@@ -665,7 +667,7 @@ const STYLES = {
     fonts: { display: ['gothic_bold'], serif: ['mincho_bold'], body: ['gothic_light'], mono: ['mono'] },
     pool: pool({ stMono: 1.3, stStack: 1, stAxis: 0.8, stColumn: 0.6 }), oneCut: 0.9,
     stage: { travel: { dolly: 1 }, tilts: [0, 0, -6, 6, 0, 90], dollyScale: 0.14, enter: { lead: { focus: 1.2, track: 0.6 }, sub: { focus: 1, rise: 0.5 } },
-      geo: { ring: 1.2, rule: 0.8, disc: 0.7, none: 0.7 }, push: 0.07, pulse: 0.006, moveDur: 1.25, grain: 0.6, vignette: 0.22, idle: 'ring', blur: 1 },
+      geo: { ring: 1.2, rule: 0.8, disc: 0.7, none: 0.7 }, ghost: 'dim', push: 0.07, pulse: 0.006, moveDur: 1.25, grain: 0.6, vignette: 0.22, idle: 'ring', blur: 1 },
     adobeFonts: { display: ['ad_shs_b'], body: ['ad_shs_l'] },
   },
   /* 明滅 — black / white / acid. Hard cuts on the beat, one word a beat, the disc as the only figure. */
@@ -675,7 +677,7 @@ const STYLES = {
     fonts: { display: ['dela'], serif: ['mincho_black'], body: ['gothic_black'], mono: ['mono'] },
     pool: pool({ stMono: 2, stStack: 0.8, stSplit: 0.6 }), oneCut: 0.5,
     stage: { travel: { cut: 1.4, pan: 0.5, turn: 0.4 }, dirs: [[0, 1], [1, 0], [0, -1], [-1, 0]], scales: [1, 1.4, 0.7], enter: { lead: { slam: 1 }, sub: { slide: 1 } },
-      geo: { disc: 1.4, plate: 0.6, bar: 0.4, none: 0.8 }, push: 0.02, pulse: 0.02, arc: 0.2, moveDur: 0.8, grain: 0.4, idle: 'disc', blur: 1 },
+      geo: { disc: 1.4, plate: 0.6, bar: 0.4, none: 0.8 }, ghost: 'lead', push: 0.02, pulse: 0.02, arc: 0.2, moveDur: 0.8, grain: 0.4, idle: 'disc', blur: 1 },
     adobeFonts: { display: ['ad_ryogo_ub'], body: ['ad_ryogo_h'] },
   },
 };
