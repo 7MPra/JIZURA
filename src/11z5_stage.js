@@ -40,8 +40,21 @@ const keySafe = c => {
   if (sat < 0.25 || h < 70 || h > 175) return c;
   return J.hsl(h < 115 ? 52 : 192, sat, Math.min(l, 0.62));
 };
+/* グリーンバック (PR #2 の原則に合わせて): the type is white on the key, always. A style colour is used only as a third
+   colour — the plates, discs and the lit band of a wall — and only on those can the type be something other than white
+   (dark, when white would not read on that colour). */
+const chroma = c => { const [, sat, l] = J.toHsl(c); return sat * (1 - Math.abs(2 * l - 1)); };
 J.keyColourStyle = st => {
-  st.schemes = st.schemes.map(s => { const o = {}; for (const [k, v] of Object.entries(s)) o[k] = keySafe(v); return o; });
+  const hex = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
+  // the style's own colour: the most chromatic one any of its schemes uses (a scheme with none takes it too)
+  const all = st.schemes.flatMap(s => [s.accent, s.bg, s.fg, s.accent2]).filter(hex), sig = all.slice().sort((a, b) => chroma(b) - chroma(a))[0];
+  st.schemes = st.schemes.map(s => {
+    const cols = [s.accent, s.bg, s.fg, s.accent2].filter(hex);
+    const third = keySafe(cols.filter(c => chroma(c) > 0.25).sort((a, b) => chroma(b) - chroma(a))[0] || (sig && chroma(sig) > 0.25 ? sig : s.accent));
+    const dark = cols.slice().sort((a, b) => J.lum(a) - J.lum(b))[0];
+    const onThird = J.contrast('#FFFFFF', third) >= 2.4 ? '#FFFFFF' : (J.lum(dark) < 0.2 ? dark : '#111111');
+    return { bg: J.KEY_BG.green, fg: '#FFFFFF', sub: '#D2D2D2', accent: third, accent2: '#FFFFFF', ink: '#FFFFFF', dim: '#1E1E1E', ghostA: '#9A9A9A', ghostB: '#5E5E5E', lensFg: onThird };
+  });
   st.texture = { grain: 0, paper: 0, scan: 0 };
   st.key = true; st.keyColour = true;
 };
@@ -289,7 +302,7 @@ function drawBlocks(env, comp, lt, pal, sh, U) {
   for (let bi = 0; bi < comp.blocks.length; bi++) {
     const b = comp.blocks[bi];
     const dt = lt - b.t;
-    const col = b.col === 'accent' ? pal.accent : pal.fg;
+    const col = b.col === 'accent' && !KEYG ? pal.accent : pal.fg;          // グリーンバック: white on the key
     const n = Math.max(1, glyphs(b.text).length);
     // not sung yet: nothing, or (ghost presets) the word waiting as a hairline outline
     if (dt < 0) {
@@ -452,7 +465,7 @@ const KIN = {
     let rot = [0, 0, -7, 6, 0, 90, -4, 0][hv % 8]; if (rot === 90 && (g > 3 || !x.jp)) rot = 0;
     const m100 = J.measure({ text: w, font: x.fd, size: 100, track: -0.04 }).w, span = rot === 90 ? H : W;
     const S = g <= 2 ? Math.min(H * 1.12, span * 1.7 / m100 * 100) : Math.min(H * 0.98, span * (1.14 + 0.26 * J.r(x.seed, k, 4)) / m100 * 100);
-    const P3 = FLAT ? [[0, pal.fg], [0, LP.bg], [0, pal.bg]][d.col[k]] : [[pal.bg, pal.fg], [LP.bg, LP.fg], [pal.fg, pal.bg]][d.col[k]];
+    const P3 = KEYG ? [0, pal.fg] : FLAT ? [[0, pal.fg], [0, LP.bg], [0, pal.bg]][d.col[k]] : [[pal.bg, pal.fg], [LP.bg, LP.fg], [pal.fg, pal.bg]][d.col[k]];
     if (d.col[k]) ground(ctx, P3[0]);
     const s = S * (1 + 0.3 * (1 - OUT(clamp(dt / 0.2)))) * (1 + 0.03 * dt);
     T(env, { text: w, font: x.fd, size: s, x: J.rs(x.seed, k, 5) * W * 0.05, y: J.rs(x.seed, k, 6) * H * 0.07, rot, track: -0.04, color: P3[1], alpha: outOf(sh, lt, 0.12) });
@@ -504,16 +517,17 @@ const KIN = {
     }
     if (lt < d.T1 + d.step * 0.6) d.G.forEach((ch, i) => {
       const q = (lt - i * d.step) / (d.step * 1.6); if (q < 0 || q >= 1) return;
-      T(env, { text: ch, font: x.fd, size: H * 0.42 * Math.pow(9, q), x: 0, y: 0, color: i % 2 ? pal.accent : pal.fg, alpha: (1 - J.smooth(0.55, 1, q)) * Math.min(1, q * 6) });
+      T(env, { text: ch, font: x.fd, size: H * 0.42 * Math.pow(9, q), x: 0, y: 0, color: i % 2 && !KEYG ? pal.accent : pal.fg, alpha: (1 - J.smooth(0.55, 1, q)) * Math.min(1, q * 6) });
     });
     const dt = lt - d.T1; if (dt < 0) return;
     ground(ctx, LP.bg);
     const sk = Math.exp(-dt * 9) * U * 0.014, st = Math.floor(lt * 24);
-    T(env, { text: d.t, font: x.fd, size: d.S * (1 + 0.55 * (1 - OUT(clamp(dt / 0.22)))) * (1 + 0.04 * dt) * (1 + (beat && dt > 0.3 ? 0.05 * Math.exp(-beat.since * 8) : 0)), x: J.rs(st, 1) * sk, y: J.rs(st, 2) * sk, track: TRK.d, lead: 1.04, color: FLAT ? LP.bg : LP.fg, alpha: outOf(sh, lt, 0.12) });
+    T(env, { text: d.t, font: x.fd, size: d.S * (1 + 0.55 * (1 - OUT(clamp(dt / 0.22)))) * (1 + 0.04 * dt) * (1 + (beat && dt > 0.3 ? 0.05 * Math.exp(-beat.since * 8) : 0)), x: J.rs(st, 1) * sk, y: J.rs(st, 2) * sk, track: TRK.d, lead: 1.04, color: KEYG ? pal.fg : FLAT ? LP.bg : LP.fg, alpha: outOf(sh, lt, 0.12) });
   },
 };
 const isRed = c => { const h = J.toHsl(c); return (h[0] < 28 || h[0] > 335) && h[1] > 0.45; };
 function lensPal(sc, g) {
+  if (sc.lensFg) return { bg: sc.accent, fg: sc.lensFg, accent: sc.lensFg };         // グリーンバック: the third colour
   // a red disc on a light ground is a flag, not an abstract figure: there the disc takes the text colour
   if (g && g.type === 'disc' && J.lum(sc.bg) > 0.6 && isRed(sc.accent)) return { bg: sc.fg, fg: sc.bg, accent: sc.accent };
   const bg = sc.accent, a = J.contrast(sc.bg, bg), b = J.contrast(sc.fg, bg);
@@ -522,7 +536,7 @@ function lensPal(sc, g) {
 }
 function drawShot(env, plan, sh, lt, beat) {
   const ctx = env.ctx, sc = env.sc, U = Math.min(plan.W, plan.H);
-  const pal = { bg: sc.bg, fg: sc.fg, accent: J.contrast(sc.accent, sc.bg) >= 1.6 ? sc.accent : sc.fg };
+  const pal = { bg: sc.bg, fg: sc.fg, accent: KEYG ? sc.accent : J.contrast(sc.accent, sc.bg) >= 1.6 ? sc.accent : sc.fg };
   if (!sh.lyric) { drawIdle(ctx, plan, sh, lt, pal, beat, U); return; }
   if (KIN[sh.cut.layout]) { KIN[sh.cut.layout](env, sh, base(plan, sh), lt, pal, lensPal(sc, null), beat); return; }
   const comp = compose(plan, sh);
