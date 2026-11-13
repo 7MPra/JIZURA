@@ -9,6 +9,8 @@ Needs the local server: (cd dev/www && python3 -m http.server 8765 &)
 """
 import argparse, asyncio, base64, io, json, os, sys
 from playwright.async_api import async_playwright
+import os.path as _p, sys as _s; _s.path.insert(0, _p.dirname(_p.abspath(__file__)))
+from _chrome import launch_args   # $CHROME / $JIZURA_BROWSER, else the newest installed Chromium
 from PIL import Image, ImageDraw, ImageFont
 
 ap = argparse.ArgumentParser()
@@ -76,7 +78,7 @@ def sheet(rows, title, path):
 
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch(channel=os.environ.get("JIZURA_BROWSER") or None)
+        b = await p.chromium.launch(**launch_args())
         pg = await b.new_page(viewport={'width': 1280, 'height': 800})
         logs = []
         pg.on('console', lambda m: logs.append(f'{m.type}: {m.text}') if m.type in ('warning', 'error') and 'ERR_TUNNEL' not in m.text and 'Failed to load resource' not in m.text else None)

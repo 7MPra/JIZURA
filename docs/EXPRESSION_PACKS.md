@@ -187,6 +187,23 @@ also joins that part set, so its entries need both switches; 和風 entries carr
 has `en` (its English name, used by the non-Japanese editions). Adding to 追加分2 must not change what random picks give with
 the switch off.
 
+### Stage styles (ディレクション, `src/11z5_stage.js`)
+A style opts in with `stage: { kinds, travel, geo, … }` (`kinds` weights the scenes; see the presets at the end of the file);
+`Renderer.prototype.frame` is then routed to `J.stageFrame`, which draws the whole frame, with sub-frame motion blur while the
+camera travels. `J.plan` is wrapped by a *director*: for a stage style (not 中央を空ける, not 落ち着いた演出) it gives every lyric cut
+`cut.level` 0–3 (quiet / telling / strong / peak) from the loudness of the song, repeated lines, impact marks, line density and
+position, then reassigns `cut.layout` of every cut that was not set by hand, drawing from the scenes allowed at that level and never
+the same twice running; a two-level jump up is prepared by an empty moment and lands as a hard cut. The other planner picks
+(`enter` / `exit` / `cam` / `treat` / `decor` / `bg` / `trans`) are not used.
+The layouts of the set `stage` are `poolOnly` *scenes*, each a different grammar rather than another arrangement of the same page:
+`stWhisper` (0), `stStream`, `stPush`, `stStack`, `stColumn` (1), `stMono`, `stHit`, `stWall`, `stSlice` (2), `stZoom` (3) — the level is in
+the `LEVELS` table next to the director. Their `plan()` returns a few parameters; `render()` only serves thumbnails, a line set by hand in
+another style, and 中央を空ける (classic renderer). A stage style's `pool.layout` names all of them, and the planner keeps all of them
+enabled whatever the mood switched off. Declare `ae:` on each layout as usual (the After Effects export uses it).
+The set has no switch (`J.SETS.stage` is added after `J.SET_ORDER` is built); the styles are listed in `J.STAGE_STYLES`, shown as their own
+group in the style picker, and chosen by おまかせ about 60% of the time. Non-Japanese editions need names for styles (`app/english.js`,
+`app/i18n_*.py` `STYLES`) and layouts (`en:` on the layout; `PARTS` in a translation module).
+
 ### Avoid near-duplicates
 Before designing, list what already exists in your group: `node -e` is not enough for visuals — run
 `python3 dev/overview.py <group> out/ov t_all` (after `python3 dev/build_test.py all --all-packs`) and look at the grid. Every

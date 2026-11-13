@@ -51,6 +51,11 @@ STYLES = {
     'mpSpin': ('Chữ xoay', 'Gothic tròn đậm trên một màu: chữ bay vào theo góc riêng và chồng lên nhau trong khi cả khung hình xoay; một từ to hơn khung hình'),
     'mpRuby': ('Mincho & Ruby', 'Hai màu mực trên giấy, Mincho: một chữ Hán lớn kèm cách đọc, rơi xuống với nhòe chuyển động; câu cùng bóng phản chiếu (viết cách đọc là 漢字《かんじ》)'),
     'mpEllipse': ('Elip & Phụ đề', 'Gothic mảnh trên nền trắng: chữ mở ra trong vòng tròn và trượt theo một elip vô hình; cả câu luôn nhỏ ở dưới'),
+    'stTurn': ('Xoay một phần tư', 'Đen, trắng giấy và một sắc đỏ tín hiệu, chữ Gothic cực đậm. Câu lặng thì nhỏ; điệp khúc là một chữ lớn hơn khung hình và những nét chữ bị xé. Khung hình xoay chín mươi độ'),
+    'stYohaku': ('Khoảng trắng', 'Chữ Mincho mực trên giấy màu kem. Bắt đầu bằng chữ nhỏ và lề rộng; chỉ ở cao trào, chữ Mincho đầy khung hình mới trôi qua rồi bị xé'),
+    'stField': ('Mảng màu', 'Các mảng màu xanh cobalt, vàng và trắng. Lời bài hát thành một bức tường lấp đầy khung hình, máy quay chạy dọc theo một dòng dài. Ranh giới giữa các màu cắt ngang màn hình'),
+    'stDepth': ('Chiều sâu', 'Nền gần như đen, trắng lạnh và một điểm xanh bạc hà. Máy quay chỉ tiến về phía trước; ở cao trào, từng chữ lao xuyên qua máy quay'),
+    'stPulse': ('Nhịp sáng tối', 'Đen, trắng và vàng lục huỳnh quang. Mỗi nhịp một chữ lớn hơn khung hình, màu nền đổi theo từng cú cắt. Tương phản mạnh với những câu lặng'),
 }
 
 BODY = {
@@ -360,6 +365,9 @@ UI = {
     "{ name: 'ホラー', badge: 'ホ' }": "{ name: 'Kinh dị', badge: 'H' }",
     "{ name: '文字PV系', badge: '文' }": "{ name: 'Kiểu chữ', badge: 'T' }",
     "{ name: 'キネティック', badge: 'キ' }": "{ name: 'Kinetic (Chuyển động chữ)', badge: 'K' }",
+    "{ name: 'ディレクション', badge: '演' }": "{ name: 'Có đạo diễn', badge: 'D' }",
+    "heading('ディレクション')": "heading('Có đạo diễn')",
+    "heading('ほかのスタイル')": "heading('Kiểu khác')",
     "'スマホの画面では 1080p で書き出します'": "'Ở giao diện điện thoại, video được xuất tối đa 1080p'",
     "`読み込んだ書体（${[...new Set(lost)].join('・')}）がこのブラウザにないため、書き出しを止めました。「フォント」から同じファイルを読み込み直すか、別の書体を選んでください`": "`Phông chữ đã tải lên (${[...new Set(lost)].join(', ')}) không có trong trình duyệt này nên việc xuất đã dừng. Hãy tải lại cùng tệp ở mục Phông chữ, hoặc chọn phông chữ khác`",
     "`読み込んだ書体（${missing.join('・')}）がこのブラウザにありません。「フォント」から同じファイルを読み込み直してください（それまでは近い書体で表示します）`": "`Phông chữ đã tải lên (${missing.join(', ')}) không có trong trình duyệt này. Hãy tải lại cùng tệp ở mục Phông chữ (tạm thời sẽ dùng phông chữ tương tự)`",

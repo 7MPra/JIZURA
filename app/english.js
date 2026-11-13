@@ -234,7 +234,12 @@
     minimal: ['White Space', 'Thin Gothic and one big word on white; only space and scale'],
     mpSpin: ["Spinning Type", "A heavy round Gothic on one colour: words fly in at their own angles and pile up while the picture keeps turning; one word bigger than the frame"],
     mpRuby: ["Mincho & Ruby", "Two inks on paper, Mincho: one big kanji with its reading beside it, dropped in with a motion blur; a line with its reflection (write readings as 漢字《かんじ》)"],
-    mpEllipse: ["Ellipse & Caption", "A thin Gothic on white: glyphs open in circles and glide along an unseen ellipse; the whole line always small at the bottom"]
+    mpEllipse: ["Ellipse & Caption", "A thin Gothic on white: glyphs open in circles and glide along an unseen ellipse; the whole line always small at the bottom"],
+    stTurn: ['Quarter Turn', 'Black, paper white and one signal red in heavy Gothic. Quiet lines stay small; the chorus brings one word bigger than the frame and type that tears apart. The frame turns a quarter'],
+    stYohaku: ['Margin', 'Ink Mincho on unbleached paper. It starts with small type and wide margins; only the peaks run frame-filling Mincho that streams past and tears'],
+    stField: ['Colour Field', 'Fields of cobalt, yellow and white. The lyric becomes a wall that fills the frame, and the camera runs along a long line. The edges between colours cross the screen'],
+    stDepth: ['Depth', 'Near-black ground, cold white and one dot of mint. The camera only moves forward; at the peaks the glyphs fly through it one by one'],
+    stPulse: ['Pulse', 'Black, white and acid yellow-green. One word per beat, bigger than the frame, with the ground changing colour on each cut. Big contrast with the quiet lines']
   };
   for (const [key, [name, desc]] of Object.entries(styles)) {
     J.STYLES[key].name = name; J.STYLES[key].desc = desc;

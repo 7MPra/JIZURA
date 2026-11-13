@@ -225,10 +225,10 @@ function migrateOrder(o, p) {
     o.exportRange = idx.length ? { from: Math.min(...idx), to: Math.max(...idx) } : null;
   }
 }
-const SET_UI = { horror: { name: 'ホラー', badge: 'ホ' }, typo: { name: '文字PV系', badge: '文' }, kinetic: { name: 'キネティック', badge: 'キ' }, extra2: { name: '追加分2', badge: '追2' } };
+const SET_UI = { horror: { name: 'ホラー', badge: 'ホ' }, typo: { name: '文字PV系', badge: '文' }, kinetic: { name: 'キネティック', badge: 'キ' }, extra2: { name: '追加分2', badge: '追2' }, stage: { name: 'ディレクション', badge: '演' } };
 function setBadges(d) {
   return (d && d.extra ? '<span class="set-badge ex" title="最初の公開版のあとに追加">追加</span>' : '') + (d && d.wa ? '<span class="set-badge" title="和風の演出">和</span>' : '')
-    + (d && d.set && SET_UI[d.set] ? `<span class="set-badge set-${d.set}" title="${SET_UI[d.set].name}">${SET_UI[d.set].badge}</span>` : '')
+    + (d && (d.set || d.stage) && SET_UI[d.set || 'stage'] ? `<span class="set-badge set-${d.set || 'stage'}" title="${SET_UI[d.set || 'stage'].name}">${SET_UI[d.set || 'stage'].badge}</span>` : '')
     + (d && d.x2 && d.set !== 'extra2' ? `<span class="set-badge set-extra2" title="${SET_UI.extra2.name}">${SET_UI.extra2.badge}</span>` : '');
 }
 function loadLocal() { try { const s = localStorage.getItem(LS_KEY); if (s) return mergeProject(JSON.parse(s)); } catch (e) {} return mergeProject(null); }
@@ -1207,7 +1207,12 @@ function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp
 function drawStyleGrid() {
   const g = $('styleGrid');
   if (!g.children.length) {
-    J.STYLE_ORDER.forEach(k => {
+    // ディレクション (src/11z5_stage.js) first, as a group of its own; then the rest in registry order
+    const stageKeys = (J.STAGE_STYLES || []).filter(k => J.STYLES[k]);
+    const heading = t => { const h = document.createElement('h3'); h.className = 'style-group'; h.textContent = t; g.appendChild(h); };
+    if (stageKeys.length) heading('ディレクション');
+    [...stageKeys, ...(stageKeys.length ? ['\0'] : []), ...J.STYLE_ORDER.filter(k => !stageKeys.includes(k))].forEach(k => {
+      if (k === '\0') { heading('ほかのスタイル'); return; }
       const b = document.createElement('button'); b.className = 'stile'; b.dataset.k = k;
       b.title = J.STYLES[k].desc;
       b.innerHTML = `<canvas width="192" height="108"></canvas><span>${J.STYLES[k].name}</span><span class="badges">${setBadges(J.STYLES[k])}</span>`;
@@ -1215,7 +1220,7 @@ function drawStyleGrid() {
       g.appendChild(b);
     });
   }
-  [...g.children].forEach(b => {
+  [...g.children].filter(b => b.dataset.k).forEach(b => {
     const k = b.dataset.k, st = J.STYLES[k], sc = st.schemes[0], cv = b.querySelector('canvas'), x = cv.getContext('2d');
     b.setAttribute('aria-pressed', S.project.style === k ? 'true' : 'false');
     const off = !J.randomOk(S.project, 'style', k);
@@ -1423,6 +1428,8 @@ function rerollPart(part) {
   if (part === 'style') {
     let pool = J.STYLE_ORDER.filter(k => k !== P.style && J.randomOk(P, 'style', k));
     if (!pool.length) pool = J.STYLE_ORDER.filter(k => k !== P.style);
+    const sp = (J.STAGE_STYLES || []).filter(k => pool.includes(k)), rest = pool.filter(k => !sp.includes(k));   // ディレクション: 60% of the time, as in おまかせ
+    if (sp.length && rest.length) pool = Math.random() < 0.6 ? sp : rest;
     P.style = pool[Math.floor(Math.random() * pool.length)];
     P.colors.enabled = false;
     msg = `スタイル：${J.STYLES[P.style].name}`;

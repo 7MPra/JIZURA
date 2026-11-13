@@ -374,6 +374,9 @@ J.plan = (project, audio) => {
       if (on < want) for (const k of keys.filter(k => !en[g][k]).sort((a, b) => P[b] - P[a]).slice(0, want - on)) en[g][k] = true;
     }
   }
+  // ディレクション (src/11z5_stage.js): its layouts are the compositions the stage draws; a mood switching them off by tag
+  // must not leave the style without them — all of the pool's layouts stay on
+  if (st.stage && st.pool && st.pool.layout && en.layout) for (const k of Object.keys(st.pool.layout)) if ((J.registry('layout') || {})[k]) en.layout[k] = true;
   // 中央を空ける (キャラクター用): every cut is laid out in a side band — left / right on wide frames, top / bottom on tall
   // ones — alternating line by line; the centre keeps only the full-frame background and screen effects
   const zones = project.centerFree ? J.sideZones(W, H, project.centerDir) : null;
@@ -968,6 +971,12 @@ function pickLayout(rng, st, en, n, dur, history, emph, recap, portrait, text) {
     if (dur < 0.5 && ['wave', 'ring', 'labels', 'gloss', 'type', 'tile'].includes(k)) w *= 0.3;
     if (dur < 0.5 && ['center', 'huge', 'condensed', 'vcols'].includes(k)) w *= 1.4;
     cands.push([k, w]);
+  }
+  // ディレクション: none of its compositions takes this many words (a one-glyph line in a style without 一語 …): still one of
+  // its own — the stage draws every composition for any text — never a classic layout the stage would not draw
+  if (st.stage && st.pool && st.pool.layout && !cands.some(c => st.pool.layout[c[0]] != null)) {
+    const own = Object.keys(st.pool.layout).filter(k => en.layout[k] !== false && J.LAYOUTS[k]);
+    if (own.length) return rng.wpick(own.map(k => [k, st.pool.layout[k]]));
   }
   if (!cands.length) return 'center';
   // テキストのみ with its own pool: when none of the pool fits this cut (a long English line …), a plain setting —

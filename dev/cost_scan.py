@@ -2,6 +2,8 @@
 usage: python3 dev/cost_scan.py [page=t_all] [threshold_ms=45]"""
 import asyncio, os, sys
 from playwright.async_api import async_playwright
+import os.path as _p, sys as _s; _s.path.insert(0, _p.dirname(_p.abspath(__file__)))
+from _chrome import launch_args   # $CHROME / $JIZURA_BROWSER, else the newest installed Chromium
 PAGE = sys.argv[1] if len(sys.argv) > 1 else 't_all'
 TH = float(sys.argv[2]) if len(sys.argv) > 2 else 45
 JS = r"""
@@ -44,7 +46,7 @@ async (TH) => {
 }"""
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch(channel=os.environ.get("JIZURA_BROWSER") or None); pg = await b.new_page()
+        b = await p.chromium.launch(**launch_args()); pg = await b.new_page()
         await pg.goto(f'http://localhost:8765/{PAGE}.html'); await pg.wait_for_timeout(300)
         await pg.evaluate("p => T.setup(p)", {'lyrics': 'テスト'})
         r = await pg.evaluate(JS, TH)

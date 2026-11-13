@@ -49,6 +49,9 @@ def labels_js(code):
     out = names_js(code)
     if code in COMMUNITY: out += '\n' + open(COMMUNITY[code][1], encoding='utf-8').read()
     if code in PART_NAMES: out += '\n' + open(PART_NAMES[code], encoding='utf-8').read()
+    parts = getattr(module(code), 'PARTS', None)      # names of parts added later (after the community scripts, which label unknown keys with the English fallback)
+    if parts: out += ('(() => {\n  const P = ' + json.dumps(parts, ensure_ascii=False) + ';\n'
+                      '  for (const [g, nm] of Object.entries(P)) { const t = J.registry(g) || {}; for (const [k, n] of Object.entries(nm)) if (t[k]) t[k].name = n; }\n})();\n')
     return out
 
 

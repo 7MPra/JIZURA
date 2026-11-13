@@ -50,6 +50,11 @@ STYLES = {
     'mpSpin': ('Huruf Berputar', 'Gothic bulat tebal di atas satu warna: kata masuk dengan sudutnya sendiri dan menumpuk sementara gambar terus berputar; satu kata lebih besar dari layar'),
     'mpRuby': ('Mincho & Ruby', 'Dua tinta di atas kertas, Mincho: satu kanji besar dengan cara bacanya, jatuh dengan motion blur; baris dengan pantulannya (tulis bacaan sebagai 漢字《かんじ》)'),
     'mpEllipse': ('Elips & Takarir', 'Gothic tipis di atas putih: huruf terbuka dalam lingkaran dan meluncur di sepanjang elips tak terlihat; seluruh baris selalu kecil di bawah'),
+    'stTurn': ('Putaran Seperempat', 'Hitam, putih kertas, dan satu merah sinyal dalam Gothic super tebal. Baris tenang tetap kecil; di refrain muncul satu kata lebih besar dari layar dan huruf yang terbelah. Layar berputar sembilan puluh derajat'),
+    'stYohaku': ('Margin', 'Mincho tinta di atas kertas krem. Dimulai dengan huruf kecil dan margin lebar; hanya di puncak Mincho sebesar layar mengalir lewat dan terbelah'),
+    'stField': ('Bidang Warna', 'Bidang warna kobalt, kuning, dan putih. Lirik menjadi dinding yang memenuhi layar, dan kamera berlari di sepanjang satu baris panjang. Batas antarwarna melintasi layar'),
+    'stDepth': ('Kedalaman', 'Latar hampir hitam, putih dingin, dan satu titik mint. Kamera hanya bergerak maju; di puncak, huruf menembus kamera satu per satu'),
+    'stPulse': ('Denyut', 'Hitam, putih, dan hijau-kuning neon. Satu kata per ketukan, lebih besar dari layar, dengan warna latar berganti di setiap potongan. Kontras besar dengan baris yang tenang'),
 }
 
 BODY = {
@@ -301,6 +306,9 @@ UI = {
     "{ name: 'ホラー', badge: 'ホ' }": "{ name: 'Horor', badge: 'H' }",
     "{ name: '文字PV系', badge: '文' }": "{ name: 'Tipografi', badge: 'T' }",
     "{ name: 'キネティック', badge: 'キ' }": "{ name: 'Kinetik', badge: 'K' }",
+    "{ name: 'ディレクション', badge: '演' }": "{ name: 'Terarah', badge: 'D' }",
+    "heading('ディレクション')": "heading('Terarah')",
+    "heading('ほかのスタイル')": "heading('Gaya lain')",
     "'スマホの画面では 1080p で書き出します'": "'Di tampilan ponsel, ekspor maksimal 1080p'",
     "`読み込んだ書体（${[...new Set(lost)].join('・')}）がこのブラウザにないため、書き出しを止めました。「フォント」から同じファイルを読み込み直すか、別の書体を選んでください`": "`Font yang dimuat (${[...new Set(lost)].join(', ')}) tidak ada di browser ini, jadi ekspor dihentikan. Muat ulang file yang sama di Font, atau pilih font lain`",
     "`読み込んだ書体（${missing.join('・')}）がこのブラウザにありません。「フォント」から同じファイルを読み込み直してください（それまでは近い書体で表示します）`": "`Font yang dimuat (${missing.join(', ')}) tidak ada di browser ini. Muat ulang file yang sama di Font (sampai itu, dipakai font yang mirip)`",

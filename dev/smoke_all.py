@@ -2,6 +2,8 @@
 usage: python3 dev/smoke_all.py [page=t_all]"""
 import asyncio, json, os, sys
 from playwright.async_api import async_playwright
+import os.path as _p, sys as _s; _s.path.insert(0, _p.dirname(_p.abspath(__file__)))
+from _chrome import launch_args   # $CHROME / $JIZURA_BROWSER, else the newest installed Chromium
 PAGE = sys.argv[1] if len(sys.argv) > 1 else 't_all'
 JS = r"""
 async () => {
@@ -53,7 +55,7 @@ async () => {
 """
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch(channel=os.environ.get("JIZURA_BROWSER") or None)
+        b = await p.chromium.launch(**launch_args())
         pg = await b.new_page()
         errs = []
         pg.on('pageerror', lambda e: errs.append(str(e)))

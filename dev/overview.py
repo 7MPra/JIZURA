@@ -3,6 +3,8 @@ usage: python3 dev/overview.py GROUP OUTDIR  (GROUP: layout enter exit hold deco
        [page=t_all] [aspect=16:9] [style=noir] [phase=hold|enter|exit] [ids]"""
 import asyncio, base64, io, sys, os
 from playwright.async_api import async_playwright
+import os.path as _p, sys as _s; _s.path.insert(0, _p.dirname(_p.abspath(__file__)))
+from _chrome import launch_args   # $CHROME / $JIZURA_BROWSER, else the newest installed Chromium
 from PIL import Image, ImageDraw, ImageFont
 G, OUT = sys.argv[1], sys.argv[2]
 PAGE = sys.argv[3] if len(sys.argv) > 3 else 't_all'
@@ -20,7 +22,7 @@ TEXT = 'ほどけた声が鳴った'
 TEXT2 = '夜明けの色を'
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch(channel=os.environ.get("JIZURA_BROWSER") or None)
+        b = await p.chromium.launch(**launch_args())
         pg = await b.new_page()
         await pg.goto(f'http://localhost:8765/{PAGE}.html'); await pg.wait_for_timeout(300)
         await pg.evaluate("p => T.setup(p)", {'lyrics': 'テスト'})

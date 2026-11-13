@@ -7,7 +7,8 @@ import asyncio, json, os, random, sys
 from playwright.async_api import async_playwright
 from PIL import Image, ImageDraw, ImageFont
 
-CHROME = os.environ.get('CHROME', '/opt/pw-browsers/chromium-1194/chrome-linux/chrome')
+import os.path as _p, sys as _s; _s.path.insert(0, _p.dirname(_p.abspath(__file__)))
+from _chrome import CHROME   # $CHROME, else the newest installed Chromium
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 6
 FIRST = int(sys.argv[2]) if len(sys.argv) > 2 else 1
 OUT = sys.argv[3] if len(sys.argv) > 3 else 'dev/review'

@@ -119,6 +119,34 @@ The After Effects panels build all three sets too (with the same switches and th
 </details>
 
 <details>
+<summary><h3>Directed styles</h3></summary>
+
+The first group on the Style tab, **Directed** (badge D), holds five presets (`src/11z5_stage.js`). They read the song, give every line a level of intensity, and show it in a scene that fits that level, so a quiet line and a chorus line do not look like the same page.
+
+- **Quarter Turn** — black, paper white and one signal red in heavy Gothic. Quiet lines stay small; the chorus brings one word bigger than the frame and type that tears apart. The frame turns a quarter.
+- **Margin** — ink Mincho on unbleached paper. It starts with small type and wide margins; only the peaks run frame-filling Mincho that streams past and tears.
+- **Colour Field** — fields of cobalt, yellow and white. The lyric becomes a wall that fills the frame, and the camera runs along a long line. The edges between colours cross the screen.
+- **Depth** — near-black ground, cold white and one dot of mint. The camera only moves forward; at the peaks the glyphs fly through it one by one.
+- **Pulse** — black, white and acid yellow-green. One word per beat, bigger than the frame, with the ground changing colour on each cut. Large contrast with the quiet lines.
+
+**The director.** Before anything is drawn it gives every lyric cut a level, 0–3 (quiet, telling, strong, peak), from the loudness of the song at that point (when a song is loaded), lines that come back (a chorus), impact / emphasis marks, how dense the line is, and where it stands (the first line, the line after a pause). The scene is drawn from the level (each style weights the scenes) and is never the same twice running. A jump of two levels up is prepared by a moment of empty frame and lands as a hard cut. Layouts picked by hand for a line or a cut are kept.
+
+**The ten scenes** (layouts that only these styles use):
+
+- **Whisper** (level 0) — tiny type in a large empty frame, letters appearing one at a time, the spacing slowly opening.
+- **Stream** (1) — the line as one long row larger than the frame; the frame travels along it and each word fills as it is sung.
+- **Push** (1) — every word arrives from below and pushes the earlier ones up and smaller.
+- **Hit** (2) — one word a beat, bigger than the frame, each at its own angle and place; the ground changes colour.
+- **Wall** (2) — the line repeated in rows that fill the frame and run against each other; one row lit, moving on the beat.
+- **Slice** (2) — the line cut in horizontal bands that slide in from both sides and are knocked loose again on the beat.
+- **Zoom-through** (3) — the glyphs of the key word fly through the camera one after another, then the whole line slams in.
+- **Stack, One word, Column** — plain compositions used here and there at levels 0–2.
+
+The per-cut entrance, exit, camera, treatment, decoration, background and transition picks are ignored, because the stage draws the frame (a layout picked for a line or cut still applies). With **Calm** or **Keep the centre free** on, the director does not run and the ordinary renderer is used. Randomize and the style shuffle choose one of the five about 60% of the time. While the camera travels, each frame is the average of several sub-frames (motion blur), so export is slower than with other styles. The After Effects export replaces these layouts with the nearest classic ones; camera travel, blur and the scene motions are not reproduced there.
+
+</details>
+
+<details>
 <summary><h3>Lyric syntax and projects</h3></summary>
 
 Lyric syntax: `[interlude 8]` adds an 8-second instrumental part with background and decorations only (4 seconds without a number); `I remember/the dawn` makes a manual cut; `*word*` emphasizes a word; a final `!` adds a flash and shake; `lyric|note` adds small annotation text; `[01:23.45]lyric` imports an LRC timestamp; `# comment` is ignored.

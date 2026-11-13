@@ -373,12 +373,15 @@ dialog.terms a { color: var(--cyan); word-break: break-all; }
 .set-badge.set-typo { border-color: #9aa3ad; color: #c5ccd3; }
 .set-badge.set-kinetic { border-color: #7fbf6a; color: #9fd98a; }
 .set-badge.set-extra2 { border-color: #b08adf; color: #c9a8f0; }
+.set-badge.set-stage { border-color: #e8d28a; color: #f2e2a6; }
 .checks label.set-off { opacity: 0.45; }
 .checks label.set-off .set-badge { border-color: var(--muted); color: var(--muted); }
 .stile { position: relative; }
 .stile .badges { position: absolute; top: 4px; left: 4px; padding: 0; display: flex; gap: 3px; }
 .stile .set-badge { margin: 0; padding: 0 4px; font-size: 10px; line-height: 15px; background: rgba(0,0,0,0.55); }
 .stile.set-off { opacity: 0.55; }
+.style-grid .style-group { grid-column: 1 / -1; margin: 6px 0 0; }
+.style-grid .style-group:first-child { margin-top: 0; }
 
 /* ---------- かんたんモードの案内ツアー ---------- */
 .tour { position: fixed; inset: 0; z-index: 200; pointer-events: auto; }

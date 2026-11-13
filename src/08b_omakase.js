@@ -74,6 +74,15 @@ J.omakase = (project, rnd = Math.random, themeId = null) => {
   const moodStyles = [...new Set([...(M.styles || []), ...J.STYLE_ORDER.filter(k => (J.STYLES[k].moods || []).includes(mood))])].filter(okStyle);
   let pool = (moodStyles.length && rnd() < 0.72 ? moodStyles : J.STYLE_ORDER.filter(okStyle)).filter(k => k !== project.style);
   if (T) { const ts = J.STYLE_ORDER.filter(k => okStyle(k) && themePart(J.STYLES[k]) && k !== project.style); if (ts.length && rnd() < 0.8) pool = ts; }
+  // ディレクション (src/11z5_stage.js) is the top-tier look: 60% of the time one of those (one that suits the mood if there is one),
+  // otherwise one of the others (a theme's own styles are left alone)
+  if (!T && J.STAGE_STYLES) {
+    const isSt = k => J.STAGE_STYLES.includes(k);
+    if (rnd() < 0.6) {
+      const sp = J.STAGE_STYLES.filter(k => k !== project.style && okStyle(k)), sm = sp.filter(k => (J.STYLES[k].moods || []).includes(mood));
+      if (sp.length) pool = sm.length ? sm : sp;
+    } else if (pool.some(k => !isSt(k))) pool = pool.filter(k => !isSt(k));
+  }
   if (!pool.length) pool = J.STYLE_ORDER.filter(k => k !== project.style && okStyle(k));
   if (!pool.length) pool = J.STYLE_ORDER.filter(k => k !== project.style);
   const style = pick(pool);
