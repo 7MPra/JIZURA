@@ -148,6 +148,46 @@ const COMPOSE = {
     });
     return { blocks, n: cols.length, lead: 0, vertical: true };
   },
+  /* 交差: the lead word across, what comes before it small above, what follows hanging down as a column */
+  stCross(c) {
+    if (!isJP(c.text) || c.units.length < 2) return COMPOSE.stStack(c);
+    const units = c.merge(Math.min(c.units.length, 4)), lead = leadOf(units, c.cut, c.plan);
+    if (c.port && glyphs(units[lead]).length > 4) return COMPOSE.stStack(c);
+    const before = units.slice(0, lead).join(''), after = units.slice(lead + 1).join('');
+    if (glyphs(after).length > (c.port ? 8 : 6) || glyphs(before).length > 9) return COMPOSE.stStack(c);
+    const L = fit(units[lead], c.fd, c.W * (c.port ? 0.74 : 0.56), c.H * (c.port ? 0.2 : 0.34), { track: TRK.d });
+    const lw = J.measure({ text: units[lead], font: c.fd, size: L, track: TRK.d }).w;
+    const sv = after ? Math.min(L * 0.44, c.H * 0.46 / Math.max(2, glyphs(after).length)) : 0;
+    const x0 = -(lw + (after ? sv * 1.1 : 0)) / 2 - (c.port ? 0 : c.W * 0.06), y0 = -c.H * (after ? 0.14 : 0.02);
+    const blocks = [];
+    if (before) { const s = fit(before, c.fb, lw * 0.9, Math.max(c.U * 0.06, L * 0.34), { track: TRK.b }); const b = block(before, c.fb, s, 0, y0 - L * 0.5 - s * 0.72, { track: TRK.b, u: 0 }); b.x = x0 + b.w / 2 + L * 0.04; blocks.push(b); }
+    blocks.push(block(units[lead], c.fd, L, x0 + lw / 2, y0, { track: TRK.d, u: before ? 1 : 0, lead: true }));
+    if (after) { const b = block(after, c.fb, sv, x0 + lw + sv * 0.62, 0, { vertical: true, track: 0.06, u: (before ? 1 : 0) + 1 }); b.y = y0 - L * 0.46 + b.h / 2; blocks.push(b); }
+    return { blocks, n: (before ? 1 : 0) + 1 + (after ? 1 : 0), lead: before ? 1 : 0, cross: true };
+  },
+  /* 分割: the page cut in two colour fields, the line set across both */
+  stSplit(c) {
+    const units = c.merge(Math.min(c.units.length, 3)), n = units.length, cutAt = n <= 1 ? 0 : Math.max(1, Math.round(n / 2));
+    // two sides only when both halves are short enough to be set large in their field; otherwise the line stays whole
+    // and the edge between the fields runs through it
+    const short = t => (hasLatin(t) && !isJP(t) ? t.length <= 7 : glyphs(t).length <= 4);
+    const two = n > 1 && short(units.slice(0, cutAt).join(' ')) && short(units.slice(cutAt).join(' '));
+    const k = two || c.v.r < 0.5 ? 0.5 : c.v.r < 0.75 ? 0.4 : 0.6, flip = c.v.side > 0;
+    const horiz = !c.port;                                   // landscape: left | right, portrait: top / bottom
+    const A = horiz ? { x: -c.W / 2 + c.W * k / 2, y: 0, w: c.W * k - c.m * 1.6, h: c.H * 0.7 } : { x: 0, y: -c.H / 2 + c.H * k / 2, w: c.W - 2 * c.m, h: c.H * k - c.m * 2.4 };
+    const B = horiz ? { x: -c.W / 2 + c.W * k + c.W * (1 - k) / 2, y: 0, w: c.W * (1 - k) - c.m * 1.6, h: c.H * 0.7 } : { x: 0, y: -c.H / 2 + c.H * k + c.H * (1 - k) / 2, w: c.W - 2 * c.m, h: c.H * (1 - k) - c.m * 2.4 };
+    let blocks;
+    if (!two) blocks = stackIn(c, { x: 0, y: 0, w: c.W - 2 * c.m, h: c.H * 0.72 }, units, 0, leadOf(units, c.cut, c.plan), 0);
+    else {
+      const ua = units.slice(0, cutAt), ub = units.slice(cutAt);
+      blocks = stackIn(c, A, ua, 0, leadOf(ua, c.cut, c.plan), horiz ? 1 : -1).concat(stackIn(c, B, ub, cutAt, leadOf(ub, c.cut, c.plan), -1));
+      // only one of the two leads the page: the other side is set at most as large as 62% of it
+      const li = blocks.reduce((b, x, i) => (x.lead && x.size > blocks[b].size ? i : b), blocks.findIndex(x => x.lead));
+      blocks.forEach((b, i) => { if (b.lead && i !== li) b.lead2 = true; });
+    }
+    const edge = horiz ? -c.W / 2 + c.W * k : -c.H / 2 + c.H * k;
+    return { blocks, n, lead: blocks.findIndex(b => b.lead), split: { horiz, edge, flip } };
+  },
 };
 const LAYOUT_KEYS = Object.keys(COMPOSE);
 
@@ -159,7 +199,14 @@ function geometry(c, comp, G) {
   if (lead.solo) for (const b of B) if (b.w > lead.w) lead = b;
   const lb = { x0: lead.x - lead.w / 2, x1: lead.x + lead.w / 2, y0: lead.y - lead.h / 2, y1: lead.y + lead.h / 2 };
   const pickG = (opts) => { const cand = opts.filter(k => (G[k] || 0) > 0).map(k => [k, G[k]]); return cand.length ? rng.wpick(cand) : null; };
-  const kind = comp.vertical ? pickG(['disc', 'ring', 'none']) : lead.solo ? pickG(['disc', 'ring', 'plate', 'none']) : pickG(['plate', 'disc', 'ring', 'none']);
+  if (comp.split) {
+    const s2 = comp.split;
+    out.push(s2.horiz ? { type: 'plate', lens: true, x0: s2.flip ? -BIG : s2.edge, x1: s2.flip ? s2.edge : BIG, y0: -BIG, y1: BIG, from: s2.flip ? 'l' : 'r', t: 0, dur: 0.7 }
+      : { type: 'plate', lens: true, x0: -BIG, x1: BIG, y0: s2.flip ? -BIG : s2.edge, y1: s2.flip ? s2.edge : BIG, from: s2.flip ? 't' : 'b', t: 0, dur: 0.7 });
+    return out;
+  }
+  // a hairline (only the quiet presets weight it) runs from the lead out of the page
+  const kind = comp.vertical ? pickG(['rule', 'disc', 'ring', 'none']) : lead.solo ? pickG(['disc', 'ring', 'plate', 'none']) : pickG(['plate', 'disc', 'ring', 'rule', 'none']);
   const tl = lead.solo ? 0 : lead.u;                                          // the shape arrives with the lead word
   if (kind === 'plate') {
     const pad = lead.size * 0.12, v = rng.int(0, 2);
@@ -171,6 +218,10 @@ function geometry(c, comp, G) {
     const r = clamp(Math.max(lead.h, Math.min(lead.w, lead.h * 2.4)) * rng.range(0.5, 0.72), U * 0.16, U * 0.46);
     const ex = rng.pick([-1, 1]) * (lead.w / 2) * rng.range(0.35, 0.95), ey = rng.range(-0.25, 0.25) * lead.h;
     out.push({ type: 'disc', lens: true, cx: lead.x + ex, cy: lead.y + ey, r, tu: tl, lead: -0.05, dur: 0.6, ph: rng.range(0, TAU) });
+  } else if (kind === 'rule') {
+    const lw = Math.max(1.5, U * 0.0028);
+    if (comp.vertical) { const x = lb.x0 - lead.size * 0.16; out.push({ type: 'rule', x0: x, y0: -BIG, x1: x, y1: lb.y1, len: c.H, lw, t: 0, dur: 0.8 }); }
+    else { const y = lb.y1 + lead.size * 0.06; out.push({ type: 'rule', x0: lb.x0, y0: y, x1: BIG, y1: y, len: c.W, lw, t: 0, dur: 0.8 }); }
   } else if (kind === 'ring') {
     const r = clamp(Math.max(lead.w, lead.h) * rng.range(0.42, 0.6), U * 0.2, U * 0.52);
     out.push({ type: 'ring', cx: lead.x + rng.range(-0.2, 0.2) * lead.w, cy: lead.y + rng.range(-0.1, 0.1) * lead.h, r, lw: Math.max(1.5, U * 0.0028), a0: rng.range(0, 360), dir: rng.pick([1, -1]), t: 0, dur: 1.1 });
@@ -485,7 +536,14 @@ const KIN = {
       const dir = r % 2 ? 1 : -1, sh0 = dir * (lt * W * 0.045 + kick * W * 0.05) + J.r(x.seed, r, 7) * d.w1;
       const x0 = -W / 2 - d.w1 * 1.5 + (((sh0 % d.w1) + d.w1) % d.w1), y = -H / 2 + (r + 0.5) * d.h, a = a0 * clamp((lt - r * 0.025) / 0.12);
       if (a <= 0) continue;
-      if (r === live) { const q = OUT(clamp((lt - d.ts[k]) / 0.18)); ctx.fillStyle = LP.bg; ctx.globalAlpha = a; ctx.fillRect(-W, y - d.h / 2 * q, W * 2, d.h * q); ctx.globalAlpha = 1; T(env, { text: d.line, font: x.fd, size: d.S, x: x0, y, align: 'left', track: TRK.d, color: LP.fg, alpha: a }); }
+      if (r === live) {
+        // the lit row: the type as it is, and — only where the band has already come in — in the band's own colour
+        const q = OUT(clamp((lt - d.ts[k]) / 0.18)), it = { text: d.line, font: x.fd, size: d.S, x: x0, y, align: 'left', track: TRK.d, alpha: a };
+        T(env, Object.assign({}, it, { color: pal.fg }));
+        ctx.save(); ctx.beginPath(); ctx.rect(-W, y - d.h / 2 * q, W * 2, d.h * q); ctx.clip();
+        ctx.fillStyle = LP.bg; ctx.globalAlpha = a; ctx.fillRect(-W, y - d.h / 2, W * 2, d.h); ctx.globalAlpha = 1;
+        T(env, Object.assign(it, { color: LP.fg })); ctx.restore();
+      }
       else T(env, { text: d.line, font: x.fd, size: d.S, x: x0, y, align: 'left', track: TRK.d, fill: false, stroke: lw, strokeColor: pal.fg, color: pal.fg, alpha: a * 0.5 });
     }
     ctx.restore();
@@ -708,7 +766,7 @@ if (J.Renderer && !J.Renderer.prototype.stageHook) {
    how dense the line is, and where it stands (the first line, the line after a pause). The scene of a cut is drawn from
    its level (a style weights the scenes), never the same scene twice running; a jump of two levels up is prepared by a
    moment of empty frame and lands as a hard cut. Cuts set by hand keep their layout. */
-const LEVELS = { stWhisper: [0], stColumn: [0, 1], stStream: [1], stPush: [1, 2], stStack: [1], stMono: [1, 2], stHit: [2, 3], stWall: [2, 3], stSlice: [2, 3], stZoom: [3] };
+const LEVELS = { stCross: [1], stSplit: [1, 2], stWhisper: [0], stColumn: [0, 1], stStream: [1], stPush: [1, 2], stStack: [1], stMono: [1, 2], stHit: [2, 3], stWall: [2, 3], stSlice: [2, 3], stZoom: [3] };
 function direct(plan) {
   const st = plan.style, P = st.stage || {}, KW = P.kinds || {}, cuts = plan.cuts;
   const lyric = c => c.layout !== 'interlude' && !!String(c.text || '').trim();
@@ -737,18 +795,23 @@ function direct(plan) {
     if (!lv.includes(3)) lv[score.indexOf(Math.max(...score))] = 3;
     if (!lv.includes(2)) { const o = score.map((s, i) => [s, i]).filter(a => lv[a[1]] === 1).sort((a, b) => b[0] - a[0])[0]; if (o) lv[o[1]] = 2; }
   }
-  let prevKind = null;
+  // composed pages (set type, not kinetic): never more than two in a row, about a quarter of the song at most, never
+  // at a peak (LEVELS) or on the cut right after a jump up
+  const PAGE = new Set(['stStack', 'stCross', 'stSplit', 'stColumn']), budget = Math.max(1, Math.round(L.length * 0.25));
+  let prevKind = null, pages = 0, run = 0;
   L.forEach((c, i) => {
     c.level = lv[i];
     if (!c.manual || !LEVELS[c.layout]) {
       const n = glyphs(c.text).length, jp = isJP(c.text), rng = J.rng(J.h(plan.seed | 0, i, 47));
-      const ok = k => !(k === 'stColumn' && !jp) && !(k === 'stWall' && n > 14) && !(k === 'stSlice' && n > 16) && !(k === 'stZoom' && c.dur < 1.1) && !(k === 'stWhisper' && n > 22) && !(k === 'stStream' && c.dur < 0.9) && !(k === 'stPush' && K.unitsOf(c, 5).length < 2);
+      const ok = k => !(k === 'stColumn' && !jp) && !(k === 'stWall' && n > 14) && !(k === 'stSlice' && n > 16) && !(k === 'stZoom' && c.dur < 1.1) && !(k === 'stWhisper' && n > 22) && !(k === 'stStream' && c.dur < 0.9) && !(k === 'stPush' && K.unitsOf(c, 5).length < 2) && !(k === 'stCross' && (!jp || K.unitsOf(c, 4).length < 2 || n > 18))
+        && !(PAGE.has(k) && (pages >= budget || run >= 2 || (i > 0 && lv[i] - lv[i - 1] >= 2)));
       let cand = Object.keys(LEVELS).filter(k => LEVELS[k].includes(lv[i]) && (KW[k] ?? 1) > 0 && ok(k) && k !== prevKind).map(k => [k, KW[k] ?? 1]);
       if (!cand.length) cand = [['stMono', 1]];
       c.layout = rng.wpick(cand);
       c.params = Object.assign({ font: J.fontsOf(st, ['display'])[0], body: J.fontsOf(st, ['body'])[0] }, { st: Object.assign({ side: rng.pick([-1, -1, 1]), r: +rng().toFixed(3) }, (c.params && c.params.st) || {}) });
     }
     prevKind = c.layout;
+    if (PAGE.has(c.layout)) { pages++; run++; } else run = 0;
   });
   return plan;
 }
@@ -762,6 +825,8 @@ if (!J.plan.stageHook) {
 const DEFS = {
   stStack: { name: '組み', en: 'Stack', ae: 'stack', w: 1.2, fits: n => n >= 1 && n <= 40, tags: ['graphic', 'pop', 'editorial', 'emotional'] },
   stMono: { name: '一語', en: 'One word', ae: 'huge', w: 1, emph: 2.2, fits: n => n >= 1 && n <= 40, tags: ['graphic', 'pop', 'glitch', 'emotional'] },
+  stCross: { name: '交差', en: 'Cross', ae: 'mixed', w: 1, fits: n => n >= 1 && n <= 40, tags: ['graphic', 'editorial', 'pop'] },
+  stSplit: { name: '分割', en: 'Split', ae: 'center', w: 1, fits: n => n >= 1 && n <= 40, tags: ['graphic', 'pop', 'editorial'] },
   stColumn: { name: '縦', en: 'Column', ae: 'vcols', w: 1, fits: n => n >= 1 && n <= 40, tags: ['editorial', 'calm', 'emotional'] },
   stWhisper: { name: '囁き', en: 'Whisper', ae: 'center', w: 1, fits: n => n >= 1 && n <= 40, tags: ['calm', 'emotional', 'editorial'] },
   stStream: { name: '流れ', en: 'Stream', ae: 'marquee', w: 1, fits: n => n >= 1 && n <= 40, tags: ['editorial', 'graphic', 'emotional', 'pop'] },
@@ -796,7 +861,7 @@ for (const [key, d] of Object.entries(DEFS)) {
 /* ------------------------------------------------------------------ presets */
 const scheme = (bg, fg, accent, o) => Object.assign({ bg, fg, accent, sub: J.mix(fg, bg, 0.4), accent2: fg, ink: fg, dim: J.mix(bg, fg, 0.08), ghostA: accent, ghostB: fg }, o || {});
 const pool = (layout) => ({ layout, enter: { cut: 1 }, exit: { cut: 1 }, hold: { still: 1 }, treat: { none: 1 }, cam: { push: 1 }, trans: {}, fx: {}, decor: {}, bg: {} });
-const ALL = () => ({ stWhisper: 1, stStream: 1, stPush: 1, stHit: 1, stWall: 1, stSlice: 1, stZoom: 1, stStack: 1, stMono: 1, stColumn: 1 });
+const ALL = () => ({ stWhisper: 1, stStream: 1, stPush: 1, stHit: 1, stWall: 1, stSlice: 1, stZoom: 1, stStack: 1, stMono: 1, stColumn: 1, stCross: 1, stSplit: 1 });
 const STYLES = {
   /* 転回 — black, paper white, one signal red. Heavy Gothic. The frame turns a quarter on the cut. */
   stTurn: {
@@ -804,7 +869,7 @@ const STYLES = {
     schemes: [scheme('#0B0B0C', '#F3F1EC', '#FF3B1F'), scheme('#F3F1EC', '#0B0B0C', '#FF3B1F'), scheme('#FF3B1F', '#0B0B0C', '#F3F1EC')],
     fonts: { display: ['gothic_black'], serif: ['mincho_black'], body: ['gothic_med'], mono: ['mono'] },
     pool: pool(ALL()), oneCut: 0.9,
-    stage: { kinds: { stWhisper: 1, stStream: 0.8, stPush: 1, stHit: 1.3, stWall: 0.8, stSlice: 1, stZoom: 1, stStack: 0.25, stMono: 0.8, stColumn: 0 },  travel: { turn: 1.2, pan: 0.6, dolly: 0.35 }, dirs: [[1, 0], [0, 1], [1, 0], [0, -1]], scales: [1, 1, 0.72, 1.3], enter: { lead: { slam: 1, rise: 0.8 }, sub: { rise: 1, slide: 0.5 } },
+    stage: { kinds: { stWhisper: 1, stStream: 0.8, stPush: 1, stHit: 1.3, stWall: 0.8, stSlice: 1, stZoom: 1, stStack: 0.25, stMono: 0.8, stColumn: 0, stCross: 0.5, stSplit: 0.7 },  travel: { turn: 1.2, pan: 0.6, dolly: 0.35 }, dirs: [[1, 0], [0, 1], [1, 0], [0, -1]], scales: [1, 1, 0.72, 1.3], enter: { lead: { slam: 1, rise: 0.8 }, sub: { rise: 1, slide: 0.5 } },
       geo: { plate: 1.2, disc: 1, none: 0.5 }, ghost: 'lead', push: 0.04, pulse: 0.012, arc: 0.16, grain: 0.5, idle: 'bars', blur: 1 },
     adobeFonts: { display: ['ad_ryogo_ub'], body: ['ad_ryogo_m'] },
   },
@@ -814,8 +879,8 @@ const STYLES = {
     schemes: [scheme('#EEEAE1', '#1B1A18', '#B8402A'), scheme('#1B1C1E', '#ECE7DC', '#C8A45A'), scheme('#D9D4C7', '#1B1A18', '#B8402A')],
     fonts: { display: ['shippori'], serif: ['mincho_bold'], body: ['mincho'], mono: ['mono'] },
     pool: pool(ALL()), oneCut: 1,
-    stage: { kinds: { stWhisper: 1.5, stStream: 1, stPush: 0.6, stHit: 0.6, stWall: 0.3, stSlice: 0.7, stZoom: 0.6, stStack: 0.25, stMono: 0.6, stColumn: 1.3 },  travel: { pan: 1.4, dolly: 0.3 }, dirs: [[-1, 0], [-1, 0], [0, 1], [-1, 0], [0, -1]], scales: [1, 1, 0.8, 1.2], enter: { lead: { track: 1, focus: 0.7, drop: 1 }, sub: { track: 0.6, rise: 0.8, drop: 1 } },
-      geo: { ring: 1, disc: 0.5, none: 0.8 }, ghost: 'dim', push: 0.05, pulse: 0, arc: 0.06, moveDur: 1.35, grain: 0.75, idle: 'ring', blur: 0.8 },
+    stage: { kinds: { stWhisper: 1.5, stStream: 1, stPush: 0.6, stHit: 0.6, stWall: 0.3, stSlice: 0.7, stZoom: 0.6, stStack: 0.25, stMono: 0.6, stColumn: 1.3, stCross: 0.8, stSplit: 0.2 },  travel: { pan: 1.4, dolly: 0.3 }, dirs: [[-1, 0], [-1, 0], [0, 1], [-1, 0], [0, -1]], scales: [1, 1, 0.8, 1.2], enter: { lead: { track: 1, focus: 0.7, drop: 1 }, sub: { track: 0.6, rise: 0.8, drop: 1 } },
+      geo: { rule: 1, ring: 1, disc: 0.5, none: 0.8 }, ghost: 'dim', push: 0.05, pulse: 0, arc: 0.06, moveDur: 1.35, grain: 0.75, idle: 'ring', blur: 0.8 },
     adobeFonts: { display: ['ad_ryodisp_h'], body: ['ad_tsukua'] },
   },
   /* 色面 — colour fields. Every page has its own colour; the edge between two pages slides through the frame. */
@@ -824,7 +889,7 @@ const STYLES = {
     schemes: [scheme('#1F3BFF', '#F6F5F1', '#FFE500'), scheme('#FFE500', '#0C0C0E', '#1F3BFF'), scheme('#F6F5F1', '#0C0C0E', '#1F3BFF'), scheme('#0C0C0E', '#F6F5F1', '#FFE500')],
     fonts: { display: ['zenkaku'], serif: ['mincho_black'], body: ['gothic_bold'], mono: ['mono'] },
     pool: pool(ALL()), oneCut: 0.9,
-    stage: { kinds: { stWhisper: 0.8, stStream: 1.2, stPush: 1, stHit: 1, stWall: 1.4, stSlice: 0.8, stZoom: 0.7, stStack: 0.25, stMono: 0.7, stColumn: 0 },  travel: { pan: 1.5, turn: 0.3 }, dirs: [[1, 0], [0, 1], [-1, 0], [0, 1]], scales: [1], enter: { lead: { rise: 1, slide: 0.8 }, sub: { slide: 1, rise: 0.6 } },
+    stage: { kinds: { stWhisper: 0.8, stStream: 1.2, stPush: 1, stHit: 1, stWall: 1.4, stSlice: 0.8, stZoom: 0.7, stStack: 0.25, stMono: 0.7, stColumn: 0, stCross: 0.4, stSplit: 1.2 },  travel: { pan: 1.5, turn: 0.3 }, dirs: [[1, 0], [0, 1], [-1, 0], [0, 1]], scales: [1], enter: { lead: { rise: 1, slide: 0.8 }, sub: { slide: 1, rise: 0.6 } },
       geo: { plate: 1.3, disc: 0.6, none: 0.6 }, ghost: true, push: 0.03, pulse: 0.008, arc: 0.1, grain: 0.35, idle: 'ring', blur: 1 },
     adobeFonts: { display: ['ad_ryogo_h'], body: ['ad_ryogo_b'] },
   },
@@ -834,8 +899,8 @@ const STYLES = {
     schemes: [scheme('#07080B', '#F2F3F1', '#5FE3C4'), scheme('#101319', '#F2F3F1', '#5FE3C4'), scheme('#E8EAEC', '#0A0C10', '#0E8F76')],
     fonts: { display: ['gothic_bold'], serif: ['mincho_bold'], body: ['gothic_light'], mono: ['mono'] },
     pool: pool(ALL()), oneCut: 0.9,
-    stage: { kinds: { stWhisper: 1.2, stStream: 1, stPush: 0.6, stHit: 0.7, stWall: 0.5, stSlice: 0.9, stZoom: 1.4, stStack: 0.25, stMono: 1, stColumn: 0.5 },  travel: { dolly: 1 }, tilts: [0, 0, -6, 6, 0, 90], dollyScale: 0.14, enter: { lead: { focus: 1.2, track: 0.6 }, sub: { focus: 1, rise: 0.5 } },
-      geo: { ring: 1.2, disc: 0.7, none: 0.7 }, ghost: 'dim', push: 0.07, pulse: 0.006, moveDur: 1.25, grain: 0.6, vignette: 0.22, idle: 'ring', blur: 1 },
+    stage: { kinds: { stWhisper: 1.2, stStream: 1, stPush: 0.6, stHit: 0.7, stWall: 0.5, stSlice: 0.9, stZoom: 1.4, stStack: 0.25, stMono: 1, stColumn: 0.5, stCross: 0.4, stSplit: 0.3 },  travel: { dolly: 1 }, tilts: [0, 0, -6, 6, 0, 90], dollyScale: 0.14, enter: { lead: { focus: 1.2, track: 0.6 }, sub: { focus: 1, rise: 0.5 } },
+      geo: { rule: 0.7, ring: 1.2, disc: 0.7, none: 0.7 }, ghost: 'dim', push: 0.07, pulse: 0.006, moveDur: 1.25, grain: 0.6, vignette: 0.22, idle: 'ring', blur: 1 },
     adobeFonts: { display: ['ad_shs_b'], body: ['ad_shs_l'] },
   },
   /* 明滅 — black / white / acid. Hard cuts on the beat, one word a beat, the disc as the only figure. */
@@ -844,7 +909,7 @@ const STYLES = {
     schemes: [scheme('#0A0A0A', '#F5F5F0', '#D4FF3A'), scheme('#D4FF3A', '#0A0A0A', '#0A0A0A'), scheme('#F5F5F0', '#0A0A0A', '#0A0A0A')],
     fonts: { display: ['dela'], serif: ['mincho_black'], body: ['gothic_black'], mono: ['mono'] },
     pool: pool(ALL()), oneCut: 0.9,
-    stage: { kinds: { stWhisper: 0.7, stStream: 0.5, stPush: 0.8, stHit: 1.5, stWall: 1.1, stSlice: 1.1, stZoom: 1.2, stStack: 0.25, stMono: 0.8, stColumn: 0 },  travel: { cut: 1.4, pan: 0.5, turn: 0.4 }, dirs: [[0, 1], [1, 0], [0, -1], [-1, 0]], scales: [1, 1.4, 0.7], enter: { lead: { slam: 1 }, sub: { slide: 1 } },
+    stage: { kinds: { stWhisper: 0.7, stStream: 0.5, stPush: 0.8, stHit: 1.5, stWall: 1.1, stSlice: 1.1, stZoom: 1.2, stStack: 0.25, stMono: 0.8, stColumn: 0, stCross: 0, stSplit: 0.8 },  travel: { cut: 1.4, pan: 0.5, turn: 0.4 }, dirs: [[0, 1], [1, 0], [0, -1], [-1, 0]], scales: [1, 1.4, 0.7], enter: { lead: { slam: 1 }, sub: { slide: 1 } },
       geo: { disc: 1.4, plate: 0.6, none: 0.8 }, ghost: 'lead', push: 0.02, pulse: 0.02, arc: 0.2, moveDur: 0.8, grain: 0.4, idle: 'disc', blur: 1 },
     adobeFonts: { display: ['ad_ryogo_ub'], body: ['ad_ryogo_h'] },
   },
