@@ -120,64 +120,6 @@ const COMPOSE = {
     });
     return { blocks, n: cols.length, lead: 0, vertical: true };
   },
-  /* 軸: every word on one baseline, sizes stepping; a rule can run under it and out of the page */
-  stAxis(c) {
-    if (c.port) return COMPOSE.stStack(c);
-    const units = c.merge(Math.min(c.units.length, c.port ? 3 : 5)), lead = leadOf(units, c.cut, c.plan), lat = hasLatin(c.text) && !isJP(c.text);
-    const r = 0.4, gapK = lat ? 0.5 : 0.22;
-    const w100 = units.map((w, i) => J.measure({ text: w, font: i === lead ? c.fd : c.fb, size: 100, track: i === lead ? TRK.d : TRK.b }).w * (i === lead ? 1 : r));
-    const tot100 = w100.reduce((a, b) => a + b, 0) + (units.length - 1) * 100 * r * gapK;
-    const L = Math.min((c.W - 2 * c.m) / tot100 * 100, c.H * (c.port ? 0.2 : 0.4));
-    const totW = tot100 * L / 100, yb = c.H * 0.1;
-    let x = c.v.side > 0 ? c.W / 2 - c.m - totW : -c.W / 2 + c.m;
-    const blocks = units.map((w, i) => {
-      const s = i === lead ? L : L * r, bw = w100[i] * L / 100;
-      const b = block(w, i === lead ? c.fd : c.fb, s, x + bw / 2, yb - s * 0.5, { track: i === lead ? TRK.d : TRK.b, u: i, lead: i === lead });
-      x += bw + L * r * gapK;
-      return b;
-    });
-    return { blocks, n: units.length, lead, base: yb, x0: blocks[0].x - blocks[0].w / 2, x1: x };
-  },
-  /* 交差: the lead word across, what comes before it small above, what follows hanging down as a column */
-  stCross(c) {
-    if (!isJP(c.text) || c.units.length < 2) return COMPOSE.stStack(c);
-    const units = c.merge(Math.min(c.units.length, 4)), lead = leadOf(units, c.cut, c.plan);
-    if (c.port && glyphs(units[lead]).length > 4) return COMPOSE.stStack(c);
-    const before = units.slice(0, lead).join(''), after = units.slice(lead + 1).join('');
-    if (glyphs(after).length > (c.port ? 8 : 6) || glyphs(before).length > 9) return COMPOSE.stStack(c);
-    const L = fit(units[lead], c.fd, c.W * (c.port ? 0.74 : 0.56), c.H * (c.port ? 0.2 : 0.34), { track: TRK.d });
-    const lw = J.measure({ text: units[lead], font: c.fd, size: L, track: TRK.d }).w;
-    const sv = after ? Math.min(L * 0.44, c.H * 0.46 / Math.max(2, glyphs(after).length)) : 0;
-    const x0 = -(lw + (after ? sv * 1.1 : 0)) / 2 - (c.port ? 0 : c.W * 0.06), y0 = -c.H * (after ? 0.14 : 0.02);
-    const blocks = [];
-    if (before) { const s = fit(before, c.fb, lw * 0.9, Math.max(c.U * 0.06, L * 0.34), { track: TRK.b }); const b = block(before, c.fb, s, 0, y0 - L * 0.5 - s * 0.72, { track: TRK.b, u: 0 }); b.x = x0 + b.w / 2 + L * 0.04; blocks.push(b); }
-    blocks.push(block(units[lead], c.fd, L, x0 + lw / 2, y0, { track: TRK.d, u: before ? 1 : 0, lead: true }));
-    if (after) { const b = block(after, c.fb, sv, x0 + lw + sv * 0.62, 0, { vertical: true, track: 0.06, u: (before ? 1 : 0) + 1 }); b.y = y0 - L * 0.46 + b.h / 2; blocks.push(b); }
-    return { blocks, n: (before ? 1 : 0) + 1 + (after ? 1 : 0), lead: before ? 1 : 0, cross: true };
-  },
-  /* 分割: the page cut in two colour fields, the line set across both */
-  stSplit(c) {
-    const units = c.merge(Math.min(c.units.length, 3)), n = units.length, cutAt = n <= 1 ? 0 : Math.max(1, Math.round(n / 2));
-    // two sides only when both halves are short enough to be set large in their field; otherwise the line stays whole
-    // and the edge between the fields runs through it
-    const short = t => (hasLatin(t) && !isJP(t) ? t.length <= 7 : glyphs(t).length <= 4);
-    const two = n > 1 && short(units.slice(0, cutAt).join(' ')) && short(units.slice(cutAt).join(' '));
-    const k = two || c.v.r < 0.5 ? 0.5 : c.v.r < 0.75 ? 0.4 : 0.6, flip = c.v.side > 0;
-    const horiz = !c.port;                                   // landscape: left | right, portrait: top / bottom
-    const A = horiz ? { x: -c.W / 2 + c.W * k / 2, y: 0, w: c.W * k - c.m * 1.6, h: c.H * 0.7 } : { x: 0, y: -c.H / 2 + c.H * k / 2, w: c.W - 2 * c.m, h: c.H * k - c.m * 2.4 };
-    const B = horiz ? { x: -c.W / 2 + c.W * k + c.W * (1 - k) / 2, y: 0, w: c.W * (1 - k) - c.m * 1.6, h: c.H * 0.7 } : { x: 0, y: -c.H / 2 + c.H * k + c.H * (1 - k) / 2, w: c.W - 2 * c.m, h: c.H * (1 - k) - c.m * 2.4 };
-    let blocks;
-    if (!two) blocks = stackIn(c, { x: 0, y: 0, w: c.W - 2 * c.m, h: c.H * 0.72 }, units, 0, leadOf(units, c.cut, c.plan), 0);
-    else {
-      const ua = units.slice(0, cutAt), ub = units.slice(cutAt);
-      blocks = stackIn(c, A, ua, 0, leadOf(ua, c.cut, c.plan), horiz ? 1 : -1).concat(stackIn(c, B, ub, cutAt, leadOf(ub, c.cut, c.plan), -1));
-      // only one of the two leads the page: the other side is set at most as large as 62% of it
-      const li = blocks.reduce((b, x, i) => (x.lead && x.size > blocks[b].size ? i : b), blocks.findIndex(x => x.lead));
-      blocks.forEach((b, i) => { if (b.lead && i !== li) b.lead2 = true; });
-    }
-    const edge = horiz ? -c.W / 2 + c.W * k : -c.H / 2 + c.H * k;
-    return { blocks, n, lead: blocks.findIndex(b => b.lead), split: { horiz, edge, flip } };
-  },
 };
 const LAYOUT_KEYS = Object.keys(COMPOSE);
 
@@ -189,13 +131,7 @@ function geometry(c, comp, G) {
   if (lead.solo) for (const b of B) if (b.w > lead.w) lead = b;
   const lb = { x0: lead.x - lead.w / 2, x1: lead.x + lead.w / 2, y0: lead.y - lead.h / 2, y1: lead.y + lead.h / 2 };
   const pickG = (opts) => { const cand = opts.filter(k => (G[k] || 0) > 0).map(k => [k, G[k]]); return cand.length ? rng.wpick(cand) : null; };
-  if (comp.split) {
-    const s = comp.split;
-    out.push(s.horiz ? { type: 'plate', lens: true, x0: s.flip ? -BIG : s.edge, x1: s.flip ? s.edge : BIG, y0: -BIG, y1: BIG, from: s.flip ? 'l' : 'r', t: 0, dur: 0.7 }
-      : { type: 'plate', lens: true, x0: -BIG, x1: BIG, y0: s.flip ? -BIG : s.edge, y1: s.flip ? s.edge : BIG, from: s.flip ? 't' : 'b', t: 0, dur: 0.7 });
-    return out;
-  }
-  const kind = comp.vertical ? pickG(['rule', 'disc', 'ring', 'none']) : comp.base != null ? pickG(['rule', 'plate', 'disc', 'bar', 'none']) : comp.cross ? pickG(['plate', 'disc', 'ring', 'none']) : lead.solo ? pickG(['disc', 'ring', 'plate', 'bar', 'none']) : pickG(['plate', 'disc', 'bar', 'ring', 'rule', 'none']);
+  const kind = comp.vertical ? pickG(['disc', 'ring', 'none']) : lead.solo ? pickG(['disc', 'ring', 'plate', 'none']) : pickG(['plate', 'disc', 'ring', 'none']);
   const tl = lead.solo ? 0 : lead.u;                                          // the shape arrives with the lead word
   if (kind === 'plate') {
     const pad = lead.size * 0.12, v = rng.int(0, 2);
@@ -210,20 +146,6 @@ function geometry(c, comp, G) {
   } else if (kind === 'ring') {
     const r = clamp(Math.max(lead.w, lead.h) * rng.range(0.42, 0.6), U * 0.2, U * 0.52);
     out.push({ type: 'ring', cx: lead.x + rng.range(-0.2, 0.2) * lead.w, cy: lead.y + rng.range(-0.1, 0.1) * lead.h, r, lw: Math.max(1.5, U * 0.0028), a0: rng.range(0, 360), dir: rng.pick([1, -1]), t: 0, dur: 1.1 });
-  } else if (kind === 'rule') {
-    const lw = Math.max(1.5, U * 0.0028);
-    if (comp.vertical) { const x = lb.x0 - lead.size * 0.16; out.push({ type: 'rule', x0: x, y0: -BIG, x1: x, y1: lb.y1, len: c.H, lw, t: 0, dur: 0.8 }); }
-    else { const y = comp.base != null ? comp.base + U * 0.02 : lb.y1 + lead.size * 0.06; out.push({ type: 'rule', x0: lb.x0, y0: y, x1: BIG, y1: y, len: c.W, lw, t: 0, dur: 0.8 }); }
-  } else if (kind === 'bar') {
-    const th = clamp(lead.size * 0.085, U * 0.008, U * 0.03);
-    if (lead.vertical) out.push({ type: 'plate', x0: lb.x0, x1: lb.x1, y0: lb.y0 - th * 2.2, y1: lb.y0 - th * 1.2, from: 'l', tu: tl, lead: 0.02, dur: 0.4 });
-    else {
-      // under the lead when nothing is set below it, over it when nothing is set above; otherwise no bar
-      const below = B.some(b => b !== lead && b.y > lead.y && Math.abs(b.x - lead.x) < (b.w + lead.w) / 2), above = B.some(b => b !== lead && b.y < lead.y && Math.abs(b.x - lead.x) < (b.w + lead.w) / 2);
-      const x0 = lb.x0 + lead.size * 0.04, x1 = x0 + Math.min(lead.w, lead.size * 1.6);
-      if (!below) out.push({ type: 'plate', x0, x1, y0: lb.y1 + th * 0.6, y1: lb.y1 + th * 1.6, from: 'l', tu: tl, lead: 0.04, dur: 0.45 });
-      else if (!above) out.push({ type: 'plate', x0, x1, y0: lb.y0 - th * 1.6, y1: lb.y0 - th * 0.6, from: 'l', tu: tl, lead: 0.04, dur: 0.45 });
-    }
   }
   return out;
 }
@@ -241,7 +163,8 @@ function stageOf(plan) {
     const c = sh.cut, v = (c.params && c.params.st) || {}, prev = i > 0 ? S.shots[i - 1] : null;
     const rng = J.rng(J.h(c.seed | 0, i, 977));
     let travel = v.travel || rng.wpick(Object.entries(P.travel || { pan: 1 }));
-    if (!prev) travel = 'cut';
+    const lvl = c.level ?? 1, plv = prev ? prev.cut.level ?? 1 : lvl;
+    if (!prev || (lvl >= 2 && !v.travel)) travel = 'cut';
     sh.travel = travel;
     const dur = Math.max(0.2, c.dur), pd = prev ? Math.max(0.2, prev.cut.dur) : 1;
     sh.T = travel === 'cut' ? 0 : clamp(Math.min(dur, pd) * 0.55, 0.3, 0.62) * (P.moveDur || 1);
@@ -266,7 +189,9 @@ function stageOf(plan) {
     const next = plan.cuts[i + 1];
     sh.lyric = c.layout !== 'interlude' && !!String(c.text || '').trim();
     const nextLyric = next && next.layout !== 'interlude' && String(next.text || '').trim() && Math.abs(next.start - c.end) < 0.3;
-    sh.exitAt = nextLyric ? null : Math.max(0.2, dur - 0.36);
+    const nl = next ? next.level ?? 1 : lvl, bl = K.beatLen({ plan }, c.end);
+    // タメ: before a jump of two levels the frame empties for most of a beat
+    sh.exitAt = !nextLyric ? Math.max(0.2, dur - 0.36) : nl - lvl >= 2 && dur > bl * 2.2 ? dur - bl * 0.8 : null;
   });
   stages.set(plan, S);
   return S;
@@ -284,7 +209,7 @@ function compose(plan, sh) {
     fd: J.fontsOf(st, ['display'])[0], fb: J.fontsOf(st, ['body'])[0],
     merge: n => K.unitsOf(c, Math.max(1, n)).map(strip).filter(Boolean),
   };
-  const key = COMPOSE[c.layout] ? c.layout : LAYOUT_KEYS[J.h(c.seed | 0, 5) % LAYOUT_KEYS.length];
+  const key = COMPOSE[c.layout] ? c.layout : 'stStack';
   let comp;
   try { comp = COMPOSE[key](ctx); } catch (e) { comp = null; }
   if (!comp || !comp.blocks.length) comp = { blocks: [block(text, ctx.fd, fit(text, ctx.fd, W - 2 * ctx.m, H * 0.3), 0, 0, { lead: true })], n: 1, lead: 0 };
@@ -397,7 +322,8 @@ function drawBlocks(env, comp, lt, pal, sh, U) {
       else { mask = true; fns.push(() => ({ dy: IN(q) * b.size * 1.1 })); }
     }
     if (fns.length) it.charFn = fns.length === 1 ? fns[0] : (i, g, N) => { let o = null; for (const f of fns) { const r = f(i, g, N); if (!r) continue; if (r.hide) return r; if (!o) o = { dx: 0, dy: 0, a: 1 }; o.dx += r.dx || 0; o.dy += r.dy || 0; o.a *= r.a ?? 1; } return o; };
-    ctx.save(); ctx.translate(b.x, b.y);
+    const drift = (b.lead ? 1 : -0.7) * Math.max(0, lt) * U * 0.007;
+    ctx.save(); ctx.translate(b.x + (b.vertical ? 0 : drift), b.y + (b.vertical ? drift : 0));
     if (mask) { const px = b.size * 0.6, py = b.size * 0.09; ctx.beginPath(); ctx.rect(-b.w / 2 - px, -b.h / 2 - py, b.w + px * 2, b.h + py * 2); ctx.clip(); }
     J.drawItem(env, it);
     ctx.restore();
@@ -405,7 +331,7 @@ function drawBlocks(env, comp, lt, pal, sh, U) {
 }
 /* interlude: one quiet abstract figure keeping time */
 function drawIdle(ctx, plan, sh, lt, pal, beat, U) {
-  const P = plan.style.stage || {}, kind = P.idle || 'rule', c = sh.cut;
+  const P = plan.style.stage || {}, kind = P.idle || 'ring', c = sh.cut;
   const a = SOFT(clamp(lt / 0.5)) * (1 - SOFT(clamp((lt - (c.dur - 0.45)) / 0.4)));
   if (a <= 0.01) return;
   const bk = beat ? Math.exp(-beat.since * 6) : 0, bi = beat ? beat.index : Math.floor(lt * 2);
@@ -423,6 +349,154 @@ function drawIdle(ctx, plan, sh, lt, pal, beat, U) {
   }
   ctx.restore();
 }
+/* ------------------------------------------------------------------ kinetic scenes
+   Each is a different grammar, not a different arrangement: the director (below) gives every cut a level 0–3 from the
+   song and picks the scene from it, so a quiet line and a chorus line do not look like the same page.
+     0  stWhisper  tiny type in a large empty frame, letters appearing one at a time, the spacing slowly opening
+     1  stStream   the line as one long row larger than the frame; the frame travels along it and each word fills as sung
+     1  stPush     every word arrives from below and pushes the earlier ones up and smaller
+     2  stHit      one word a beat, bigger than the frame, each at its own angle and place; the ground changes colour
+     2  stWall     the line repeated in rows that fill the frame and run against each other; one row lit, moving on the beat
+     2  stSlice    the line cut in horizontal bands that slide in from both sides and are knocked loose again on the beat
+     3  stZoom     the glyphs of the key word fly through the camera one after another, then the whole line slams in */
+const T = (env, o) => J.drawItem(env, o);
+const BIGN = 1e5;
+function base(plan, sh) {
+  if (sh.kx && sh.kxGen === gen) return sh.kx;
+  const c = sh.cut, st = plan.style, W = plan.W, H = plan.H, text = strip(c.text);
+  const merge = n => { const u = K.unitsOf(c, Math.max(1, n)).map(strip).filter(Boolean); return u.length ? u : [text]; };
+  sh.kx = { c, plan, W, H, U: Math.min(W, H), port: H > W * 1.08, text, merge, jp: isJP(text), seed: c.seed | 0, d: {},
+    fd: J.fontsOf(st, ['display'])[0], fb: J.fontsOf(st, ['body'])[0], ons: n => K.onsets({ cut: c, plan }, n) };
+  sh.kxGen = gen;
+  return sh.kx;
+}
+const outOf = (sh, lt, d = 0.26) => (sh.exitAt != null ? 1 - SOFT(clamp((lt - sh.exitAt) / d)) : 1);
+const ground = (ctx, col) => { ctx.fillStyle = col; ctx.fillRect(-BIGN, -BIGN, BIGN * 2, BIGN * 2); };
+const twoLines = (x, maxG) => { const g = glyphs(x.text).length; return x.jp ? (g > maxG ? J.splitLines(x.text, Math.ceil(g / Math.min(3, Math.ceil(g / maxG)))) : x.text) : (x.text.length > maxG * 1.6 && /\s/.test(x.text) ? J.splitLines(x.text, Math.ceil(x.text.length / Math.min(3, Math.ceil(x.text.length / (maxG * 1.6))))) : x.text); };
+const KIN = {
+  stWhisper(env, sh, x, lt, pal) {
+    const { W, H, U, c } = x;
+    let d = x.d.w;
+    if (!d) {
+      const vert = x.jp && J.r(x.seed, 1) < 0.45;
+      const size = clamp(J.fitSize(x.text, x.fb, vert ? BIGN : W * 0.62, vert ? H * 0.6 : BIGN, { vertical: vert, track: 0.34 }), U * 0.046, U * 0.07);
+      const A = [[-0.22, -0.16], [0.2, 0.18], [-0.2, 0.2], [0.18, -0.2], [0, 0.03]][J.h(x.seed, 2) % 5];
+      const units = x.merge(6), ts = x.ons(units.length), gt = [];
+      units.forEach((u, i) => { const g = [...u], span = Math.min(0.55, ((ts[i + 1] ?? ts[i] + 0.7) - ts[i]) * 0.8); g.forEach((_, j) => gt.push(ts[i] + span * j / Math.max(1, g.length))); if (!x.jp) gt.push(ts[i]); });
+      d = x.d.w = { vert, size, x: A[0] * W, y: A[1] * H, gt };
+    }
+    const k = clamp(lt / Math.max(1.5, c.dur));
+    T(env, { text: x.text, font: x.fb, size: d.size, x: d.x, y: d.y, vertical: d.vert, track: 0.26 + 0.12 * k, color: pal.fg, alpha: outOf(sh, lt, 0.4),
+      charFn: (i) => { const q = clamp((lt - (d.gt[Math.min(i, d.gt.length - 1)] || 0)) / 0.55); return q <= 0 ? { hide: true } : q >= 1 ? null : { a: SOFT(q), dy: d.vert ? 0 : (1 - OUT(q)) * d.size * 0.3, dx: d.vert ? (1 - OUT(q)) * d.size * 0.3 : 0 }; } });
+  },
+  stStream(env, sh, x, lt, pal) {
+    const { W, H, c } = x, ctx = env.ctx;
+    let d = x.d.s;
+    if (!d) {
+      const units = x.merge(6), ts = x.ons(units.length), S = x.port ? H * 0.15 : H * 0.34, gap = x.jp ? S * 0.05 : S * 0.3;
+      let cx = 0;
+      const bl = units.map((u, i) => { const w = J.measure({ text: u, font: x.fd, size: S, track: TRK.d }).w, b = { text: u, w, x: cx + w / 2, t: ts[i], t1: ts[i + 1] ?? Math.min(c.dur, ts[i] + 0.8) }; cx += w + gap; return b; });
+      d = x.d.s = { bl, S, y: ((J.h(x.seed, 3) % 3) - 1) * H * 0.12 };
+    }
+    let fx = d.bl[0].x;
+    for (let i = 1; i < d.bl.length; i++) fx += (d.bl[i].x - d.bl[i - 1].x) * SOFT(clamp((lt - d.bl[i].t + 0.1) / 0.36));
+    const ox = -fx - W * 0.06 - lt * W * 0.014, a = outOf(sh, lt), lw = Math.max(1.5, d.S * 0.012);
+    for (const b of d.bl) {
+      const bx = b.x + ox;
+      if (bx + b.w / 2 < -W * 0.8 || bx - b.w / 2 > W * 0.8) continue;
+      const it = { text: b.text, font: x.fd, size: d.S, x: bx, y: d.y, track: TRK.d, color: pal.fg };
+      const p = clamp((lt - b.t) / Math.max(0.12, Math.min(0.4, (b.t1 - b.t) * 0.7)));
+      if (p < 1) T(env, Object.assign({}, it, { fill: false, stroke: lw, strokeColor: pal.fg, alpha: 0.45 * a * SOFT(clamp(lt / 0.3)) }));
+      if (p > 0) { ctx.save(); ctx.beginPath(); ctx.rect(bx - b.w / 2 - d.S * 0.1, d.y - d.S, (b.w + d.S * 0.2) * p, d.S * 2); ctx.clip(); T(env, Object.assign(it, { alpha: a })); ctx.restore(); }
+    }
+  },
+  stPush(env, sh, x, lt, pal) {
+    const { W, H, U } = x;
+    let d = x.d.p;
+    if (!d) { const units = x.merge(5), ts = x.ons(units.length); d = x.d.p = { units, ts, S: units.map(u => fit(u, x.fd, W * 0.84, H * (x.port ? 0.15 : 0.3), { track: TRK.d })), side: J.h(x.seed, 4) % 3 ? -1 : 1 }; }
+    const k = K.curIdx(d.ts, lt); if (k < 0) return;
+    let y = H * 0.24 - lt * H * 0.006; const a0 = outOf(sh, lt);
+    for (let i = k; i >= Math.max(0, k - 3); i--) {
+      const e = OUT(clamp((lt - d.ts[i]) / 0.3)), old = i < k ? OUT(clamp((lt - d.ts[i + 1]) / 0.3)) : 0, age = k - i - 1 + old;
+      const sc = i === k ? 1 : lerp(1, 0.4, clamp(age + (i === k - 1 ? 0 : 1)) * (i === k - 1 ? old : 1));
+      const s = d.S[i] * sc, h = s * 1.06, w = J.measure({ text: d.units[i], font: x.fd, size: s, track: TRK.d }).w;
+      const yy = y - h / 2 + (i === k ? (1 - e) * H * 0.6 : 0);
+      T(env, { text: d.units[i], font: x.fd, size: s, x: d.side < 0 ? -W / 2 + U * 0.085 + w / 2 : W / 2 - U * 0.085 - w / 2, y: yy, track: TRK.d, color: pal.fg, alpha: a0 * (i === k ? 1 : lerp(1, 0.38, i === k - 1 ? old : 1) * (k - i >= 3 ? 1 - old : 1)) });
+      y -= h * (i === k ? e : 1);
+    }
+  },
+  stHit(env, sh, x, lt, pal, LP) {
+    const { W, H, c } = x, ctx = env.ctx;
+    let d = x.d.h;
+    if (!d) {
+      const units = x.merge(clamp(Math.floor(c.dur / 0.36), 1, 6)), ts = x.ons(units.length), col = []; let ci = 0, last = -9;
+      units.forEach((_, i) => { if (i > 0 && ts[i] - last >= 0.34) { ci++; last = ts[i]; } col.push(ci % 3); });     // the ground never flips faster than 3 times a second
+      d = x.d.h = { units, ts, col };
+    }
+    const k = Math.max(0, K.curIdx(d.ts, lt)), w = d.units[k], dt = lt - d.ts[k], g = glyphs(w).length, hv = J.h(x.seed, k, 9);
+    let rot = [0, 0, -7, 6, 0, 90, -4, 0][hv % 8]; if (rot === 90 && (g > 3 || !x.jp)) rot = 0;
+    const m100 = J.measure({ text: w, font: x.fd, size: 100, track: -0.04 }).w, span = rot === 90 ? H : W;
+    const S = g <= 2 ? Math.min(H * 1.12, span * 1.7 / m100 * 100) : Math.min(H * 0.98, span * (1.14 + 0.26 * J.r(x.seed, k, 4)) / m100 * 100);
+    const P3 = [[pal.bg, pal.fg], [LP.bg, LP.fg], [pal.fg, pal.bg]][d.col[k]];
+    if (d.col[k]) ground(ctx, P3[0]);
+    const s = S * (1 + 0.3 * (1 - OUT(clamp(dt / 0.2)))) * (1 + 0.03 * dt);
+    T(env, { text: w, font: x.fd, size: s, x: J.rs(x.seed, k, 5) * W * 0.05, y: J.rs(x.seed, k, 6) * H * 0.07, rot, track: -0.04, color: P3[1], alpha: outOf(sh, lt, 0.12) });
+  },
+  stWall(env, sh, x, lt, pal, LP) {
+    const { W, H } = x, ctx = env.ctx;
+    let d = x.d.wl;
+    if (!d) {
+      const rows = x.port ? 8 : 5, h = H / rows, S = h * 0.88, one = x.text + (x.jp ? '　' : '   ');
+      const w1 = Math.max(S, J.measure({ text: one, font: x.fd, size: S, track: TRK.d }).w), reps = Math.min(12, Math.ceil(W * 1.4 / w1) + 2);
+      d = x.d.wl = { rows, h, S, w1, line: one.repeat(reps), ts: x.ons(x.merge(4).length) };
+    }
+    const k = Math.max(0, K.curIdx(d.ts, lt)), live = (k * 2 + (x.seed & 7)) % d.rows, a0 = outOf(sh, lt, 0.14), lw = Math.max(1.5, d.S * 0.014);
+    let kick = 0; for (const t of d.ts) if (lt >= t) kick += OUT(clamp((lt - t) / 0.28));
+    ctx.save(); ctx.beginPath(); ctx.rect(-W / 2 - 2, -H / 2 - 2, W + 4, H + 4); ctx.clip();
+    for (let r = 0; r < d.rows; r++) {
+      const dir = r % 2 ? 1 : -1, sh0 = dir * (lt * W * 0.045 + kick * W * 0.05) + J.r(x.seed, r, 7) * d.w1;
+      const x0 = -W / 2 - d.w1 * 1.5 + (((sh0 % d.w1) + d.w1) % d.w1), y = -H / 2 + (r + 0.5) * d.h, a = a0 * clamp((lt - r * 0.025) / 0.12);
+      if (a <= 0) continue;
+      if (r === live) { const q = OUT(clamp((lt - d.ts[k]) / 0.18)); ctx.fillStyle = LP.bg; ctx.globalAlpha = a; ctx.fillRect(-W, y - d.h / 2 * q, W * 2, d.h * q); ctx.globalAlpha = 1; T(env, { text: d.line, font: x.fd, size: d.S, x: x0, y, align: 'left', track: TRK.d, color: LP.fg, alpha: a }); }
+      else T(env, { text: d.line, font: x.fd, size: d.S, x: x0, y, align: 'left', track: TRK.d, fill: false, stroke: lw, strokeColor: pal.fg, color: pal.fg, alpha: a * 0.5 });
+    }
+    ctx.restore();
+  },
+  stSlice(env, sh, x, lt, pal) {
+    const { W, H } = x, ctx = env.ctx;
+    let d = x.d.sl;
+    if (!d) { const t = twoLines(x, x.port ? 4 : 8), S = fit(t, x.fd, W * 1.06, H * (x.port ? 0.5 : 0.78) / t.split('\n').length, { track: TRK.d, lead: 1.04 }), m = J.measure({ text: t, font: x.fd, size: S, track: TRK.d, lead: 1.04 }); d = x.d.sl = { t, S, hT: m.h + S * 0.16, N: x.port ? 9 : 7, ts: x.ons(x.merge(4).length) }; }
+    const a = outOf(sh, lt, 0.14);
+    for (let b = 0; b < d.N; b++) {
+      const dir = b % 2 ? 1 : -1, e = OUT(clamp((lt - b * 0.03) / 0.4));
+      // locked, so it reads; a wave keeps travelling down the bands, and every beat knocks them loose again
+      const ph = b / d.N - ((lt * 0.8) % 1.5) + 0.25;
+      let dx = dir * ((1 - e) * W * 1.15 + W * 0.07 * Math.exp(-ph * ph * 70));
+      for (let j = 1; j < d.ts.length; j++) { const dt = lt - d.ts[j]; if (dt >= 0) dx += J.rs(x.seed, b, j) * W * 0.12 * Math.exp(-dt * 7); }
+      if (sh.exitAt != null && lt > sh.exitAt) dx += -dir * IN(clamp((lt - sh.exitAt) / 0.22)) * W * 1.15;
+      ctx.save(); ctx.beginPath(); ctx.rect(-BIGN, -d.hT / 2 + b * d.hT / d.N, BIGN * 2, d.hT / d.N + 0.6); ctx.clip();
+      T(env, { text: d.t, font: x.fd, size: d.S, x: dx, y: 0, track: TRK.d, lead: 1.04, color: pal.fg, alpha: a });
+      ctx.restore();
+    }
+  },
+  stZoom(env, sh, x, lt, pal, LP, beat) {
+    const { W, H, U, c } = x, ctx = env.ctx;
+    let d = x.d.z;
+    if (!d) {
+      const units = x.merge(4), G = glyphs(units[leadOf(units, c, x.plan)]).slice(0, 6), step = clamp(c.dur * 0.4 / G.length, 0.085, 0.2);
+      const t = twoLines(x, x.port ? 4 : 7);
+      d = x.d.z = { G, step, T1: G.length * step, t, S: fit(t, x.fd, W * 1.02, H * (x.port ? 0.5 : 0.8) / t.split('\n').length, { track: TRK.d, lead: 1.04 }) };
+    }
+    if (lt < d.T1 + d.step * 0.6) d.G.forEach((ch, i) => {
+      const q = (lt - i * d.step) / (d.step * 1.6); if (q < 0 || q >= 1) return;
+      T(env, { text: ch, font: x.fd, size: H * 0.42 * Math.pow(9, q), x: 0, y: 0, color: i % 2 ? pal.accent : pal.fg, alpha: (1 - J.smooth(0.55, 1, q)) * Math.min(1, q * 6) });
+    });
+    const dt = lt - d.T1; if (dt < 0) return;
+    ground(ctx, LP.bg);
+    const sk = Math.exp(-dt * 9) * U * 0.014, st = Math.floor(lt * 24);
+    T(env, { text: d.t, font: x.fd, size: d.S * (1 + 0.55 * (1 - OUT(clamp(dt / 0.22)))) * (1 + 0.04 * dt) * (1 + (beat && dt > 0.3 ? 0.05 * Math.exp(-beat.since * 8) : 0)), x: J.rs(st, 1) * sk, y: J.rs(st, 2) * sk, track: TRK.d, lead: 1.04, color: LP.fg, alpha: outOf(sh, lt, 0.12) });
+  },
+};
 const isRed = c => { const h = J.toHsl(c); return (h[0] < 28 || h[0] > 335) && h[1] > 0.45; };
 function lensPal(sc, g) {
   // a red disc on a light ground is a flag, not an abstract figure: there the disc takes the text colour
@@ -435,6 +509,7 @@ function drawShot(env, plan, sh, lt, beat) {
   const ctx = env.ctx, sc = env.sc, U = Math.min(plan.W, plan.H);
   const pal = { bg: sc.bg, fg: sc.fg, accent: J.contrast(sc.accent, sc.bg) >= 1.6 ? sc.accent : sc.fg };
   if (!sh.lyric) { drawIdle(ctx, plan, sh, lt, pal, beat, U); return; }
+  if (KIN[sh.cut.layout]) { KIN[sh.cut.layout](env, sh, base(plan, sh), lt, pal, lensPal(sc, null), beat); return; }
   const comp = compose(plan, sh);
   const beatK = beat ? Math.exp(-beat.since * 7) : 0;
   const out = sh.exitAt != null ? 1 - SOFT(clamp((lt - sh.exitAt - 0.06) / 0.28)) : 1;
@@ -595,14 +670,75 @@ if (J.Renderer && !J.Renderer.prototype.stageHook) {
   J.Renderer.prototype.stageHook = true;
 }
 
-/* ------------------------------------------------------------------ layouts (the planner picks the composition) */
+/* ------------------------------------------------------------------ the director
+   Reads the song before anything is drawn and gives every lyric cut a level:
+     0 quiet · 1 telling · 2 strong · 3 peak
+   from the loudness of the song there (when a song is loaded), lines that come back (a chorus), impact / emphasis marks,
+   how dense the line is, and where it stands (the first line, the line after a pause). The scene of a cut is drawn from
+   its level (a style weights the scenes), never the same scene twice running; a jump of two levels up is prepared by a
+   moment of empty frame and lands as a hard cut. Cuts set by hand keep their layout. */
+const LEVELS = { stWhisper: [0], stColumn: [0, 1], stStream: [1], stPush: [1, 2], stStack: [1], stMono: [1, 2], stHit: [2, 3], stWall: [2, 3], stSlice: [2, 3], stZoom: [3] };
+function direct(plan) {
+  const st = plan.style, P = st.stage || {}, KW = P.kinds || {}, cuts = plan.cuts;
+  const lyric = c => c.layout !== 'interlude' && !!String(c.text || '').trim();
+  const norm = t => String(t || '').replace(/[\s\p{P}]/gu, '').toLowerCase(), cnt = new Map();
+  for (const l of plan.lines || []) if (l && l.text) cnt.set(norm(l.text), (cnt.get(norm(l.text)) || 0) + 1);
+  let eLo = 1, eHi = 0;
+  const eAt = c => { if (!plan.energy || !plan.energyRate) return null; let s = 0, n = 0; for (let t = c.start; t < c.end; t += 0.1) { s += plan.energy[Math.min(plan.energy.length - 1, Math.max(0, Math.floor(t * plan.energyRate)))] || 0; n++; } return n ? s / n : null; };
+  const L = cuts.filter(lyric), en = L.map(eAt);
+  en.forEach(e => { if (e != null) { eLo = Math.min(eLo, e); eHi = Math.max(eHi, e); } });
+  const score = L.map((c, i) => {
+    const ln = (plan.lines || [])[c.line] || {}, g = glyphs(c.text).length;
+    let s = en[i] != null && eHi - eLo > 0.08 ? 0.25 + 0.6 * (en[i] - eLo) / (eHi - eLo) : 0.5;
+    if ((cnt.get(norm(ln.text)) || 0) >= 2) s += 0.32;
+    if (ln.impact || /[!！]/.test(c.text)) s += 0.3;
+    if (c.emph) s += 0.1;
+    if (g / Math.max(0.3, c.dur) > 5) s += 0.08;
+    if (i === 0) s -= 0.25; else if (ln.gapBefore && (cnt.get(norm(ln.text)) || 0) < 2) s -= 0.12;
+    return s + J.rs(plan.seed | 0, i, 43) * 0.1;
+  });
+  // a block (lines without a pause between them) that holds a chorus or impact line is lifted as a whole
+  { let a = 0; for (let i = 0; i <= L.length; i++) { const ln = i < L.length ? (plan.lines || [])[L[i].line] || {} : null; if (i === L.length || (i > a && ln.gapBefore && L[i].line !== L[i - 1].line)) { const hot = L.slice(a, i).some(c => { const l2 = (plan.lines || [])[c.line] || {}; return l2.impact || (cnt.get(norm(l2.text)) || 0) >= 2; }); if (hot) for (let j = a; j < i; j++) score[j] += 0.16; a = i; } } }
+  const lv = score.map(s => (s < 0.36 ? 0 : s < 0.66 ? 1 : s < 0.95 ? 2 : 3));
+  for (let i = 2; i < lv.length; i++) if (lv[i] === 0 && (lv[i - 1] === 0 || lv[i - 2] === 0)) lv[i] = 1;     // quiet is rare, or it stops being quiet
+  if (L.length >= 5) {                                                   // a song has both ends of the range
+    if (!lv.includes(0)) lv[score.indexOf(Math.min(...score))] = 0;
+    if (!lv.includes(3)) lv[score.indexOf(Math.max(...score))] = 3;
+    if (!lv.includes(2)) { const o = score.map((s, i) => [s, i]).filter(a => lv[a[1]] === 1).sort((a, b) => b[0] - a[0])[0]; if (o) lv[o[1]] = 2; }
+  }
+  let prevKind = null;
+  L.forEach((c, i) => {
+    c.level = lv[i];
+    if (!c.manual || !LEVELS[c.layout]) {
+      const n = glyphs(c.text).length, jp = isJP(c.text), rng = J.rng(J.h(plan.seed | 0, i, 47));
+      const ok = k => !(k === 'stColumn' && !jp) && !(k === 'stWall' && n > 14) && !(k === 'stSlice' && n > 16) && !(k === 'stZoom' && c.dur < 1.1) && !(k === 'stWhisper' && n > 22) && !(k === 'stStream' && c.dur < 0.9) && !(k === 'stPush' && K.unitsOf(c, 5).length < 2);
+      let cand = Object.keys(LEVELS).filter(k => LEVELS[k].includes(lv[i]) && (KW[k] ?? 1) > 0 && ok(k) && k !== prevKind).map(k => [k, KW[k] ?? 1]);
+      if (!cand.length) cand = [['stMono', 1]];
+      c.layout = rng.wpick(cand);
+      c.params = Object.assign({ font: J.fontsOf(st, ['display'])[0], body: J.fontsOf(st, ['body'])[0] }, { st: Object.assign({ side: rng.pick([-1, -1, 1]), r: +rng().toFixed(3) }, (c.params && c.params.st) || {}) });
+    }
+    prevKind = c.layout;
+  });
+  return plan;
+}
+if (!J.plan.stageHook) {
+  const plan0 = J.plan;
+  J.plan = (project, audio) => { const plan = plan0(project, audio); try { if (plan && plan.style && plan.style.stage && !plan.centerFree && !plan.calm) direct(plan); } catch (e) { console.warn('stage director', e); } return plan; };
+  J.plan.stageHook = true;
+}
+
+/* ------------------------------------------------------------------ layouts (the scene of a cut; the director assigns them) */
 const DEFS = {
-  stStack: { name: '組み', en: 'Stack', ae: 'stack', w: 1.2, fits: n => n >= 2 && n <= 30, tags: ['graphic', 'pop', 'editorial', 'emotional'] },
-  stMono: { name: '一語', en: 'One word', ae: 'huge', w: 1, emph: 2.2, fits: n => n >= 1 && n <= 16, tags: ['graphic', 'pop', 'glitch', 'emotional'] },
-  stColumn: { name: '縦', en: 'Column', ae: 'vcols', w: 1, fits: n => n >= 2 && n <= 26, tags: ['editorial', 'calm', 'emotional'] },
-  stAxis: { name: '軸', en: 'Axis', ae: 'center', w: 0.9, portrait: 0.35, fits: n => n >= 3 && n <= 22, tags: ['editorial', 'graphic', 'calm'] },
-  stCross: { name: '交差', en: 'Cross', ae: 'mixed', w: 0.9, fits: n => n >= 4 && n <= 20, tags: ['graphic', 'editorial', 'pop'] },
-  stSplit: { name: '分割', en: 'Split', ae: 'center', w: 0.9, emph: 1.4, fits: n => n >= 2 && n <= 24, tags: ['graphic', 'pop', 'editorial'] },
+  stStack: { name: '組み', en: 'Stack', ae: 'stack', w: 1.2, fits: n => n >= 1 && n <= 40, tags: ['graphic', 'pop', 'editorial', 'emotional'] },
+  stMono: { name: '一語', en: 'One word', ae: 'huge', w: 1, emph: 2.2, fits: n => n >= 1 && n <= 40, tags: ['graphic', 'pop', 'glitch', 'emotional'] },
+  stColumn: { name: '縦', en: 'Column', ae: 'vcols', w: 1, fits: n => n >= 1 && n <= 40, tags: ['editorial', 'calm', 'emotional'] },
+  stWhisper: { name: '囁き', en: 'Whisper', ae: 'center', w: 1, fits: n => n >= 1 && n <= 40, tags: ['calm', 'emotional', 'editorial'] },
+  stStream: { name: '流れ', en: 'Stream', ae: 'marquee', w: 1, fits: n => n >= 1 && n <= 40, tags: ['editorial', 'graphic', 'emotional', 'pop'] },
+  stPush: { name: '積み', en: 'Push', ae: 'stack', w: 1, fits: n => n >= 1 && n <= 40, tags: ['graphic', 'pop', 'editorial'] },
+  stHit: { name: '打ち', en: 'Hit', ae: 'huge', w: 1, emph: 2, fits: n => n >= 1 && n <= 40, tags: ['graphic', 'pop', 'glitch'] },
+  stWall: { name: '壁', en: 'Wall', ae: 'tile', w: 1, fits: n => n >= 1 && n <= 40, tags: ['graphic', 'pop', 'glitch'] },
+  stSlice: { name: '裂き', en: 'Slice', ae: 'huge', w: 1, fits: n => n >= 1 && n <= 40, tags: ['graphic', 'glitch', 'emotional'] },
+  stZoom: { name: '貫き', en: 'Zoom-through', ae: 'huge', w: 1, emph: 2, fits: n => n >= 1 && n <= 40, tags: ['graphic', 'pop', 'glitch', 'emotional'] },
 };
 for (const [key, d] of Object.entries(DEFS)) {
   J.register('layout', key, Object.assign(d, {
@@ -629,55 +765,56 @@ for (const [key, d] of Object.entries(DEFS)) {
 /* ------------------------------------------------------------------ presets */
 const scheme = (bg, fg, accent, o) => Object.assign({ bg, fg, accent, sub: J.mix(fg, bg, 0.4), accent2: fg, ink: fg, dim: J.mix(bg, fg, 0.08), ghostA: accent, ghostB: fg }, o || {});
 const pool = (layout) => ({ layout, enter: { cut: 1 }, exit: { cut: 1 }, hold: { still: 1 }, treat: { none: 1 }, cam: { push: 1 }, trans: {}, fx: {}, decor: {}, bg: {} });
+const ALL = () => ({ stWhisper: 1, stStream: 1, stPush: 1, stHit: 1, stWall: 1, stSlice: 1, stZoom: 1, stStack: 1, stMono: 1, stColumn: 1 });
 const STYLES = {
   /* 転回 — black, paper white, one signal red. Heavy Gothic. The frame turns a quarter on the cut. */
   stTurn: {
-    name: '転回', en: 'Quarter Turn', desc: '黒・紙の白・一色の朱。極太ゴシックを面と円が反転させ、カットごとに画面が九十度まわる', moods: ['graphic', 'pop', 'glitch'],
+    name: '転回', en: 'Quarter Turn', desc: '黒・紙の白・一色の朱、極太ゴシック。静かな行は小さく、サビは画面からはみ出す一語と裂ける文字。画面は九十度まわる', moods: ['graphic', 'pop', 'glitch'],
     schemes: [scheme('#0B0B0C', '#F3F1EC', '#FF3B1F'), scheme('#F3F1EC', '#0B0B0C', '#FF3B1F'), scheme('#FF3B1F', '#0B0B0C', '#F3F1EC')],
     fonts: { display: ['gothic_black'], serif: ['mincho_black'], body: ['gothic_med'], mono: ['mono'] },
-    pool: pool({ stStack: 1.3, stMono: 1, stCross: 1, stSplit: 0.7 }), oneCut: 0.9,
-    stage: { travel: { turn: 1.2, pan: 0.6, dolly: 0.35 }, dirs: [[1, 0], [0, 1], [1, 0], [0, -1]], scales: [1, 1, 0.72, 1.3], enter: { lead: { slam: 1, rise: 0.8 }, sub: { rise: 1, slide: 0.5 } },
-      geo: { plate: 1.2, disc: 1, bar: 0.5, none: 0.5 }, ghost: 'lead', push: 0.04, pulse: 0.012, arc: 0.16, grain: 0.5, idle: 'bars', blur: 1 },
+    pool: pool(ALL()), oneCut: 0.9,
+    stage: { kinds: { stWhisper: 1, stStream: 0.8, stPush: 1, stHit: 1.3, stWall: 0.8, stSlice: 1, stZoom: 1, stStack: 0.25, stMono: 0.8, stColumn: 0 },  travel: { turn: 1.2, pan: 0.6, dolly: 0.35 }, dirs: [[1, 0], [0, 1], [1, 0], [0, -1]], scales: [1, 1, 0.72, 1.3], enter: { lead: { slam: 1, rise: 0.8 }, sub: { rise: 1, slide: 0.5 } },
+      geo: { plate: 1.2, disc: 1, none: 0.5 }, ghost: 'lead', push: 0.04, pulse: 0.012, arc: 0.16, grain: 0.5, idle: 'bars', blur: 1 },
     adobeFonts: { display: ['ad_ryogo_ub'], body: ['ad_ryogo_m'] },
   },
   /* 余白 — warm paper and ink, Mincho, wide margins; hairlines and one small vermilion disc. Slow pans. */
   stYohaku: {
-    name: '余白', en: 'Margin', desc: '生成りの紙に墨の明朝。大きな余白、細い罫と輪、ゆっくり横へ流れるカメラ', moods: ['calm', 'emotional', 'editorial'],
+    name: '余白', en: 'Margin', desc: '生成りの紙に墨の明朝。小さな字と大きな余白から始まり、山場だけ画面いっぱいの明朝が流れ、裂ける', moods: ['calm', 'emotional', 'editorial'],
     schemes: [scheme('#EEEAE1', '#1B1A18', '#B8402A'), scheme('#1B1C1E', '#ECE7DC', '#C8A45A'), scheme('#D9D4C7', '#1B1A18', '#B8402A')],
     fonts: { display: ['shippori'], serif: ['mincho_bold'], body: ['mincho'], mono: ['mono'] },
-    pool: pool({ stColumn: 1.5, stAxis: 1, stCross: 0.8, stStack: 0.6 }), oneCut: 1,
-    stage: { travel: { pan: 1.4, dolly: 0.3 }, dirs: [[-1, 0], [-1, 0], [0, 1], [-1, 0], [0, -1]], scales: [1, 1, 0.8, 1.2], enter: { lead: { track: 1, focus: 0.7, drop: 1 }, sub: { track: 0.6, rise: 0.8, drop: 1 } },
-      geo: { rule: 1.4, ring: 1, disc: 0.5, none: 0.8 }, ghost: 'dim', push: 0.05, pulse: 0, arc: 0.06, moveDur: 1.35, grain: 0.75, idle: 'ring', blur: 0.8 },
+    pool: pool(ALL()), oneCut: 1,
+    stage: { kinds: { stWhisper: 1.5, stStream: 1, stPush: 0.6, stHit: 0.6, stWall: 0.3, stSlice: 0.7, stZoom: 0.6, stStack: 0.25, stMono: 0.6, stColumn: 1.3 },  travel: { pan: 1.4, dolly: 0.3 }, dirs: [[-1, 0], [-1, 0], [0, 1], [-1, 0], [0, -1]], scales: [1, 1, 0.8, 1.2], enter: { lead: { track: 1, focus: 0.7, drop: 1 }, sub: { track: 0.6, rise: 0.8, drop: 1 } },
+      geo: { ring: 1, disc: 0.5, none: 0.8 }, ghost: 'dim', push: 0.05, pulse: 0, arc: 0.06, moveDur: 1.35, grain: 0.75, idle: 'ring', blur: 0.8 },
     adobeFonts: { display: ['ad_ryodisp_h'], body: ['ad_tsukua'] },
   },
   /* 色面 — colour fields. Every page has its own colour; the edge between two pages slides through the frame. */
   stField: {
-    name: '色面', en: 'Colour Field', desc: 'コバルト・黄・白の色面。ページごとに色が変わり、その境界が画面を横切る。歌われる前の語は細い輪郭で待つ', moods: ['graphic', 'pop', 'editorial'],
+    name: '色面', en: 'Colour Field', desc: 'コバルト・黄・白の色面。歌詞が壁になって画面を埋め、長い一行の上をカメラが走る。色の境界が画面を横切る', moods: ['graphic', 'pop', 'editorial'],
     schemes: [scheme('#1F3BFF', '#F6F5F1', '#FFE500'), scheme('#FFE500', '#0C0C0E', '#1F3BFF'), scheme('#F6F5F1', '#0C0C0E', '#1F3BFF'), scheme('#0C0C0E', '#F6F5F1', '#FFE500')],
     fonts: { display: ['zenkaku'], serif: ['mincho_black'], body: ['gothic_bold'], mono: ['mono'] },
-    pool: pool({ stSplit: 1.2, stStack: 1.2, stAxis: 0.9, stMono: 0.7 }), oneCut: 0.85, flipEvery: true,
-    stage: { travel: { pan: 1.5, turn: 0.3 }, dirs: [[1, 0], [0, 1], [-1, 0], [0, 1]], scales: [1], enter: { lead: { rise: 1, slide: 0.8 }, sub: { slide: 1, rise: 0.6 } },
-      geo: { plate: 1.3, bar: 0.7, disc: 0.6, none: 0.6 }, ghost: true, push: 0.03, pulse: 0.008, arc: 0.1, grain: 0.35, idle: 'rule', blur: 1 },
+    pool: pool(ALL()), oneCut: 0.9,
+    stage: { kinds: { stWhisper: 0.8, stStream: 1.2, stPush: 1, stHit: 1, stWall: 1.4, stSlice: 0.8, stZoom: 0.7, stStack: 0.25, stMono: 0.7, stColumn: 0 },  travel: { pan: 1.5, turn: 0.3 }, dirs: [[1, 0], [0, 1], [-1, 0], [0, 1]], scales: [1], enter: { lead: { rise: 1, slide: 0.8 }, sub: { slide: 1, rise: 0.6 } },
+      geo: { plate: 1.3, disc: 0.6, none: 0.6 }, ghost: true, push: 0.03, pulse: 0.008, arc: 0.1, grain: 0.35, idle: 'ring', blur: 1 },
     adobeFonts: { display: ['ad_ryogo_h'], body: ['ad_ryogo_b'] },
   },
   /* 奥行 — near black, a cold white, one mint. The camera only moves forward: each page lies inside the last. */
   stDepth: {
-    name: '奥行', en: 'Depth', desc: '黒に近い地、冷たい白、ミントの一点。カメラは前にだけ進み、次のページは今のページの奥にある', moods: ['emotional', 'glitch', 'graphic', 'calm'],
+    name: '奥行', en: 'Depth', desc: '黒に近い地、冷たい白、ミントの一点。カメラは前にだけ進み、山場では一字ずつがカメラを突き抜ける', moods: ['emotional', 'glitch', 'graphic', 'calm'],
     schemes: [scheme('#07080B', '#F2F3F1', '#5FE3C4'), scheme('#101319', '#F2F3F1', '#5FE3C4'), scheme('#E8EAEC', '#0A0C10', '#0E8F76')],
     fonts: { display: ['gothic_bold'], serif: ['mincho_bold'], body: ['gothic_light'], mono: ['mono'] },
-    pool: pool({ stMono: 1.3, stStack: 1, stAxis: 0.8, stColumn: 0.6 }), oneCut: 0.9,
-    stage: { travel: { dolly: 1 }, tilts: [0, 0, -6, 6, 0, 90], dollyScale: 0.14, enter: { lead: { focus: 1.2, track: 0.6 }, sub: { focus: 1, rise: 0.5 } },
-      geo: { ring: 1.2, rule: 0.8, disc: 0.7, none: 0.7 }, ghost: 'dim', push: 0.07, pulse: 0.006, moveDur: 1.25, grain: 0.6, vignette: 0.22, idle: 'ring', blur: 1 },
+    pool: pool(ALL()), oneCut: 0.9,
+    stage: { kinds: { stWhisper: 1.2, stStream: 1, stPush: 0.6, stHit: 0.7, stWall: 0.5, stSlice: 0.9, stZoom: 1.4, stStack: 0.25, stMono: 1, stColumn: 0.5 },  travel: { dolly: 1 }, tilts: [0, 0, -6, 6, 0, 90], dollyScale: 0.14, enter: { lead: { focus: 1.2, track: 0.6 }, sub: { focus: 1, rise: 0.5 } },
+      geo: { ring: 1.2, disc: 0.7, none: 0.7 }, ghost: 'dim', push: 0.07, pulse: 0.006, moveDur: 1.25, grain: 0.6, vignette: 0.22, idle: 'ring', blur: 1 },
     adobeFonts: { display: ['ad_shs_b'], body: ['ad_shs_l'] },
   },
   /* 明滅 — black / white / acid. Hard cuts on the beat, one word a beat, the disc as the only figure. */
   stPulse: {
-    name: '明滅', en: 'Pulse', desc: '黒・白・蛍光の黄緑。拍ごとに一語、切り替えはカットだけ。円がひとつ、拍で脈を打つ', moods: ['pop', 'glitch', 'graphic'],
+    name: '明滅', en: 'Pulse', desc: '黒・白・蛍光の黄緑。拍ごとに画面より大きい一語、地の色ごと切り替わる。静かな行との落差が大きい', moods: ['pop', 'glitch', 'graphic'],
     schemes: [scheme('#0A0A0A', '#F5F5F0', '#D4FF3A'), scheme('#D4FF3A', '#0A0A0A', '#0A0A0A'), scheme('#F5F5F0', '#0A0A0A', '#0A0A0A')],
     fonts: { display: ['dela'], serif: ['mincho_black'], body: ['gothic_black'], mono: ['mono'] },
-    pool: pool({ stMono: 2, stStack: 0.8, stSplit: 0.6 }), oneCut: 0.5,
-    stage: { travel: { cut: 1.4, pan: 0.5, turn: 0.4 }, dirs: [[0, 1], [1, 0], [0, -1], [-1, 0]], scales: [1, 1.4, 0.7], enter: { lead: { slam: 1 }, sub: { slide: 1 } },
-      geo: { disc: 1.4, plate: 0.6, bar: 0.4, none: 0.8 }, ghost: 'lead', push: 0.02, pulse: 0.02, arc: 0.2, moveDur: 0.8, grain: 0.4, idle: 'disc', blur: 1 },
+    pool: pool(ALL()), oneCut: 0.9,
+    stage: { kinds: { stWhisper: 0.7, stStream: 0.5, stPush: 0.8, stHit: 1.5, stWall: 1.1, stSlice: 1.1, stZoom: 1.2, stStack: 0.25, stMono: 0.8, stColumn: 0 },  travel: { cut: 1.4, pan: 0.5, turn: 0.4 }, dirs: [[0, 1], [1, 0], [0, -1], [-1, 0]], scales: [1, 1.4, 0.7], enter: { lead: { slam: 1 }, sub: { slide: 1 } },
+      geo: { disc: 1.4, plate: 0.6, none: 0.8 }, ghost: 'lead', push: 0.02, pulse: 0.02, arc: 0.2, moveDur: 0.8, grain: 0.4, idle: 'disc', blur: 1 },
     adobeFonts: { display: ['ad_ryogo_ub'], body: ['ad_ryogo_h'] },
   },
 };
