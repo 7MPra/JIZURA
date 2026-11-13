@@ -2257,7 +2257,8 @@ J.resolveStyle = (project) => {
   for (const role of ['display', 'serif', 'body']) if (fo[role] && J.FONTS[fo[role]]) st.fonts[role] = [fo[role]];
   if (st.textOnly) { st.hud = false; st.glow = 0; st.texture = { grain: 0, paper: 0, scan: 0 }; }   // テキストのみ: the renderer also skips everything that is not lyric text
   if (st.textOnly && J.restrainStyle) J.restrainStyle(st);                                          // …and picks with restraint (src/11u_restraint.js)
-  if (J.keyMode(project)) keyStyle(st);
+  // ディレクション (stage) styles on green keep their colours: only the ground is the key (src/11z5_stage.js)
+  if (J.keyMode(project)) { if (st.stage && J.keyMode(project) === 'green' && J.keyColourStyle) J.keyColourStyle(st); else keyStyle(st); }
   return st;
 };
 /* ---- 合成用の背景（グリーンバック / ブラックバック） ----
@@ -60090,6 +60091,21 @@ const hasLatin = t => /[A-Za-z]/.test(String(t || ''));
 const isJP = t => /[぀-ヿ㐀-鿿]/.test(String(t || ''));
 const glyphs = t => [...String(t || '').replace(/\s+/g, '')];
 const strip = t => (hasLatin(t) && !isJP(t) ? String(t).trim() : String(t || '').replace(/\s+/g, ''));
+/* グリーンバック: a stage frame keeps its colours — only the ground turns key green. Colours a keyer would take for the
+   key (yellow-greens, greens, mints) are turned away from it, and nothing is ever drawn across the whole frame. */
+let KEYG = false, FLAT = false;          // FLAT: no full-frame colour fields (green key or transparent export)
+const keySafe = c => {
+  if (typeof c !== 'string' || !/^#[0-9a-f]{6}$/i.test(c)) return c;
+  const [h, sat, l] = J.toHsl(c);
+  if (sat < 0.25 || h < 70 || h > 175) return c;
+  return J.hsl(h < 115 ? 52 : 192, sat, Math.min(l, 0.62));
+};
+J.keyColourStyle = st => {
+  st.schemes = st.schemes.map(s => { const o = {}; for (const [k, v] of Object.entries(s)) o[k] = keySafe(v); return o; });
+  st.texture = { grain: 0, paper: 0, scan: 0 };
+  st.key = true; st.keyColour = true;
+};
+const gnd = sc => (KEYG ? J.KEY_BG.green : sc.bg);
 const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w | 0); c.height = Math.max(1, h | 0); return c; };
 
 // compositions are cached per cut; a font arriving (J.metrics.clear) invalidates them
@@ -60430,7 +60446,7 @@ function base(plan, sh) {
   return sh.kx;
 }
 const outOf = (sh, lt, d = 0.26) => (sh.exitAt != null ? 1 - SOFT(clamp((lt - sh.exitAt) / d)) : 1);
-const ground = (ctx, col) => { ctx.fillStyle = col; ctx.fillRect(-BIGN, -BIGN, BIGN * 2, BIGN * 2); };
+const ground = (ctx, col) => { if (FLAT) return; ctx.fillStyle = col; ctx.fillRect(-BIGN, -BIGN, BIGN * 2, BIGN * 2); };
 const twoLines = (x, maxG) => { const g = glyphs(x.text).length; return x.jp ? (g > maxG ? J.splitLines(x.text, Math.ceil(g / Math.min(3, Math.ceil(g / maxG)))) : x.text) : (x.text.length > maxG * 1.6 && /\s/.test(x.text) ? J.splitLines(x.text, Math.ceil(x.text.length / Math.min(3, Math.ceil(x.text.length / (maxG * 1.6))))) : x.text); };
 const KIN = {
   stWhisper(env, sh, x, lt, pal) {
@@ -60496,7 +60512,7 @@ const KIN = {
     let rot = [0, 0, -7, 6, 0, 90, -4, 0][hv % 8]; if (rot === 90 && (g > 3 || !x.jp)) rot = 0;
     const m100 = J.measure({ text: w, font: x.fd, size: 100, track: -0.04 }).w, span = rot === 90 ? H : W;
     const S = g <= 2 ? Math.min(H * 1.12, span * 1.7 / m100 * 100) : Math.min(H * 0.98, span * (1.14 + 0.26 * J.r(x.seed, k, 4)) / m100 * 100);
-    const P3 = [[pal.bg, pal.fg], [LP.bg, LP.fg], [pal.fg, pal.bg]][d.col[k]];
+    const P3 = FLAT ? [[0, pal.fg], [0, LP.bg], [0, pal.bg]][d.col[k]] : [[pal.bg, pal.fg], [LP.bg, LP.fg], [pal.fg, pal.bg]][d.col[k]];
     if (d.col[k]) ground(ctx, P3[0]);
     const s = S * (1 + 0.3 * (1 - OUT(clamp(dt / 0.2)))) * (1 + 0.03 * dt);
     T(env, { text: w, font: x.fd, size: s, x: J.rs(x.seed, k, 5) * W * 0.05, y: J.rs(x.seed, k, 6) * H * 0.07, rot, track: -0.04, color: P3[1], alpha: outOf(sh, lt, 0.12) });
@@ -60553,7 +60569,7 @@ const KIN = {
     const dt = lt - d.T1; if (dt < 0) return;
     ground(ctx, LP.bg);
     const sk = Math.exp(-dt * 9) * U * 0.014, st = Math.floor(lt * 24);
-    T(env, { text: d.t, font: x.fd, size: d.S * (1 + 0.55 * (1 - OUT(clamp(dt / 0.22)))) * (1 + 0.04 * dt) * (1 + (beat && dt > 0.3 ? 0.05 * Math.exp(-beat.since * 8) : 0)), x: J.rs(st, 1) * sk, y: J.rs(st, 2) * sk, track: TRK.d, lead: 1.04, color: LP.fg, alpha: outOf(sh, lt, 0.12) });
+    T(env, { text: d.t, font: x.fd, size: d.S * (1 + 0.55 * (1 - OUT(clamp(dt / 0.22)))) * (1 + 0.04 * dt) * (1 + (beat && dt > 0.3 ? 0.05 * Math.exp(-beat.since * 8) : 0)), x: J.rs(st, 1) * sk, y: J.rs(st, 2) * sk, track: TRK.d, lead: 1.04, color: FLAT ? LP.bg : LP.fg, alpha: outOf(sh, lt, 0.12) });
   },
 };
 const isRed = c => { const h = J.toHsl(c); return (h[0] < 28 || h[0] > 335) && h[1] > 0.45; };
@@ -60613,7 +60629,7 @@ function drawWorld(R, ctx, plan, t, o) {
   const S = stageOf(plan), st = plan.style, P = st.stage || {}, W = plan.W, H = plan.H;
   const i = shotAt(S, t);
   const schemeOf = sh => st.schemes[sh.cut.scheme % st.schemes.length] || st.schemes[0];
-  if (i < 0) { if (!o.transparent) { ctx.fillStyle = (st.schemes[0] || {}).bg || '#000'; ctx.fillRect(0, 0, W, H); } return; }
+  if (i < 0) { if (!o.transparent) { ctx.fillStyle = KEYG ? J.KEY_BG.green : (st.schemes[0] || {}).bg || '#000'; ctx.fillRect(0, 0, W, H); } return; }
   const cur = S.shots[i], prev = i > 0 ? S.shots[i - 1] : null;
   const q = cur.T > 0 ? clamp((t - (cur.cut.start - cur.pre)) / cur.T) : 1, e = CAM(q), moving = prev && q < 1;
   const beat = beatAt(plan.beats, t), kick = beat ? (P.pulse || 0) * Math.exp(-beat.since * 9) : 0;
@@ -60629,7 +60645,7 @@ function drawWorld(R, ctx, plan, t, o) {
   const scC = schemeOf(cur), scP = prev ? schemeOf(prev) : scC;
   const envOf = (sh, sc) => ({ ctx, W, H, sc, st, fx: plan.fx, fps: plan.fps, cut: sh.cut, plan, pass: 'main', scale: o.scale * zoom / cam.s, allowFilter: o.allowFilter, t, lt: t - sh.cut.start, ltb: t - sh.cut.start, step: 0, glyphLog: o.glyphLog || null });
   ctx.save();
-  if (!o.transparent) { ctx.fillStyle = moving ? scP.bg : scC.bg; ctx.fillRect(0, 0, W, H); }
+  if (!o.transparent) { ctx.fillStyle = gnd(moving ? scP : scC); ctx.fillRect(0, 0, W, H); }
   ctx.translate(W / 2, H / 2); ctx.scale(zoom / cam.s, zoom / cam.s); ctx.rotate(-cam.rot * DEG); ctx.translate(-cam.x, -cam.y);
   if (moving) {
     // the page we are leaving (it fades as a dolly flies through it)
@@ -60643,7 +60659,7 @@ function drawWorld(R, ctx, plan, t, o) {
       ctx.restore();
     }
     // the page we arrive on owns everything on its side of the shared edge (or, for a dolly, its own rectangle)
-    const sameBg = String(scC.bg).toLowerCase() === String(scP.bg).toLowerCase();
+    const sameBg = KEYG || String(scC.bg).toLowerCase() === String(scP.bg).toLowerCase();
     ctx.beginPath();
     if (cur.travel === 'dolly') { if (sameBg) { const B = Math.max(W, H) * 40; ctx.rect(-B, -B, B * 2, B * 2); } else ctx.rect(-W / 2, -H / 2, W, H); }
     else {
@@ -60654,7 +60670,7 @@ function drawWorld(R, ctx, plan, t, o) {
     }
     ctx.clip();
     if (cur.travel === 'dolly' && sameBg) { /* same ground: the next page simply lies further in */ }
-    else if (!o.transparent) { ctx.fillStyle = scC.bg; const B = Math.max(W, H) * 40; ctx.fillRect(-B, -B, B * 2, B * 2); }
+    else if (!o.transparent) { ctx.fillStyle = gnd(scC); const B = Math.max(W, H) * 40; ctx.fillRect(-B, -B, B * 2, B * 2); }
     else if (cur.travel !== 'cut') { const B = Math.max(W, H) * 40; ctx.clearRect(-B, -B, B * 2, B * 2); }
   }
   drawShot(envOf(cur, scC), plan, cur, t - cur.cut.start, beat);
@@ -60676,6 +60692,7 @@ function stageFrame(R, ctx, plan, t, opt) {
   if (J.setTypeset) J.setTypeset(!!plan.typeset);
   if (J.setLatin) J.setLatin(st.latin);
   const key = plan.keyBg && J.KEY_BG && J.KEY_BG[plan.keyBg] ? plan.keyBg : null;
+  KEYG = key === 'green' && !!st.keyColour; FLAT = KEYG || !!opt.transparent;
   const o = { scale, transparent: !!opt.transparent, allowFilter: R.filterOK && !opt.fast, glyphLog: opt.glyphLog || null };
   if (o.transparent && opt.layer === 'back') { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cw, ch); ctx.restore(); return; }   // 前景／後景: the stage is one layer (front)
   const S = stageOf(plan), i = shotAt(S, t), cur = i >= 0 ? S.shots[i] : null;
@@ -60717,7 +60734,8 @@ function stageFrame(R, ctx, plan, t, opt) {
       ctx.fillStyle = vg; ctx.fillRect(0, 0, cw, ch); ctx.restore();
     }
   }
-  if (key && !opt.noPost) R.keyFinish(ctx, key, opt);
+  if (key && !KEYG && !opt.noPost) R.keyFinish(ctx, key, opt);
+  KEYG = FLAT = false;
 }
 J.stageFrame = stageFrame;
 if (J.Renderer && !J.Renderer.prototype.stageHook) {

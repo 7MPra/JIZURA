@@ -142,6 +142,8 @@ The first group on the Style tab, **Directed** (badge D), holds five presets (`s
 - **Zoom-through** (3) — the glyphs of the key word fly through the camera one after another, then the whole line slams in.
 - **Stack, One word, Column** — plain compositions used here and there at levels 0–2.
 
+**Green screen.** On a green background these styles keep their colours: only the ground turns `#00FF00`, and the type, plates and discs stay in the style's colours (yellow-greens, greens and mints are moved towards yellow or cyan so the keyer leaves them). The full-frame colour flips of Hit and Zoom-through paint no ground on green or in transparent PNG export; the type changes colour instead. The black background stays white-to-grey as before.
+
 The per-cut entrance, exit, camera, treatment, decoration, background and transition picks are ignored, because the stage draws the frame (a layout picked for a line or cut still applies). With **Calm** or **Keep the centre free** on, the director does not run and the ordinary renderer is used. Randomize and the style shuffle choose one of the five about 60% of the time. While the camera travels, each frame is the average of several sub-frames (motion blur), so export is slower than with other styles. The After Effects export replaces these layouts with the nearest classic ones; camera travel, blur and the scene motions are not reproduced there.
 
 </details>
