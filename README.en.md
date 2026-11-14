@@ -6,7 +6,25 @@ Turn lyrics into animated lyric videos in your browser. JIZURA combines layouts,
 
 The Japanese, English, Indonesian, Vietnamese, Traditional Chinese, Simplified Chinese and Korean browser editions share the same project format and saved browser data. Use the language links at the top of the editor to switch editions without changing your lyrics or settings. English After Effects panels are available as [ScriptUI](https://852wa.github.io/JIZURA/JIZURA_AE_en.jsx) and [CEP](https://852wa.github.io/JIZURA/JIZURA_CEP_en.zip) downloads. The AE JSON format is the same in both languages.
 
-**Version: v0.9.0** (see [CHANGELOG.md](CHANGELOG.md))
+**Project policy:** JIZURA runs entirely from a static page on GitHub Pages, and lyrics and songs never leave the browser. Features that need to **send to or load from outside servers or services** (anything GitHub Pages alone cannot run), and features that **integrate AI**, are generally not implemented. See [Project policy](#project-policy).
+
+**Version: v0.13.0** (see [CHANGELOG.md](CHANGELOG.md))
+
+## Project policy
+
+JIZURA follows two rules. Features that break either are generally not implemented, and pull requests that add them may not be merged.
+
+**1. JIZURA itself does not talk to the outside.** It runs from one static page on GitHub Pages, and lyrics and songs never leave the browser.
+
+- features that need to send to or receive from outside servers or services (API calls, accounts and sign-in, cloud storage, analytics or tracking, …)
+- loading code or data at run time from outside CDNs or model hosts
+- the only exception is loading the typefaces in use from Google Fonts
+
+**2. No AI integration**, including integrations that use no network.
+
+- LLM-driven direction, speech recognition for transcribing or timing lyrics, interfaces for AI agents (WebMCP and similar)
+
+Letting your own AI tool open and read the JIZURA page is your choice as a user, not a feature of JIZURA. You are free to build such features in your own fork (MIT License). Bug fixes, new expression parts, and features that work entirely inside the browser are welcome.
 
 <details>
 <summary><h2>Quick start</h2></summary>
@@ -34,6 +52,12 @@ A volume slider next to the play button sets the preview volume (click **Vol** t
 <summary><h3>Editing tools</h3></summary>
 
 Edit a line's lyrics in place (✎ or double-click), set the number of cuts per line (auto / 1–6), redo tap sync from any line (◎; Backspace undoes a tap), and drag line markers on the timeline (zoom with + / − or the wheel; hold Shift to ignore beats). Ctrl+Z undoes lyric and timing edits. **Export range** exports only the lines you pick (⇥ in the line list). The song you load is kept in this browser, so a reload does not drop it from exports; when the browser cannot encode AAC audio, a WAV of the soundtrack is saved next to the MP4. A short guided tour opens on the first visit in Simple mode (? to replay).
+
+New in v0.12: the number of parts has doubled, from 860 to 1,715 (layouts 364, entrances 251, holds 102, exits 221, decorations 260, text treatments 122, backgrounds 130, camera moves 71, screen effects 138, transitions 56). The 855 new ones form **new effects 2** (marked E2) with their own switch, off by default; with it off, automatic results are the same as before. New typographic, kinetic, horror and Japanese-motif parts are used only when their own switch is on as well. Since v0.13 the After Effects panels build all 1,715 parts, the new ones included (checked on an emulated After Effects object model, not yet in After Effects itself — please report anything that looks different from the browser).
+
+New in v0.11: **Load LRC / SRT** also reads subtitle files (`.srt` / `.vtt`): each block becomes one timed line, and where a block ends a second or more before the next one starts, an `[interlude]` row is added at its end time, so the line ends where the singing ends. You can drop a song, a lyric file (`.lrc` / `.srt` / `.vtt` / `.txt`) or a saved project (`.json`) anywhere on the window. `D` rerolls the line at the playhead and `L` locks or unlocks it; a reroll is one step of Previous / Next, so it can be taken back. Straight quotes and opening brackets in lyrics now stay with the words they belong to.
+
+**Start (s)** (Advanced mode) is when the first lyric appears. While the first line has a fixed time (tapped, dragged on the timeline, typed in the line list, or an LRC tag) the field shows that time, and changing it moves every timed line by the same amount (never before 0 s; Undo restores it).
 
 New in v0.10: **Load LRC** (next to Clear lyrics) replaces the lyrics with an `.lrc` file, and **Lyrics (LRC)** / **Save LRC** in the export sections saves the lyrics with each line's start time (only the export range, timed from the video start, when one is selected). Lines without a time stamp in an LRC text stay where they are written. Typed line times are kept in order. While tapping, **Speed** plays the song at 0.75× or 0.5× and **Count-in** starts it after 3-2-1; in a line with several cuts, **Tab** marks when the next cut starts (Advanced mode also shows each cut's start time under the line, which you can type). **Theme** next to Randomize keeps variations within Lyric video / Kinetic / Japanese / Horror / Pop / Ballad and turns on the part sets it needs. **Hide decorative numbers / times** (Effects tab) leaves out copy such as `No.01` or `00:12.34` that layouts, decorations and the HUD add. Latin lyrics are no longer split inside words, and comic panels read left to right for them.
 
@@ -93,6 +117,40 @@ Three switches under **Randomize** (and at the top of the Techniques tab) add ne
 - **Include horror effects** (off by default) — 52 eerie parts and 3 styles (Ruins, Midnight Recording, Cursed Letter): flashlight, door gap, wall scrawl, CCTV, spirit board, missing poster, the one wrong character, redacted file, static TV, spirit photo, wrong shadow, blink-creep and jump-scare entrances, pulled-down exits, twitch holds, watching eye, sigil, cracks, dark corridor, nervous handheld, subliminal frames, static cuts and more (marked H). When on, Randomize adds a **Horror** mood and picks it about half the time; Randomize uses horror parts only in that mood. No gore.
 
 The After Effects panels build all three sets too (with the same switches and the Horror mood); beat-locked timing is spread evenly over the cut in AE.
+
+</details>
+
+<details>
+<summary><h3>Directed styles</h3></summary>
+
+The first group on the Style tab, **Directed** (badge D), holds five presets (`src/11z5_stage.js`). They read the song, give every line a level of intensity, and show it in a scene that fits that level, so a quiet line and a chorus line do not look like the same page.
+
+- **Quarter Turn** — black, paper white and one signal red in heavy Gothic. Quiet lines stay small; the chorus brings one word bigger than the frame and type that tears apart. The frame turns a quarter.
+- **Margin** — ink Mincho on unbleached paper. It starts with small type and wide margins; only the peaks run frame-filling Mincho that streams past and tears.
+- **Colour Field** — fields of cobalt, yellow and white. The lyric becomes a wall that fills the frame, and the camera runs along a long line. The edges between colours cross the screen.
+- **Depth** — near-black ground, cold white and one dot of mint. The camera only moves forward; at the peaks the glyphs fly through it one by one.
+- **Pulse** — black, white and acid yellow-green. One word per beat, bigger than the frame, with the ground changing colour on each cut. Large contrast with the quiet lines.
+
+**The director.** Before anything is drawn it gives every lyric cut a level, 0–3 (quiet, telling, strong, peak), from the loudness of the song at that point (when a song is loaded), lines that come back (a chorus), impact / emphasis marks, how dense the line is, and where it stands (the first line, the line after a pause). The scene is drawn from the level (each style weights the scenes) and is never the same twice running. A jump of two levels up is prepared by a moment of empty frame and lands as a hard cut. Layouts picked by hand for a line or a cut are kept.
+
+**The twelve scenes** (layouts that only these styles use):
+
+- **Whisper** (level 0) — tiny type in a large empty frame, letters appearing one at a time, the spacing slowly opening.
+- **Stream** (1) — the line as one long row larger than the frame; the frame travels along it and each word fills as it is sung.
+- **Push** (1) — every word arrives from below and pushes the earlier ones up and smaller.
+- **Hit** (2) — one word a beat, bigger than the frame, each at its own angle and place; the ground changes colour.
+- **Wall** (2) — the line repeated in rows that fill the frame and run against each other; one row lit, moving on the beat.
+- **Slice** (2) — the line cut in horizontal bands that slide in from both sides and are knocked loose again on the beat.
+- **Zoom-through** (3) — the glyphs of the key word fly through the camera one after another, then the whole line slams in.
+- **Cross** (1–2) — a horizontal subject with the rest hung below it in vertical columns; for medium-length Japanese lines that tell.
+- **Split** (1–2) — the frame divided into two colour fields, the line split at the edge between them; telling to strong lines.
+- **Stack, One word, Column** — plain compositions used here and there at levels 0–2.
+
+The composed pages (Stack, Column, Cross, Split) are limited: never more than two in a row, at most about 25% of a song's lyric cuts, never at level 3, and never on the cut right after a jump of two levels or more. Margin and Depth also use hairline rules as geometry.
+
+**Green screen.** On green the type is always white. The style's colour is used only as a third colour — plates, discs and the lit band of a wall — and only on that colour can the type be something other than white (dark, where white would not read, as on yellow or gold). Yellow-greens, greens and mints are moved towards yellow or cyan so the keyer leaves them. The full-frame colour flips of Hit and Zoom-through are not drawn on green or in transparent PNG export. The black background is white-to-grey only.
+
+The per-cut entrance, exit, camera, treatment, decoration, background and transition picks are ignored, because the stage draws the frame (a layout picked for a line or cut still applies). With **Calm** or **Keep the centre free** on, the director does not run and the ordinary renderer is used. Randomize and the style shuffle choose one of the five about 60% of the time. While the camera travels, each frame is the average of several sub-frames (motion blur), so export is slower than with other styles. The After Effects export replaces these layouts with the nearest classic ones; camera travel, blur and the scene motions are not reproduced there.
 
 </details>
 

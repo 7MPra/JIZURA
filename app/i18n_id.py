@@ -50,6 +50,11 @@ STYLES = {
     'mpSpin': ('Huruf Berputar', 'Gothic bulat tebal di atas satu warna: kata masuk dengan sudutnya sendiri dan menumpuk sementara gambar terus berputar; satu kata lebih besar dari layar'),
     'mpRuby': ('Mincho & Ruby', 'Dua tinta di atas kertas, Mincho: satu kanji besar dengan cara bacanya, jatuh dengan motion blur; baris dengan pantulannya (tulis bacaan sebagai 漢字《かんじ》)'),
     'mpEllipse': ('Elips & Takarir', 'Gothic tipis di atas putih: huruf terbuka dalam lingkaran dan meluncur di sepanjang elips tak terlihat; seluruh baris selalu kecil di bawah'),
+    'stTurn': ('Putaran Seperempat', 'Hitam, putih kertas, dan satu merah sinyal dalam Gothic super tebal. Baris tenang tetap kecil; di refrain muncul satu kata lebih besar dari layar dan huruf yang terbelah. Layar berputar sembilan puluh derajat'),
+    'stYohaku': ('Margin', 'Mincho tinta di atas kertas krem. Dimulai dengan huruf kecil dan margin lebar; hanya di puncak Mincho sebesar layar mengalir lewat dan terbelah'),
+    'stField': ('Bidang Warna', 'Bidang warna kobalt, kuning, dan putih. Lirik menjadi dinding yang memenuhi layar, dan kamera berlari di sepanjang satu baris panjang. Batas antarwarna melintasi layar'),
+    'stDepth': ('Kedalaman', 'Latar hampir hitam, putih dingin, dan satu titik mint. Kamera hanya bergerak maju; di puncak, huruf menembus kamera satu per satu'),
+    'stPulse': ('Denyut', 'Hitam, putih, dan hijau-kuning neon. Satu kata per ketukan, lebih besar dari layar, dengan warna latar berganti di setiap potongan. Kontras besar dengan baris yang tenang'),
 }
 
 BODY = {
@@ -85,6 +90,10 @@ BODY = {
     '>点を消す</button>': '>Hapus titik</button>',
     '>再生位置に点を追加</button>': '>Tambah titik di posisi putar</button>',
     '>グラフを消す</button>': '>Hapus grafik</button>',
+    '追加分2の演出も使う': 'Sertakan efek baru 2',
+    '<small>v0.12 で追加した部品（「追2」印）。文字PV系・キネティック・ホラー・和風の新しい部品は、それぞれのスイッチもオンのときに使います</small>': '<small>Komponen yang ditambahkan di v0.12 (bertanda E2). Komponen tipografi, kinetik, horor, dan motif Jepang yang baru hanya dipakai bila sakelarnya sendiri juga menyala</small>',
+    'title="LRC ファイル（タイムスタンプ付きの歌詞）や字幕ファイル（SRT / VTT）を読み込み、今の歌詞と置き換えます（「元に戻す」で戻せます）。ファイルを画面にドロップしても読み込めます">LRC / SRT を読み込む': 'title="Muat file LRC (lirik dengan cap waktu) atau subtitle (SRT / VTT) untuk mengganti lirik sekarang (Urungkan mengembalikannya). File juga bisa dijatuhkan ke jendela">Muat LRC / SRT',
+    '<strong>ここにドロップして読み込み</strong><span>曲（mp3 / wav など）・歌詞（LRC / SRT / テキスト）・プロジェクト（.json）</span>': '<strong>Jatuhkan untuk memuat</strong><span>Lagu (mp3, wav …), lirik (LRC / SRT / teks), atau proyek (.json)</span>',
     '1行に複数のカットがあるときは、カットが切り替わる瞬間に <span class="kbd">Tab</span> を押すと、その行のカットの開始時刻も合わせられます。': 'Jika satu baris punya beberapa cut, tekan <span class="kbd">Tab</span> saat cut harus berganti untuk menyesuaikan waktu cut di baris itu juga.',
     '<label>速さ <select id="tapRate" aria-label="タップ中の再生速度">': '<label>Kecepatan <select id="tapRate" aria-label="Kecepatan putar saat mengetuk">',
     '<input type="checkbox" id="tapCount"> カウントダウン</label>': '<input type="checkbox" id="tapCount"> Hitung mundur</label>',
@@ -249,6 +258,7 @@ BODY = {
 }
 
 UI = {
+    '最初の行に時刻が決まっているため、その時刻を表示しています。変えると、時刻の決まっている行がすべて同じだけ動きます': 'Baris pertama sudah memiliki waktu tetap, jadi ini menampilkan waktu mulai sebenarnya. Mengubahnya menggeser semua baris yang sudah diberi waktu dengan jumlah yang sama',
     "'落ち着いた演出：オン（効果を切り、全部の行を同じ動きにします）'": "'Tenang: aktif (efek mati, semua baris bergerak sama)'",
     "'落ち着いた演出：オフ（元の演出に戻しました）'": "'Tenang: mati (kembali ke tampilan semula)'",
     '`開始は 00:00.00〜${J.fmtTime(D)} の間で指定してください`': '`Atur awal antara 00:00.00 dan ${J.fmtTime(D)}`',
@@ -269,6 +279,13 @@ UI = {
     "'この区間の拍を検出できませんでした'": "'Ketukan di bagian ini tidak terdeteksi'",
     "'曲を読み込むと検出できます'": "'Muat lagu untuk mendeteksi'",
     "'クリックで BPM の点を追加（DJ ミックスなど、途中でテンポが変わる曲に）'": "'Klik untuk menambah titik BPM (untuk DJ mix dan lagu yang temponya berubah)'",
+    "'追加分2の演出：使う'": "'Efek baru 2: aktif'",
+    "'追加分2の演出：使わない'": "'Efek baru 2: nonaktif'",
+    "{ name: '追加分2', badge: '追2' }": "{ name: 'Baru 2', badge: 'E2' }",
+    '`字幕ファイルを読み込みました（${sub.lines} 行・間奏 ${sub.gaps} か所・「元に戻す」で戻せます）`': '`Subtitle dimuat (${sub.lines} baris, ${sub.gaps} interlude · Urungkan untuk mengembalikan)`',
+    "'読み込めるのは 曲・歌詞（LRC / SRT）・プロジェクト（.json）です'": "'Yang bisa dimuat: lagu, lirik (LRC / SRT), atau proyek (.json)'",
+    '（再生位置の行は D キー）': ' (D untuk baris di posisi putar)',
+    '（再生位置の行は L キー）': ' (L untuk baris di posisi putar)',
     '`前後の行と順番が入れ替わらないよう ${w.toFixed(2)} 秒にしました`': '`Diatur ke ${w.toFixed(2)} dtk agar urutan baris tetap`',
     "'このカットの開始時刻（手動）。空にすると自動に戻ります'": "'Awal cut ini (manual). Kosongkan untuk kembali otomatis'",
     "'このカットの開始時刻（自動）。数値を入れると固定します'": "'Awal cut ini (otomatis). Ketik waktu untuk menguncinya'",
@@ -290,6 +307,9 @@ UI = {
     "{ name: 'ホラー', badge: 'ホ' }": "{ name: 'Horor', badge: 'H' }",
     "{ name: '文字PV系', badge: '文' }": "{ name: 'Tipografi', badge: 'T' }",
     "{ name: 'キネティック', badge: 'キ' }": "{ name: 'Kinetik', badge: 'K' }",
+    "{ name: 'ディレクション', badge: '演' }": "{ name: 'Terarah', badge: 'D' }",
+    "heading('ディレクション')": "heading('Terarah')",
+    "heading('ほかのスタイル')": "heading('Gaya lain')",
     "'スマホの画面では 1080p で書き出します'": "'Di tampilan ponsel, ekspor maksimal 1080p'",
     "`読み込んだ書体（${[...new Set(lost)].join('・')}）がこのブラウザにないため、書き出しを止めました。「フォント」から同じファイルを読み込み直すか、別の書体を選んでください`": "`Font yang dimuat (${[...new Set(lost)].join(', ')}) tidak ada di browser ini, jadi ekspor dihentikan. Muat ulang file yang sama di Font, atau pilih font lain`",
     "`読み込んだ書体（${missing.join('・')}）がこのブラウザにありません。「フォント」から同じファイルを読み込み直してください（それまでは近い書体で表示します）`": "`Font yang dimuat (${missing.join(', ')}) tidak ada di browser ini. Muat ulang file yang sama di Font (sampai itu, dipakai font yang mirip)`",

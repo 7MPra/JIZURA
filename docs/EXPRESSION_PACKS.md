@@ -180,11 +180,38 @@ Packs named `typo`, `kinetic` or `horror` (or entries with `set: '<name>'`) belo
 The ホラー mood (`J.MOODS.horror`) is offered by おまかせ only when the horror switch is on, and おまかせ uses horror entries only in that mood.
 Keys use a set prefix (`ty`, `kn`, `hr`); new sets need an entry in `J.SETS` (src/11q_sets.js) and a switch in the UI.
 
+### 追加分2 (extra2)
+Packs whose name starts with `x2` (files `src/11p_x2_*.js`) are 追加分2: their entries get `x2: true` and are picked at random
+only when the project's 「追加分2の演出も使う」 switch is on (off by default). A pack named `x2typo…` / `x2kinetic…` / `x2horror…`
+also joins that part set, so its entries need both switches; 和風 entries carry `wa: true` as usual. Every entry of these packs
+has `en` (its English name, used by the non-Japanese editions). Adding to 追加分2 must not change what random picks give with
+the switch off.
+
+### Stage styles (ディレクション, `src/11z5_stage.js`)
+A style opts in with `stage: { kinds, travel, geo, … }` (`kinds` weights the scenes; see the presets at the end of the file);
+`Renderer.prototype.frame` is then routed to `J.stageFrame`, which draws the whole frame, with sub-frame motion blur while the
+camera travels. `J.plan` is wrapped by a *director*: for a stage style (not 中央を空ける, not 落ち着いた演出) it gives every lyric cut
+`cut.level` 0–3 (quiet / telling / strong / peak) from the loudness of the song, repeated lines, impact marks, line density and
+position, then reassigns `cut.layout` of every cut that was not set by hand, drawing from the scenes allowed at that level and never
+the same twice running; a two-level jump up is prepared by an empty moment and lands as a hard cut. The other planner picks
+(`enter` / `exit` / `cam` / `treat` / `decor` / `bg` / `trans`) are not used.
+The layouts of the set `stage` are `poolOnly` *scenes*, each a different grammar rather than another arrangement of the same page:
+`stWhisper` (0), `stStream`, `stPush`, `stStack`, `stColumn`, `stCross`, `stSplit` (1), `stMono`, `stHit`, `stWall`, `stSlice` (2), `stZoom` (3) — the level is in
+the `LEVELS` table next to the director. The composed pages (`stStack stColumn stCross stSplit`) are limited by the director: at most 2 in a row, about 25% of a song's lyric cuts, never at level 3 or right after a jump of two levels or more. Hairline rules are geometry of the Margin and Depth presets only. Their `plan()` returns a few parameters; `render()` only serves thumbnails, a line set by hand in
+another style, and 中央を空ける (classic renderer). A stage style's `pool.layout` names all of them, and the planner keeps all of them
+enabled whatever the mood switched off. Declare `ae:` on each layout as usual (the After Effects export uses it).
+The set has no switch (`J.SETS.stage` is added after `J.SET_ORDER` is built); the styles are listed in `J.STAGE_STYLES`, shown as their own
+group in the style picker, and chosen by おまかせ about 60% of the time. Non-Japanese editions need names for styles (`app/english.js`,
+`app/i18n_*.py` `STYLES`) and layouts (`en:` on the layout; `PARTS` in a translation module).
+
 ### Avoid near-duplicates
 Before designing, list what already exists in your group: `node -e` is not enough for visuals — run
 `python3 dev/overview.py <group> out/ov t_all` (after `python3 dev/build_test.py all --all-packs`) and look at the grid. Every
 new entry must be recognisably different from all existing ones (different motion principle, composition or graphic idea — not the
 same thing with other numbers).
+
+## Project policy
+No AI, no network: a pack must not call any server, service or model, and must not load code or data from outside at run time (the app runs from a static page on GitHub Pages; Google Fonts is the only outside load). See "開発の方針" in README.md.
 
 ## Performance & robustness
 Budget ≈ 2 ms per call at 1080p. No `getImageData`, no canvas creation per frame (cache on a module-level Map keyed by params if you must

@@ -3,7 +3,8 @@ are empty, clipped at the frame edge by accident, colliding, low-contrast or too
 usage: python3 dev/critic.py [styles=all] [out.json]   (needs dev/www built: python3 build.py --dev, served on :8765)"""
 import asyncio, json, sys, os
 from playwright.async_api import async_playwright
-CHROME = os.environ.get('CHROME', '/opt/pw-browsers/chromium-1194/chrome-linux/chrome')
+import os.path as _p, sys as _s; _s.path.insert(0, _p.dirname(_p.abspath(__file__)))
+from _chrome import CHROME   # $CHROME, else the newest installed Chromium
 LYRICS = """夜明けの色を覚えてる
 ほどけた声が遠くで鳴った
 ねえ、まだ間に合うかな

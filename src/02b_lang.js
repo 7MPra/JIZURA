@@ -129,13 +129,15 @@ J.pool = (kind) => { const P = J.POOLS[J.lang] || J.POOLS.ja; return P[kind] || 
 const SERIF_KINDS = { mincho: 1, brush: 1, hand: 1 };
 const faceCache = new Map();
 /* the face a font key is drawn with in the current language: {family (quoted), weight, fb, gf, label, name (family, for captions)} */
+// faces added later (ディレクション) use the per-language face of their closest older key
+const FACE_ALIAS = { mplus_black: 'gothic_black', mplus_xb: 'gothic_black', mplus_med: 'gothic_med', shipm_xb: 'shippori', shipm_med: 'mincho', zenkaku_b: 'gothic_bold', murecho_b: 'gothic_bold', murecho_xl: 'gothic_light' };
 J.faceOf = (key) => {
   const f = J.FONTS[key] || J.FONTS.gothic_bold;
   const L = J.LANG_FACES[J.lang];
   if (!L || f.user) return f;                               // Japanese: the catalogue face itself (fontCSS runs per draw — no allocation)
   const ck = J.lang + '|' + key; let r = faceCache.get(ck);
   if (r) return r;
-  const m = L.map[key], fb = (SERIF_KINDS[f.kind] ? L.fbSerif : L.fbSans) + ',' + f.fb;
+  const m = L.map[key] || L.map[FACE_ALIAS[key]], fb = (SERIF_KINDS[f.kind] ? L.fbSerif : L.fbSans) + ',' + f.fb;
   r = !m ? { family: f.family, weight: f.weight, fb, gf: f.gf, label: f.label, name: f.label, kind: f.kind }
     : { family: '"' + m.family + '"', weight: m.weight, fb, gf: m.gf, label: m.family + (m.weight !== 400 ? ' ' + m.weight : ''), name: m.family, kind: f.kind };
   faceCache.set(ck, r);

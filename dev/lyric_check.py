@@ -9,7 +9,8 @@ from playwright.async_api import async_playwright
 
 STYLES = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] != 'all' else ''
 PAGE = sys.argv[2] if len(sys.argv) > 2 else 'test'
-CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'
+import os.path as _p, sys as _s; _s.path.insert(0, _p.dirname(_p.abspath(__file__)))
+from _chrome import CHROME   # $CHROME, else the newest installed Chromium
 
 # verses that come back with a different second line (the shape that tripped the block cache), choruses, an interlude
 LYRICS = [
@@ -47,6 +48,9 @@ async ({ styles, lyrics }) => {
       out.cutAt++;
       if (a !== b && !(a && b && a.start === b.start)) { out.fails.push(label + ' cutAt ' + t.toFixed(2) + ' → ' + (a && a.text) + ' / scan ' + (b && b.text)); break; }
     }
+    // ディレクション (stage styles) is one continuous space: while the camera travels, the page before is still in view, so a line of
+    // an earlier section may be drawn too (a line that has not started yet still fails)
+    const stage = !!(plan.style && plan.style.stage);
     for (const c of plan.cuts) {
       if (c.layout === 'interlude' || !String(c.text || '').trim()) continue;
       if (c.enter === 'tyRetype') continue;            // 打ち直し: types a wrong glyph on purpose, then fixes it
@@ -58,7 +62,7 @@ async ({ styles, lyrics }) => {
         out.checked++;
         // allowed: lines of this section that have started (the current line included)
         const allowed = new Map();
-        for (const l of lines) if (secOf.get(l.index) === secOf.get(c.line) && l.start <= t + 0.05) for (const ch of flat(l.text)) allowed.set(ch, (allowed.get(ch) || 0) + 1);
+        for (const l of lines) if ((stage || secOf.get(l.index) === secOf.get(c.line)) && l.start <= t + 0.05) for (const ch of flat(l.text)) allowed.set(ch, (allowed.get(ch) || 0) + 1);
         const drawn = new Map(); for (const g of log) for (const ch of flat(g.ch)) drawn.set(ch, (drawn.get(ch) || 0) + 1);
         // a faint copy of the word (散らし) or a repeated line may draw a glyph twice: only a glyph that is not allowed at all fails
         const bad = [...drawn.keys()].filter(ch => !allowed.has(ch) && !/[A-Za-z]/.test(ch) || /[A-Za-z]/.test(ch) && !allowed.has(ch) && !allowed.has(ch.toLowerCase()) && !allowed.has(ch.toUpperCase()));

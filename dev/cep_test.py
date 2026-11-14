@@ -3,6 +3,8 @@ CEP bridge whose evalScript executes host.jsx + jizura_core.jsx on the emulated 
 usage: python3 build_cep.py && rm -rf dev/www/cepx && cp -r build/com.852wa.jizura dev/www/cepx && python3 dev/cep_test.py <outdir>"""
 import asyncio, base64, json, os, sys
 from playwright.async_api import async_playwright
+import os.path as _p, sys as _s; _s.path.insert(0, _p.dirname(_p.abspath(__file__)))
+from _chrome import launch_args   # $CHROME / $JIZURA_BROWSER, else the newest installed Chromium
 OUT = sys.argv[1] if len(sys.argv) > 1 else 'shots/cep'
 os.makedirs(OUT, exist_ok=True)
 
@@ -68,7 +70,7 @@ async def wait_status(pg, text, timeout=90000):
 
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch()
+        b = await p.chromium.launch(**launch_args())
         # ---- A: with Node (temp-file path), pro mode
         ctx = await b.new_context(viewport={'width': 1280, 'height': 860})
         await ctx.add_init_script("try{localStorage.setItem('jizura.mode','pro')}catch(e){}")

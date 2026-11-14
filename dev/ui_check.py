@@ -6,7 +6,8 @@ import asyncio, json, sys
 from playwright.async_api import async_playwright
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else 'http://localhost:8766/'
-CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'
+import os.path as _p, sys as _s; _s.path.insert(0, _p.dirname(_p.abspath(__file__)))
+from _chrome import CHROME   # $CHROME, else the newest installed Chromium
 LYRICS = '一行目の歌詞\n二行目の歌詞\n[間奏 8]\nああそうか\n最後の行'
 PROJECT = {'version': 1, 'lyrics': LYRICS, 'style': 'noir', 'seed': 5,
            'timing': {'bpm': 120, 'offset': 0.5, 'snap': True, 'tail': 0.9, 'lineTimes': {}, 'lineScale': 1, 'tempo': []}}

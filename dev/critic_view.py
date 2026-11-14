@@ -3,7 +3,8 @@ import asyncio, base64, io, json, sys, os
 from playwright.async_api import async_playwright
 from PIL import Image, ImageDraw
 sys.path.insert(0, os.path.dirname(__file__))
-CHROME = os.environ.get('CHROME', '/opt/pw-browsers/chromium-1194/chrome-linux/chrome')
+import os.path as _p, sys as _s; _s.path.insert(0, _p.dirname(_p.abspath(__file__)))
+from _chrome import CHROME   # $CHROME, else the newest installed Chromium
 from critic import LYRICS
 async def main():
     rows = json.load(open(sys.argv[1])); g, k = sys.argv[2].split('='); flag = sys.argv[3] if len(sys.argv) > 4 else None; out = sys.argv[-1]
