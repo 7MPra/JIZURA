@@ -61833,7 +61833,7 @@ function replan() {
   S.plan = J.plan(S.project, audioLike());
   // lines locked in older projects (seed only): take a snapshot now, so from here on they stay exactly as they are
   for (const [i, o] of Object.entries(S.project.overrides || {})) if (o && o.lock && !Array.isArray(o.lockedCuts)) { const snap = J.lineSnapshot(S.plan, +i); if (snap) o.lockedCuts = snap; }
-  langNote();
+  langNote(); syncOffsetField();
   if (S.t > S.plan.duration) S.t = 0;
   refreshLoopHold();
   renderLines(); sizeViewport(); drawTimeline(); updateTimeUI(); syncPreviewUI();
@@ -62110,7 +62110,7 @@ function drawTempo() {
 function syncTempoSel() {
   const p = tempoArr()[TP.sel], box = $('tempoSel'); if (!box) return;
   box.hidden = !p; if (!p) return;
-  const set = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
+  const set = (id, v) => { const el = $(id); if (force || document.activeElement !== el) el.value = v; };
   set('tpT', (+p.t).toFixed(2)); set('tpB', String(+(+p.bpm).toFixed(2)));
   $('tpRamp').checked = !!p.ramp; $('tpAnchor').checked = p.anchor !== false;
   $('tpRamp').disabled = TP.sel === 0;
@@ -62614,6 +62614,38 @@ function editLine(li, ln) {
   inp.addEventListener('blur', () => finish(true));
 }
 
+/* ---------------- 開始(dtk) ---------------- */
+// While line 0 has a fixed time (hand-set, or an LRC tag) the planner starts there and ignores timing.offset (J.computeTiming), so the
+// field shows that actual start, and editing it moves every fixed time by the same amount
+function fixedStart0() {
+  const T = S.project.timing, man = T.lineTimes && T.lineTimes[0];
+  if (man != null && isFinite(+man)) return Math.max(0, +man);
+  const l0 = J.parseLyrics(S.project.lyrics).lines[0];
+  return l0 && l0.lrc != null && isFinite(l0.lrc) ? l0.lrc : null;
+}
+function syncOffsetField(force) {
+  const el = $('offset'); if (!el) return;
+  const f = fixedStart0();
+  if (document.activeElement !== el) el.value = f != null ? Math.round(f * 100) / 100 : (S.project.timing.offset ?? 0.4);
+  el.title = f != null ? 'Baris pertama sudah memiliki waktu tetap, jadi ini menampilkan waktu mulai sebenarnya. Mengubahnya menggeser semua baris yang sudah diberi waktu dengan jumlah yang sama' : '';
+}
+function setStartTime(v) {
+  const T = S.project.timing, f = fixedStart0();
+  if (f == null) { T.offset = Math.max(0, v); replan(); return; }
+  const lines = J.parseLyrics(S.project.lyrics).lines, lt = Object.assign({}, T.lineTimes || {});
+  lines.forEach((l, i) => { if (lt[i] == null && l.lrc != null && isFinite(l.lrc)) lt[i] = l.lrc; });     // LRC tags: write them down so the hand-set time wins
+  const vals = Object.values(lt).map(x => +x).filter(isFinite);
+  let d = Math.max(0, v) - f;
+  if (vals.length) d = Math.max(d, -Math.min(...vals));                    // nothing goes below 0
+  if (Math.abs(d) < 1e-6) { syncOffsetField(); return; }
+  const s0 = JSON.parse(edSnap()); s0.offset = T.offset ?? 0.4;
+  if (ED.undo[ED.undo.length - 1] !== JSON.stringify(s0)) ED.undo.push(JSON.stringify(s0));
+  if (ED.undo.length > 60) ED.undo.shift(); ED.redo = []; updateEditBtns();
+  for (const k of Object.keys(lt)) lt[k] = Math.max(0, Math.round((+lt[k] + d) * 1000) / 1000);
+  T.lineTimes = lt; T.offset = Math.max(0, Math.round(((T.offset ?? 0.4) + d) * 1000) / 1000);
+  replan();
+}
+
 /* ---------------- 歌詞 · タイミングの取り消し（Ctrl+Z） ---------------- */
 // separate from the ◀ ▶ history of looks: lyric edits, dragged / typed / tapped line times
 const ED = { undo: [], redo: [] };
@@ -62624,10 +62656,12 @@ function edGo(d) {
   if (!from.length) return;
   const o = JSON.parse(from.pop()), cur = JSON.parse(edSnap());
   if ('ov' in o) { cur.ov = S.project.overrides; cur.range = S.project.exportRange || null; }   // clearLyrics() also cleared these
+  if ('offset' in o) cur.offset = S.project.timing.offset ?? 0.4;                                // 開始(dtk) moved the fixed times too
   to.push(JSON.stringify(cur));
   S.project.lyrics = o.lyrics; S.project.timing.lineTimes = o.lineTimes; $('lyrics').value = o.lyrics;
   if (Array.isArray(o.tempo)) { S.project.timing.tempo = o.tempo; TP.sel = Math.min(TP.sel, o.tempo.length - 1); }
   if ('ov' in o) { S.project.overrides = o.ov || {}; S.project.exportRange = o.range || null; }
+  if ('offset' in o) S.project.timing.offset = o.offset;
   replan(); flushSave(); updateEditBtns();
   toast(d < 0 ? 'Dibatalkan' : 'Diulang kembali');
 }
@@ -63446,7 +63480,7 @@ function syncUI() {
   $('lyrics').value = S.project.lyrics;
   $('bpm').value = S.project.timing.bpm > 0 ? S.project.timing.bpm : '';
   $('bpm').placeholder = S.audio ? `Otomatis ${S.audio.bpm}` : 'Tidak ada';
-  $('offset').value = S.project.timing.offset ?? 0.4;
+  syncOffsetField();
   $('lineScale').value = S.project.timing.lineScale ?? 1;
   $('snap').checked = !!S.project.timing.snap;
   document.querySelectorAll('.wa-toggle').forEach(el => { el.checked = S.project.wa !== false; });
@@ -63473,7 +63507,7 @@ function bind() {
   $('songArtist').addEventListener('input', e => { S.project.artist = e.target.value; replanSoon(300); });
   $('btnSyntax').addEventListener('click', e => { const s = $('syntax'); s.hidden = !s.hidden; e.target.setAttribute('aria-expanded', String(!s.hidden)); });
   $('bpm').addEventListener('change', e => { S.project.timing.bpm = Math.max(0, parseFloat(e.target.value) || 0); replan(); });
-  $('offset').addEventListener('change', e => { S.project.timing.offset = Math.max(0, parseFloat(e.target.value) || 0); replan(); });
+  $('offset').addEventListener('change', e => { setStartTime(parseFloat(e.target.value) || 0); syncOffsetField(true); });
   $('lineScale').addEventListener('change', e => { S.project.timing.lineScale = J.clamp(parseFloat(e.target.value) || 1, 0.3, 4); replan(); });
   $('snap').addEventListener('change', e => { S.project.timing.snap = e.target.checked; replan(); });
   $('btnResetTimes').addEventListener('click', () => { S.project.timing.lineTimes = {}; replan(); });

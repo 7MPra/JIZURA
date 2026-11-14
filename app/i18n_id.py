@@ -258,6 +258,7 @@ BODY = {
 }
 
 UI = {
+    '最初の行に時刻が決まっているため、その時刻を表示しています。変えると、時刻の決まっている行がすべて同じだけ動きます': 'Baris pertama sudah memiliki waktu tetap, jadi ini menampilkan waktu mulai sebenarnya. Mengubahnya menggeser semua baris yang sudah diberi waktu dengan jumlah yang sama',
     "'落ち着いた演出：オン（効果を切り、全部の行を同じ動きにします）'": "'Tenang: aktif (efek mati, semua baris bergerak sama)'",
     "'落ち着いた演出：オフ（元の演出に戻しました）'": "'Tenang: mati (kembali ke tampilan semula)'",
     '`開始は 00:00.00〜${J.fmtTime(D)} の間で指定してください`': '`Atur awal antara 00:00.00 dan ${J.fmtTime(D)}`',

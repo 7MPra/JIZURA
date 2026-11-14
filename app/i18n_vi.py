@@ -316,6 +316,7 @@ BODY = {
 }
 
 UI = {
+    '最初の行に時刻が決まっているため、その時刻を表示しています。変えると、時刻の決まっている行がすべて同じだけ動きます': 'Dòng đầu đã có thời điểm cố định nên ô này hiển thị thời điểm bắt đầu thực tế. Khi đổi, mọi dòng đã có thời điểm sẽ dịch chuyển cùng một lượng',
     "'落ち着いた演出：オン（効果を切り、全部の行を同じ動きにします）'": "'Nhẹ nhàng: bật (tắt hiệu ứng, mọi câu chuyển động giống nhau)'",
     "'落ち着いた演出：オフ（元の演出に戻しました）'": "'Nhẹ nhàng: tắt (đã quay về như cũ)'",
     '`開始は 00:00.00〜${J.fmtTime(D)} の間で指定してください`': '`Hãy đặt điểm đầu trong khoảng 00:00.00 đến ${J.fmtTime(D)}`',

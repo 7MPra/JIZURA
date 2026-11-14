@@ -209,6 +209,7 @@ BODY = {
 }
 
 UI = {
+    '最初の行に時刻が決まっているため、その時刻を表示しています。変えると、時刻の決まっている行がすべて同じだけ動きます': 'Line 1 has a fixed time, so this shows its actual start. Changing it moves every timed line by the same amount',
     "'落ち着いた演出：オン（効果を切り、全部の行を同じ動きにします）'": "'Calm: on (effects off, every line moves the same way)'",
     "'落ち着いた演出：オフ（元の演出に戻しました）'": "'Calm: off (back to the original look)'",
     '`開始は 00:00.00〜${J.fmtTime(D)} の間で指定してください`': '`Set a start between 00:00.00 and ${J.fmtTime(D)}`',
