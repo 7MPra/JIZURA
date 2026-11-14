@@ -797,7 +797,7 @@ function direct(plan) {
   }
   // composed pages (set type, not kinetic): never more than two in a row, about a quarter of the song at most, never
   // at a peak (LEVELS) or on the cut right after a jump up
-  const PAGE = new Set(['stStack', 'stCross', 'stSplit', 'stColumn']), budget = Math.max(1, Math.round(L.length * 0.25));
+  const PAGE = new Set(['stStack', 'stCross', 'stSplit', 'stColumn']), budget = Math.max(1, Math.floor(L.length * 0.25));
   let prevKind = null, pages = 0, run = 0;
   L.forEach((c, i) => {
     c.level = lv[i];

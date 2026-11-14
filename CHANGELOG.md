@@ -31,6 +31,12 @@ JIZURA のバージョンは `メジャー.マイナー.パッチ` の形で付�
   - AE への書き出しは、近い既存のレイアウトに置き換えます。
 - 開発用スクリプト：`dev/ui_check.py`・`dev/lyric_check.py`・`dev/critic.py`・`dev/critic_view.py`・`dev/omakase_review.py` が使う Chromium を、環境変数 `CHROME`、なければ入っている最新の Chromium から選ぶようにしました（`dev/_chrome.py`）。
 
+### 改善（ディレクションの書体）
+
+- 5つのプリセットを、それぞれ1つの書体ファミリーで組むようにしました（大きな字と小さな字が同じ設計になります）。転回は M PLUS 1（Black／Medium）、余白は しっぽり明朝（ExtraBold／Medium）、色面は Zen Kaku Gothic New（Black／Bold）、奥行は Murecho（Bold／ExtraLight）、明滅は Dela Gothic One と M PLUS 1 ExtraBold です。中国語・韓国語の歌詞では、それぞれ近い性格の書体に置き換わります。AE パネルでも同じ書体を探し、ないときは近い書体を使います。
+- おまかせで、ディレクションのスタイルの書体を別の書体に差し替えないようにしました。
+- Adobe Fonts のキットが有効なとき、転回の本文の書体の指定が誤っていて見出しと同じ書体になっていたのを直しました（りょうゴシック R）。
+
 ### 修正（ディレクションの合成用背景）
 
 - 合成用背景で文字と背景の色が入れ替わらないようにした変更（#2）を取り込みました。

@@ -28,7 +28,16 @@ var JZ_FONT_CANDIDATES = {
     potta: ['PottaOne-Regular', 'MochiyPopOne-Regular', 'YuGothic-Bold'],
     kiwi: ['KiwiMaru-Medium', 'MPLUSRounded1c-ExtraBold', 'YuGothic-Medium'],
     klee: ['KleeOne-SemiBold', 'Klee-Demibold', 'Klee-Medium', 'YuMincho-Demibold'],
-    shippori: ['ShipporiMinchoB1-ExtraBold', 'ZenOldMincho-Black', 'KozMinPr6N-Heavy', 'HiraMinProN-W6', 'YuMincho-Demibold']
+    shippori: ['ShipporiMinchoB1-ExtraBold', 'ZenOldMincho-Black', 'KozMinPr6N-Heavy', 'HiraMinProN-W6', 'YuMincho-Demibold'],
+    // ディレクション (browser src/11z5_stage.js)
+    mplus_black: ['MPLUS1-Black', 'Mplus1-Black', 'NotoSansJP-Black', 'KozGoPr6N-Heavy', 'YuGothic-Bold'],
+    mplus_xb: ['MPLUS1-ExtraBold', 'Mplus1-ExtraBold', 'NotoSansJP-Black', 'KozGoPr6N-Bold', 'YuGothic-Bold'],
+    mplus_med: ['MPLUS1-Medium', 'Mplus1-Medium', 'NotoSansJP-Medium', 'KozGoPr6N-Medium', 'YuGothic-Medium'],
+    shipm_xb: ['ShipporiMincho-ExtraBold', 'ShipporiMinchoB1-ExtraBold', 'ZenOldMincho-Black', 'KozMinPr6N-Heavy', 'YuMincho-Demibold'],
+    shipm_med: ['ShipporiMincho-Medium', 'NotoSerifJP-Medium', 'KozMinPr6N-Medium', 'YuMincho-Regular'],
+    zenkaku_b: ['ZenKakuGothicNew-Bold', 'NotoSansJP-Bold', 'KozGoPr6N-Bold', 'YuGothic-Bold'],
+    murecho_b: ['Murecho-Bold', 'NotoSansJP-Bold', 'KozGoPr6N-Bold', 'YuGothic-Bold'],
+    murecho_xl: ['Murecho-ExtraLight', 'NotoSansJP-Light', 'KozGoPr6N-Light', 'YuGothic-Light']
 };
 var JZ_ROLE_DEFAULT = { display: 'YuGothic-Bold', serif: 'YuMincho-Demibold', body: 'YuGothic-Medium', mono: 'Consolas' };
 var JZ_FONT_CACHE = {};
@@ -41,9 +50,9 @@ function jzFontExists(ps) {
 }
 function jzRoleOf(key) {
     if (!key) return 'display';
-    if (/mincho|tokumin|brush|shippori|klee/.test(key)) return 'serif';
+    if (/mincho|tokumin|brush|shippori|shipm|klee/.test(key)) return 'serif';
     if (/mono/.test(key)) return 'mono';
-    if (/med|light|sansui/.test(key)) return 'body';
+    if (/med|light|sansui|murecho_xl/.test(key)) return 'body';
     return 'display';
 }
 // resolve: explicit user role font > key candidates that exist > role default
@@ -51,6 +60,8 @@ function jzRoleOf(key) {
 var JZ_FONT_MISSING = {}, JZ_FONT_NOAPI = false;
 // ---- lyric language (plan.lang from the browser): Chinese / Korean lyrics are drawn with faces that have their glyphs.
 // Per language: key → PostScript candidates (the browser's Google Font first, then OS fonts that always cover the script).
+// keys added later (ディレクション) take the per-language faces of their closest older key
+var JZ_FONT_ALIAS = { mplus_black: 'gothic_black', mplus_xb: 'gothic_black', mplus_med: 'gothic_med', shipm_xb: 'shippori', shipm_med: 'mincho', zenkaku_b: 'gothic_bold', murecho_b: 'gothic_bold', murecho_xl: 'gothic_light' };
 var JZ_LANG = 'ja';
 var JZ_LANG_SYS = {
     'zh-Hant': { sansB: ['PingFangTC-Semibold', 'MicrosoftJhengHeiBold', 'NotoSansCJKtc-Bold', 'SourceHanSansTC-Bold'], sans: ['PingFangTC-Regular', 'MicrosoftJhengHeiRegular', 'NotoSansCJKtc-Regular', 'SourceHanSansTC-Regular'],
@@ -115,7 +126,7 @@ var JZ_POOL_LANG = 'ja';
 function jzSetLang(l) { JZ_LANG = (l && JZ_LANG_FONTS.hasOwnProperty(l)) ? l : 'ja'; JZ_POOL_LANG = (l && JZ_POOLS.hasOwnProperty(l)) ? l : 'ja'; }
 // the language's own candidates for a key (null = Japanese faces); JZ_FONT_MISSING gets the family name when its own face is missing
 function jzLangFont(key) {
-    var T = JZ_LANG_FONTS[JZ_LANG], e = T && T[key], i, ex, sys;
+    var T = JZ_LANG_FONTS[JZ_LANG], e = T && (T[key] || T[JZ_FONT_ALIAS[key]]), i, ex, sys;
     if (!e) return null;
     for (i = 1; i < e.length; i++) {
         if (JZ_LANG_SYS[JZ_LANG].hasOwnProperty(e[i])) break;
