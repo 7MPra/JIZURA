@@ -867,17 +867,17 @@ const STYLES = {
   stTurn: {
     name: '転回', en: 'Quarter Turn', desc: '黒・紙の白・一色の朱、極太ゴシック。静かな行は小さく、サビは画面からはみ出す一語と裂ける文字。画面は九十度まわる', moods: ['graphic', 'pop', 'glitch'],
     schemes: [scheme('#0B0B0C', '#F3F1EC', '#FF3B1F'), scheme('#F3F1EC', '#0B0B0C', '#FF3B1F'), scheme('#FF3B1F', '#0B0B0C', '#F3F1EC')],
-    fonts: { display: ['gothic_black'], serif: ['mincho_black'], body: ['gothic_med'], mono: ['mono'] },
+    fonts: { display: ['mplus_black'], serif: ['shipm_xb'], body: ['mplus_med'], mono: ['mono'] },
     pool: pool(ALL()), oneCut: 0.9,
     stage: { kinds: { stWhisper: 1, stStream: 0.8, stPush: 1, stHit: 1.3, stWall: 0.8, stSlice: 1, stZoom: 1, stStack: 0.25, stMono: 0.8, stColumn: 0, stCross: 0.5, stSplit: 0.7 },  travel: { turn: 1.2, pan: 0.6, dolly: 0.35 }, dirs: [[1, 0], [0, 1], [1, 0], [0, -1]], scales: [1, 1, 0.72, 1.3], enter: { lead: { slam: 1, rise: 0.8 }, sub: { rise: 1, slide: 0.5 } },
       geo: { plate: 1.2, disc: 1, none: 0.5 }, ghost: 'lead', push: 0.04, pulse: 0.012, arc: 0.16, grain: 0.5, idle: 'bars', blur: 1 },
-    adobeFonts: { display: ['ad_ryogo_ub'], body: ['ad_ryogo_m'] },
+    adobeFonts: { display: ['ad_ryogo_ub'], body: ['ad_ryogo'] },
   },
   /* 余白 — warm paper and ink, Mincho, wide margins; hairlines and one small vermilion disc. Slow pans. */
   stYohaku: {
     name: '余白', en: 'Margin', desc: '生成りの紙に墨の明朝。小さな字と大きな余白から始まり、山場だけ画面いっぱいの明朝が流れ、裂ける', moods: ['calm', 'emotional', 'editorial'],
     schemes: [scheme('#EEEAE1', '#1B1A18', '#B8402A'), scheme('#1B1C1E', '#ECE7DC', '#C8A45A'), scheme('#D9D4C7', '#1B1A18', '#B8402A')],
-    fonts: { display: ['shippori'], serif: ['mincho_bold'], body: ['mincho'], mono: ['mono'] },
+    fonts: { display: ['shipm_xb'], serif: ['shipm_xb'], body: ['shipm_med'], mono: ['mono'] },
     pool: pool(ALL()), oneCut: 1,
     stage: { kinds: { stWhisper: 1.5, stStream: 1, stPush: 0.6, stHit: 0.6, stWall: 0.3, stSlice: 0.7, stZoom: 0.6, stStack: 0.25, stMono: 0.6, stColumn: 1.3, stCross: 0.8, stSplit: 0.2 },  travel: { pan: 1.4, dolly: 0.3 }, dirs: [[-1, 0], [-1, 0], [0, 1], [-1, 0], [0, -1]], scales: [1, 1, 0.8, 1.2], enter: { lead: { track: 1, focus: 0.7, drop: 1 }, sub: { track: 0.6, rise: 0.8, drop: 1 } },
       geo: { rule: 1, ring: 1, disc: 0.5, none: 0.8 }, ghost: 'dim', push: 0.05, pulse: 0, arc: 0.06, moveDur: 1.35, grain: 0.75, idle: 'ring', blur: 0.8 },
@@ -887,7 +887,7 @@ const STYLES = {
   stField: {
     name: '色面', en: 'Colour Field', desc: 'コバルト・黄・白の色面。歌詞が壁になって画面を埋め、長い一行の上をカメラが走る。色の境界が画面を横切る', moods: ['graphic', 'pop', 'editorial'],
     schemes: [scheme('#1F3BFF', '#F6F5F1', '#FFE500'), scheme('#FFE500', '#0C0C0E', '#1F3BFF'), scheme('#F6F5F1', '#0C0C0E', '#1F3BFF'), scheme('#0C0C0E', '#F6F5F1', '#FFE500')],
-    fonts: { display: ['zenkaku'], serif: ['mincho_black'], body: ['gothic_bold'], mono: ['mono'] },
+    fonts: { display: ['zenkaku'], serif: ['shipm_xb'], body: ['zenkaku_b'], mono: ['mono'] },
     pool: pool(ALL()), oneCut: 0.9,
     stage: { kinds: { stWhisper: 0.8, stStream: 1.2, stPush: 1, stHit: 1, stWall: 1.4, stSlice: 0.8, stZoom: 0.7, stStack: 0.25, stMono: 0.7, stColumn: 0, stCross: 0.4, stSplit: 1.2 },  travel: { pan: 1.5, turn: 0.3 }, dirs: [[1, 0], [0, 1], [-1, 0], [0, 1]], scales: [1], enter: { lead: { rise: 1, slide: 0.8 }, sub: { slide: 1, rise: 0.6 } },
       geo: { plate: 1.3, disc: 0.6, none: 0.6 }, ghost: true, push: 0.03, pulse: 0.008, arc: 0.1, grain: 0.35, idle: 'ring', blur: 1 },
@@ -897,7 +897,7 @@ const STYLES = {
   stDepth: {
     name: '奥行', en: 'Depth', desc: '黒に近い地、冷たい白、ミントの一点。カメラは前にだけ進み、山場では一字ずつがカメラを突き抜ける', moods: ['emotional', 'glitch', 'graphic', 'calm'],
     schemes: [scheme('#07080B', '#F2F3F1', '#5FE3C4'), scheme('#101319', '#F2F3F1', '#5FE3C4'), scheme('#E8EAEC', '#0A0C10', '#0E8F76')],
-    fonts: { display: ['gothic_bold'], serif: ['mincho_bold'], body: ['gothic_light'], mono: ['mono'] },
+    fonts: { display: ['murecho_b'], serif: ['shipm_xb'], body: ['murecho_xl'], mono: ['mono'] },
     pool: pool(ALL()), oneCut: 0.9,
     stage: { kinds: { stWhisper: 1.2, stStream: 1, stPush: 0.6, stHit: 0.7, stWall: 0.5, stSlice: 0.9, stZoom: 1.4, stStack: 0.25, stMono: 1, stColumn: 0.5, stCross: 0.4, stSplit: 0.3 },  travel: { dolly: 1 }, tilts: [0, 0, -6, 6, 0, 90], dollyScale: 0.14, enter: { lead: { focus: 1.2, track: 0.6 }, sub: { focus: 1, rise: 0.5 } },
       geo: { rule: 0.7, ring: 1.2, disc: 0.7, none: 0.7 }, ghost: 'dim', push: 0.07, pulse: 0.006, moveDur: 1.25, grain: 0.6, vignette: 0.22, idle: 'ring', blur: 1 },
@@ -907,7 +907,7 @@ const STYLES = {
   stPulse: {
     name: '明滅', en: 'Pulse', desc: '黒・白・蛍光の黄緑。拍ごとに画面より大きい一語、地の色ごと切り替わる。静かな行との落差が大きい', moods: ['pop', 'glitch', 'graphic'],
     schemes: [scheme('#0A0A0A', '#F5F5F0', '#D4FF3A'), scheme('#D4FF3A', '#0A0A0A', '#0A0A0A'), scheme('#F5F5F0', '#0A0A0A', '#0A0A0A')],
-    fonts: { display: ['dela'], serif: ['mincho_black'], body: ['gothic_black'], mono: ['mono'] },
+    fonts: { display: ['dela'], serif: ['shipm_xb'], body: ['mplus_xb'], mono: ['mono'] },
     pool: pool(ALL()), oneCut: 0.9,
     stage: { kinds: { stWhisper: 0.7, stStream: 0.5, stPush: 0.8, stHit: 1.5, stWall: 1.1, stSlice: 1.1, stZoom: 1.2, stStack: 0.25, stMono: 0.8, stColumn: 0, stCross: 0, stSplit: 0.8 },  travel: { cut: 1.4, pan: 0.5, turn: 0.4 }, dirs: [[0, 1], [1, 0], [0, -1], [-1, 0]], scales: [1, 1.4, 0.7], enter: { lead: { slam: 1 }, sub: { slide: 1 } },
       geo: { disc: 1.4, plate: 0.6, none: 0.8 }, ghost: 'lead', push: 0.02, pulse: 0.02, arc: 0.2, moveDur: 0.8, grain: 0.4, idle: 'disc', blur: 1 },

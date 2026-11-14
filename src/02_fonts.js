@@ -31,6 +31,15 @@ J.FONTS = {
   kiwi:          { label: 'Kiwi Maru',                 family: '"Kiwi Maru"', weight: 500, kind: 'round', fb: JP_SANS_FB, gf: 'Kiwi+Maru:wght@500' },
   klee:          { label: 'Klee One',                  family: '"Klee One"', weight: 600, kind: 'hand', fb: JP_SERIF_FB, gf: 'Klee+One:wght@600' },
   shippori:      { label: 'Shippori Mincho B1',        family: '"Shippori Mincho B1"', weight: 800, kind: 'mincho', fb: JP_SERIF_FB, gf: 'Shippori+Mincho+B1:wght@800' },
+  // ディレクション (src/11z5_stage.js): one family per preset, so the large and the small type belong together
+  mplus_black:   { label: 'M PLUS 1 Black',            family: '"M PLUS 1"', weight: 900, kind: 'gothic', fb: JP_SANS_FB, gf: 'M+PLUS+1:wght@500;800;900' },
+  mplus_xb:      { label: 'M PLUS 1 ExtraBold',        family: '"M PLUS 1"', weight: 800, kind: 'gothic', fb: JP_SANS_FB, gf: 'M+PLUS+1:wght@500;800;900' },
+  mplus_med:     { label: 'M PLUS 1 Medium',           family: '"M PLUS 1"', weight: 500, kind: 'gothic', fb: JP_SANS_FB, gf: 'M+PLUS+1:wght@500;800;900' },
+  shipm_xb:      { label: 'Shippori Mincho ExtraBold', family: '"Shippori Mincho"', weight: 800, kind: 'mincho', fb: JP_SERIF_FB, gf: 'Shippori+Mincho:wght@500;800' },
+  shipm_med:     { label: 'Shippori Mincho Medium',    family: '"Shippori Mincho"', weight: 500, kind: 'mincho', fb: JP_SERIF_FB, gf: 'Shippori+Mincho:wght@500;800' },
+  zenkaku_b:     { label: 'Zen Kaku Gothic New Bold',  family: '"Zen Kaku Gothic New"', weight: 700, kind: 'gothic', fb: JP_SANS_FB, gf: 'Zen+Kaku+Gothic+New:wght@700;900' },
+  murecho_b:     { label: 'Murecho Bold',              family: '"Murecho"', weight: 700, kind: 'gothic', fb: JP_SANS_FB, gf: 'Murecho:wght@200;700' },
+  murecho_xl:    { label: 'Murecho ExtraLight',        family: '"Murecho"', weight: 200, kind: 'gothic', fb: JP_SANS_FB, gf: 'Murecho:wght@200;700' },
   sansui:        { label: 'IBM Plex Sans JP',          family: '"IBM Plex Sans JP"', weight: 500, kind: 'gothic', fb: JP_SANS_FB, gf: 'IBM+Plex+Sans+JP:wght@400;500;700' },
 };
 J.GOOGLE_FONTS_URL = 'https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Noto+Sans+JP:wght@300;500;700;900&family=Noto+Serif+JP:wght@300;500;700&family=Zen+Kaku+Gothic+New:wght@900&family=Zen+Old+Mincho:wght@900&family=Kaisei+Tokumin:wght@800&family=M+PLUS+Rounded+1c:wght@800&family=Mochiy+Pop+One&family=DotGothic16&family=Yuji+Syuku&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap';

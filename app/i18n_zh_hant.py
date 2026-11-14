@@ -477,4 +477,4 @@ TITLE = 'JIZURA — 動態歌詞影片製作工具'
 DESCRIPTION = '在瀏覽器中把歌詞做成動態歌詞影片，並匯出 MP4。'
 
 # names of the ディレクション layouts (src/11z5_stage.js); other editions keep the English names
-PARTS = {'layout': {'stStack': '疊排', 'stMono': '單詞', 'stColumn': '直欄', 'stWhisper': '低語', 'stStream': '流動', 'stPush': '推疊', 'stHit': '重擊', 'stWall': '字牆', 'stSlice': '裂切', 'stZoom': '穿越'}}
+PARTS = {'layout': {'stStack': '疊排', 'stMono': '單詞', 'stColumn': '直欄', 'stWhisper': '低語', 'stStream': '流動', 'stPush': '推疊', 'stHit': '重擊', 'stWall': '字牆', 'stSlice': '裂切', 'stZoom': '穿越', 'stCross': '交叉', 'stSplit': '分割'}}

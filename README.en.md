@@ -131,7 +131,7 @@ The first group on the Style tab, **Directed** (badge D), holds five presets (`s
 
 **The director.** Before anything is drawn it gives every lyric cut a level, 0–3 (quiet, telling, strong, peak), from the loudness of the song at that point (when a song is loaded), lines that come back (a chorus), impact / emphasis marks, how dense the line is, and where it stands (the first line, the line after a pause). The scene is drawn from the level (each style weights the scenes) and is never the same twice running. A jump of two levels up is prepared by a moment of empty frame and lands as a hard cut. Layouts picked by hand for a line or a cut are kept.
 
-**The ten scenes** (layouts that only these styles use):
+**The twelve scenes** (layouts that only these styles use):
 
 - **Whisper** (level 0) — tiny type in a large empty frame, letters appearing one at a time, the spacing slowly opening.
 - **Stream** (1) — the line as one long row larger than the frame; the frame travels along it and each word fills as it is sung.
@@ -140,7 +140,11 @@ The first group on the Style tab, **Directed** (badge D), holds five presets (`s
 - **Wall** (2) — the line repeated in rows that fill the frame and run against each other; one row lit, moving on the beat.
 - **Slice** (2) — the line cut in horizontal bands that slide in from both sides and are knocked loose again on the beat.
 - **Zoom-through** (3) — the glyphs of the key word fly through the camera one after another, then the whole line slams in.
+- **Cross** (1–2) — a horizontal subject with the rest hung below it in vertical columns; for medium-length Japanese lines that tell.
+- **Split** (1–2) — the frame divided into two colour fields, the line split at the edge between them; telling to strong lines.
 - **Stack, One word, Column** — plain compositions used here and there at levels 0–2.
+
+The composed pages (Stack, Column, Cross, Split) are limited: never more than two in a row, at most about 25% of a song's lyric cuts, never at level 3, and never on the cut right after a jump of two levels or more. Margin and Depth also use hairline rules as geometry.
 
 **Green screen.** On green the type is always white. The style's colour is used only as a third colour — plates, discs and the lit band of a wall — and only on that colour can the type be something other than white (dark, where white would not read, as on yellow or gold). Yellow-greens, greens and mints are moved towards yellow or cyan so the keyer leaves them. The full-frame colour flips of Hit and Zoom-through are not drawn on green or in transparent PNG export. The black background is white-to-grey only.
 

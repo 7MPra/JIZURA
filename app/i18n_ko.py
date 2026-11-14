@@ -466,4 +466,4 @@ TITLE = 'JIZURA — 가사 모션 영상 메이커'
 DESCRIPTION = '브라우저에서 가사를 움직이는 가사 영상으로 만들고 MP4로 내보내세요.'
 
 # names of the ディレクション layouts (src/11z5_stage.js); other editions keep the English names
-PARTS = {'layout': {'stStack': '쌓기', 'stMono': '한 단어', 'stColumn': '세로 열', 'stWhisper': '속삭임', 'stStream': '흐름', 'stPush': '밀어 쌓기', 'stHit': '타격', 'stWall': '벽', 'stSlice': '가르기', 'stZoom': '관통'}}
+PARTS = {'layout': {'stStack': '쌓기', 'stMono': '한 단어', 'stColumn': '세로 열', 'stWhisper': '속삭임', 'stStream': '흐름', 'stPush': '밀어 쌓기', 'stHit': '타격', 'stWall': '벽', 'stSlice': '가르기', 'stZoom': '관통', 'stCross': '교차', 'stSplit': '분할'}}

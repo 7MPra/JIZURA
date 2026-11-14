@@ -196,8 +196,8 @@ position, then reassigns `cut.layout` of every cut that was not set by hand, dra
 the same twice running; a two-level jump up is prepared by an empty moment and lands as a hard cut. The other planner picks
 (`enter` / `exit` / `cam` / `treat` / `decor` / `bg` / `trans`) are not used.
 The layouts of the set `stage` are `poolOnly` *scenes*, each a different grammar rather than another arrangement of the same page:
-`stWhisper` (0), `stStream`, `stPush`, `stStack`, `stColumn` (1), `stMono`, `stHit`, `stWall`, `stSlice` (2), `stZoom` (3) — the level is in
-the `LEVELS` table next to the director. Their `plan()` returns a few parameters; `render()` only serves thumbnails, a line set by hand in
+`stWhisper` (0), `stStream`, `stPush`, `stStack`, `stColumn`, `stCross`, `stSplit` (1), `stMono`, `stHit`, `stWall`, `stSlice` (2), `stZoom` (3) — the level is in
+the `LEVELS` table next to the director. The composed pages (`stStack stColumn stCross stSplit`) are limited by the director: at most 2 in a row, about 25% of a song's lyric cuts, never at level 3 or right after a jump of two levels or more. Hairline rules are geometry of the Margin and Depth presets only. Their `plan()` returns a few parameters; `render()` only serves thumbnails, a line set by hand in
 another style, and 中央を空ける (classic renderer). A stage style's `pool.layout` names all of them, and the planner keeps all of them
 enabled whatever the mood switched off. Declare `ae:` on each layout as usual (the After Effects export uses it).
 The set has no switch (`J.SETS.stage` is added after `J.SET_ORDER` is built); the styles are listed in `J.STAGE_STYLES`, shown as their own

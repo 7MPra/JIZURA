@@ -477,4 +477,4 @@ EXPORT = {
 }
 
 # names of the ディレクション layouts (src/11z5_stage.js); other editions keep the English names
-PARTS = {'layout': {'stStack': '叠排', 'stMono': '单词', 'stColumn': '竖栏', 'stWhisper': '低语', 'stStream': '流动', 'stPush': '推叠', 'stHit': '重击', 'stWall': '字墙', 'stSlice': '裂切', 'stZoom': '穿越'}}
+PARTS = {'layout': {'stStack': '叠排', 'stMono': '单词', 'stColumn': '竖栏', 'stWhisper': '低语', 'stStream': '流动', 'stPush': '推叠', 'stHit': '重击', 'stWall': '字墙', 'stSlice': '裂切', 'stZoom': '穿越', 'stCross': '交叉', 'stSplit': '分割'}}

@@ -118,9 +118,11 @@ J.omakase = (project, rnd = Math.random, themeId = null) => {
   const fonts = {};
   // (Adobe Fonts faces only while the kit is active — elsewhere they fall back to a system face, English in a Times-like serif)
   const faces = Object.entries(J.FONTS).filter(([k, f]) => !f.user && !['mono', 'pixel'].includes(f.kind) && !(f.kind === 'adobe' && !J.adobeReady) && (!J.randomOk || J.randomOk(project, 'font', k)));
-  if (rnd() < 0.4) fonts.display = pick(faces.filter(([k, f]) => f.weight >= 700 || f.kind === 'display' || f.kind === 'round'))[0];
-  if (rnd() < 0.3) fonts.serif = pick(faces.filter(([k, f]) => f.kind === 'mincho' || f.kind === 'brush'))[0];
-  if (mood === 'chaos' && rnd() < 0.2 && !J.STYLES[style].textOnly) fonts.display = 'dot';   // (a pixel face next to the Mincho looked cheap in text-only)
+  // ディレクション: each preset is set in its own family — the faces stay as designed
+  const own = !!(J.STYLES[style] && J.STYLES[style].stage);
+  if (!own && rnd() < 0.4) fonts.display = pick(faces.filter(([k, f]) => f.weight >= 700 || f.kind === 'display' || f.kind === 'round'))[0];
+  if (!own && rnd() < 0.3) fonts.serif = pick(faces.filter(([k, f]) => f.kind === 'mincho' || f.kind === 'brush'))[0];
+  if (!own && mood === 'chaos' && rnd() < 0.2 && !J.STYLES[style].textOnly) fonts.display = 'dot';   // (a pixel face next to the Mincho looked cheap in text-only)
   // colours: style palette most of the time, a fresh accent / ghost pair otherwise
   const colors = Object.assign({}, project.colors, { enabled: false, accentOn: false });
   // (text-only styles keep their own palette: their colours are designed as a set, and a random accent on them —
